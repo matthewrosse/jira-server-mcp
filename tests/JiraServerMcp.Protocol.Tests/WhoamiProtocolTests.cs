@@ -118,6 +118,51 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
             () => CallWhoamiAsync(cancellation.Token).AsTask());
     }
 
+    [Fact]
+    public async Task A_rejected_token_is_reported_as_a_rejected_token()
+    {
+        StubMyself(Response.Create().WithStatusCode(401)
+            .WithHeader("Content-Type", "application/json")
+            .WithBody("""{"errorMessages":["You do not have permission."],"errors":{}}"""));
+
+        var result = await CallWhoamiAsync(TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+
+        var text = result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
+
+        text.ShouldContain("401");
+        text.ShouldContain("personal access token");
+    }
+
+    [Fact]
+    public async Task A_wrong_base_url_is_reported_differently_from_a_rejected_token()
+    {
+        // No stub, so WireMock answers 404 the way a Jira behind a context path would.
+        var result = await CallWhoamiAsync(TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+
+        var text = result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
+
+        text.ShouldContain("404");
+        text.ShouldContain("base URL");
+        text.ShouldNotContain("personal access token");
+    }
+
+    [Fact]
+    public async Task An_unreachable_jira_is_reported_as_unreachable()
+    {
+        _jira.Stop();
+
+        var result = await CallWhoamiAsync(TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+
+        result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem()
+            .Text.ShouldContain("Could not reach Jira");
+    }
+
     private ValueTask<CallToolResult> CallWhoamiAsync(CancellationToken cancellationToken) =>
         _client.CallToolAsync("jira_whoami", cancellationToken: cancellationToken);
 

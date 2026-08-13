@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net;
+using JiraServerMcp.Jira.Errors;
 using Microsoft.Extensions.DependencyInjection;
 using WireMock;
 using WireMock.RequestBuilders;
@@ -99,10 +101,40 @@ public sealed class JiraClientTests : IDisposable
 
         var client = CreateClient();
 
-        await Should.ThrowAsync<HttpRequestException>(
+        await Should.ThrowAsync<JiraApiException>(
             () => client.GetMyselfAsync(TestContext.Current.CancellationToken));
 
         _jira.LogEntries.Select(entry => entry?.RequestMessage?.Path).ShouldNotContain("/moved");
+    }
+
+    [Fact]
+    public async Task A_rejected_token_carries_the_status_code_and_jiras_own_message()
+    {
+        StubMyself(Response.Create().WithStatusCode(401)
+            .WithHeader("Content-Type", "application/json")
+            .WithBody("""{"errorMessages":["You do not have permission."],"errors":{}}"""));
+
+        var client = CreateClient();
+
+        var exception = await Should.ThrowAsync<JiraApiException>(
+            () => client.GetMyselfAsync(TestContext.Current.CancellationToken));
+
+        exception.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        exception.ErrorMessages.ShouldContain("You do not have permission.");
+    }
+
+    [Fact]
+    public async Task A_failure_with_no_json_body_still_carries_the_status_code()
+    {
+        StubMyself(Response.Create().WithStatusCode(503).WithBody("<html>down for maintenance</html>"));
+
+        var client = CreateClient();
+
+        var exception = await Should.ThrowAsync<JiraApiException>(
+            () => client.GetMyselfAsync(TestContext.Current.CancellationToken));
+
+        exception.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        exception.ErrorMessages.ShouldBeEmpty();
     }
 
     [Fact]
