@@ -10,7 +10,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded pull-request runs are worth cancelling; a push to main is not, or the commit is
+  # left with no build result at all.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   DOTNET_NOLOGO: true
@@ -62,6 +64,10 @@ jobs:
           print("| --- | --- | --- |")
           for report in sorted(glob.glob("TestResults/*.cobertura.xml")):
               root = ET.parse(report).getroot()
+              # An empty report carries line-rate="1", which would read as full coverage.
+              if not int(root.get("lines-valid", 0)):
+                  print(f"| {report} | n/a | n/a |")
+                  continue
               lines = float(root.get("line-rate", 0)) * 100
               branches = float(root.get("branch-rate", 0)) * 100
               print(f"| {report} | {lines:.1f}% | {branches:.1f}% |")
