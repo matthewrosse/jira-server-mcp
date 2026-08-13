@@ -5,6 +5,12 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.11" />
+    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+  </ItemGroup>
+
   <!-- Test stack: xUnit v3 on Microsoft Testing Platform. FluentAssertions is deliberately
        excluded — v8 is commercially licensed per developer per year. -->
   <ItemGroup>
