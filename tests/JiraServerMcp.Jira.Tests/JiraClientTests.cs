@@ -30,8 +30,19 @@ public sealed class JiraClientTests : IDisposable
         """;
 
     private readonly WireMockServer _jira = WireMockServer.Start();
+    private readonly List<ServiceProvider> _providers = [];
 
-    public void Dispose() => _jira.Stop();
+    public void Dispose()
+    {
+        // Each provider owns an IHttpClientFactory with a handler-expiry timer and a socket
+        // handler, none of which the WireMock shutdown touches.
+        foreach (var provider in _providers)
+        {
+            provider.Dispose();
+        }
+
+        _jira.Stop();
+    }
 
     [Fact]
     public async Task Myself_carries_display_name_username_email_and_active_flag()
@@ -112,23 +123,42 @@ public sealed class JiraClientTests : IDisposable
         stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public async Task A_context_path_in_the_base_url_is_kept()
+    {
+        _jira.Given(Request.Create().WithPath("/jira/rest/api/2/myself").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(MyselfPayload));
+
+        var client = CreateClient(new Uri(_jira.Url + "/jira", UriKind.Absolute));
+
+        await client.GetMyselfAsync(TestContext.Current.CancellationToken);
+
+        SingleRequest().Path.ShouldBe("/jira/rest/api/2/myself");
+    }
+
     private IRequestMessage SingleRequest() =>
         _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
 
     private void StubMyself(IResponseBuilder response) =>
         _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet()).RespondWith(response);
 
-    private JiraClient CreateClient()
+    private JiraClient CreateClient(Uri? baseUrl = null)
     {
         var services = new ServiceCollection();
 
         services.AddJiraClient();
         services.Configure<JiraClientOptions>(options =>
         {
-            options.BaseUrl = new Uri(_jira.Url!, UriKind.Absolute);
+            options.BaseUrl = baseUrl ?? new Uri(_jira.Url!, UriKind.Absolute);
             options.PersonalAccessToken = Token;
         });
 
-        return services.BuildServiceProvider().GetRequiredService<JiraClient>();
+        var provider = services.BuildServiceProvider();
+
+        _providers.Add(provider);
+
+        return provider.GetRequiredService<JiraClient>();
     }
 }

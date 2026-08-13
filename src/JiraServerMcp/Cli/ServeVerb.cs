@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 
 namespace JiraServerMcp.Cli;
@@ -14,7 +15,7 @@ internal static class ServeVerb
     private const string BaseUrlKey = "JIRA_SERVER_MCP_URL";
     private const string TokenKey = "JIRA_SERVER_MCP_TOKEN";
 
-    public static async Task RunAsync(CancellationToken cancellationToken)
+    public static async Task<int> RunAsync(CancellationToken cancellationToken)
     {
         var builder = Host.CreateApplicationBuilder();
 
@@ -28,6 +29,9 @@ internal static class ServeVerb
                 options => options.BaseUrl is not null,
                 $"{BaseUrlKey} must hold the absolute base URL of your Jira Server.")
             .Validate(
+                options => options.BaseUrl is null || options.BaseUrl.Scheme is "http" or "https",
+                $"{BaseUrlKey} must be an http or https URL.")
+            .Validate(
                 options => !string.IsNullOrWhiteSpace(options.PersonalAccessToken),
                 $"{TokenKey} must hold a personal access token.")
             .ValidateOnStart();
@@ -39,7 +43,23 @@ internal static class ServeVerb
             .WithStdioServerTransport()
             .WithTools<WhoamiTool>();
 
-        await builder.Build().RunAsync(cancellationToken);
+        try
+        {
+            await builder.Build().RunAsync(cancellationToken);
+        }
+        catch (OptionsValidationException exception)
+        {
+            // A misconfigured server is the user's problem to fix, so it gets the messages
+            // rather than a stack trace. The MCP client only ever sees the exit code.
+            foreach (var failure in exception.Failures)
+            {
+                await Console.Error.WriteLineAsync(failure);
+            }
+
+            return 2;
+        }
+
+        return 0;
     }
 
     private static void BindEnvironment(JiraClientOptions options, IConfiguration configuration)

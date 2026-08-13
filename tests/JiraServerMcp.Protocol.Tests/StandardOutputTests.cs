@@ -47,6 +47,17 @@ public sealed class StandardOutputTests
 
             lines.Count.ShouldBe(2);
 
+            // Shutdown is part of the guarantee too, so the rest of the stream is read to the
+            // end rather than the process being killed the moment the responses arrive.
+            process.StandardInput.Close();
+            await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+
+            var remainder = await process.StandardOutput.ReadToEndAsync(
+                TestContext.Current.CancellationToken);
+
+            lines.AddRange(remainder.Split('\n', StringSplitOptions.RemoveEmptyEntries
+                                                 | StringSplitOptions.TrimEntries));
+
             foreach (var line in lines)
             {
                 var message = JsonDocument.Parse(line).RootElement;
@@ -56,7 +67,10 @@ public sealed class StandardOutputTests
         }
         finally
         {
-            process.Kill(entireProcessTree: true);
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
         }
     }
 

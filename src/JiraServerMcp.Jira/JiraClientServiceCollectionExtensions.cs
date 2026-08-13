@@ -31,9 +31,11 @@ public static class JiraClientServiceCollectionExtensions
         var baseUrl = provider.GetRequiredService<IOptions<JiraClientOptions>>().Value.BaseUrl
             ?? throw new InvalidOperationException("No Jira base URL is configured.");
 
-        // Relative request URIs only combine with a base address that ends in a slash.
+        // Relative request URIs only combine with a base address whose path ends in a slash.
+        // The slash goes on the path through UriBuilder: appending it to the whole URI would
+        // land it in a query string or fragment instead.
         client.BaseAddress = baseUrl.AbsolutePath.EndsWith('/')
             ? baseUrl
-            : new Uri(baseUrl.AbsoluteUri + "/", UriKind.Absolute);
+            : new UriBuilder(baseUrl) { Path = baseUrl.AbsolutePath + "/" }.Uri;
     }
 }

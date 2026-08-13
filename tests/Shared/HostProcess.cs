@@ -20,10 +20,12 @@ internal static class HostProcess
 
     public static async Task<HostProcessResult> RunAsync(
         string[] verb,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var startInfo = new ProcessStartInfo(Command)
         {
+            RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
@@ -33,18 +35,39 @@ internal static class HostProcess
             startInfo.ArgumentList.Add(argument);
         }
 
+        // The host must never see configuration leaking in from whatever ran the tests.
+        startInfo.Environment.Remove("JIRA_SERVER_MCP_URL");
+        startInfo.Environment.Remove("JIRA_SERVER_MCP_TOKEN");
+
+        foreach (var (key, value) in environment ?? new Dictionary<string, string>())
+        {
+            startInfo.Environment[key] = value;
+        }
+
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start " + Command);
 
-        var standardOutput = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var standardError = process.StandardError.ReadToEndAsync(cancellationToken);
+        try
+        {
+            // Nothing is being served, so the host is told at once that no more input is coming.
+            process.StandardInput.Close();
 
-        await process.WaitForExitAsync(cancellationToken);
+            var standardOutput = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var standardError = process.StandardError.ReadToEndAsync(cancellationToken);
 
-        return new HostProcessResult(
-            process.ExitCode,
-            await standardOutput,
-            await standardError);
+            await process.WaitForExitAsync(cancellationToken);
+
+            return new HostProcessResult(
+                process.ExitCode,
+                await standardOutput,
+                await standardError);
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposing a Process does not stop it, and an orphan here outlives the test run.
+            process.Kill(entireProcessTree: true);
+            throw;
+        }
     }
 }
 

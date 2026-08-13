@@ -17,8 +17,12 @@ internal static class VerbDispatcher
         switch (args)
         {
             case ["serve"]:
-                await ServeVerb.RunAsync(CancellationToken.None);
-                return 0;
+                return await ServeVerb.RunAsync(CancellationToken.None);
+
+            case ["serve", ..]:
+                await Console.Error.WriteLineAsync("The serve verb takes no arguments.");
+                await Console.Error.WriteLineAsync(Usage);
+                return 2;
 
             case []:
                 await Console.Error.WriteLineAsync(Usage);
