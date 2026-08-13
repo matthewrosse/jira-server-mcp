@@ -1,0 +1,27 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!-- Test stack: xUnit v3 on Microsoft Testing Platform. FluentAssertions is deliberately
+       excluded — v8 is commercially licensed per developer per year. -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.10.0" />
+    <PackageVersion Include="NSubstitute" Version="6.2.0" />
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <PackageVersion Include="Testcontainers" Version="4.13.0" />
+    <PackageVersion Include="WireMock.Net" Version="2.14.0" />
+    <!-- xunit.v3.mtp-v2 rather than the xunit.v3 metapackage: the latter pins Microsoft Testing
+         Platform v1, which cannot load alongside the code coverage extension's platform v2. -->
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
+  </ItemGroup>
+
+  <!-- Transitive pin: Testcontainers 4.13.0 brings SSH.NET 2025.1.0, which carries
+       GHSA-q939-rpr3-3284 (arbitrary file write via SCP). Patched in 2026.0.0. -->
+  <ItemGroup>
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
+  </ItemGroup>
+
+</Project>

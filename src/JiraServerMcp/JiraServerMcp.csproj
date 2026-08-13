@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>jira-server-mcp</AssemblyName>
+    <RootNamespace>JiraServerMcp</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../JiraServerMcp.Jira/JiraServerMcp.Jira.csproj" />
+  </ItemGroup>
+
+</Project>

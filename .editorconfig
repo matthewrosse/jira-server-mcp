@@ -1,0 +1,75 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml,csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# Namespaces and usings
+csharp_style_namespace_declarations = file_scoped:error
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_using_directive_placement = outside_namespace:error
+
+# var
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# Expression-level preferences
+csharp_prefer_braces = true:error
+csharp_style_prefer_primary_constructors = true:suggestion
+dotnet_style_object_initializer = true:suggestion
+dotnet_style_collection_initializer = true:suggestion
+dotnet_style_prefer_conditional_expression_over_assignment = true:suggestion
+dotnet_style_null_propagation = true:suggestion
+dotnet_style_coalesce_expression = true:suggestion
+
+# Modifiers and readonly
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:error
+dotnet_style_readonly_field = true:warning
+csharp_prefer_static_local_function = true:suggestion
+
+# Naming: interfaces prefixed with I, types and members PascalCase
+dotnet_naming_rule.interfaces_start_with_i.severity = error
+dotnet_naming_rule.interfaces_start_with_i.symbols = interface_symbols
+dotnet_naming_rule.interfaces_start_with_i.style = i_prefixed_pascal_case
+dotnet_naming_symbols.interface_symbols.applicable_kinds = interface
+dotnet_naming_style.i_prefixed_pascal_case.required_prefix = I
+dotnet_naming_style.i_prefixed_pascal_case.capitalization = pascal_case
+
+dotnet_naming_rule.types_and_members_are_pascal_case.severity = warning
+dotnet_naming_rule.types_and_members_are_pascal_case.symbols = type_and_member_symbols
+dotnet_naming_rule.types_and_members_are_pascal_case.style = pascal_case
+dotnet_naming_symbols.type_and_member_symbols.applicable_kinds = class,struct,enum,property,method,event,delegate
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+dotnet_naming_rule.private_fields_are_camel_case_with_underscore.severity = warning
+dotnet_naming_rule.private_fields_are_camel_case_with_underscore.symbols = private_field_symbols
+dotnet_naming_rule.private_fields_are_camel_case_with_underscore.style = underscore_camel_case
+dotnet_naming_symbols.private_field_symbols.applicable_kinds = field
+dotnet_naming_symbols.private_field_symbols.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+
+# Analyzer severities
+dotnet_diagnostic.CA2007.severity = none          # ConfigureAwait: not needed, no sync context here
+dotnet_diagnostic.CA1848.severity = none          # LoggerMessage delegates: not worth it in a CLI
+dotnet_diagnostic.CA1031.severity = warning       # do not catch general exception types
+dotnet_diagnostic.CA2016.severity = error         # forward the CancellationToken
+dotnet_diagnostic.CA1062.severity = none          # nullable reference types cover this
+dotnet_diagnostic.IDE0005.severity = warning      # unnecessary using directive
+dotnet_diagnostic.IDE0055.severity = warning      # formatting
+
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none          # underscores in test method names
