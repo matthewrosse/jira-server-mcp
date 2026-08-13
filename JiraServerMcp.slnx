@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/JiraServerMcp.Jira/JiraServerMcp.Jira.csproj" />
+    <Project Path="src/JiraServerMcp/JiraServerMcp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/JiraServerMcp.Jira.Tests/JiraServerMcp.Jira.Tests.csproj" />
+    <Project Path="tests/JiraServerMcp.JiraIntegration.Tests/JiraServerMcp.JiraIntegration.Tests.csproj" />
+    <Project Path="tests/JiraServerMcp.Protocol.Tests/JiraServerMcp.Protocol.Tests.csproj" />
+    <Project Path="tests/JiraServerMcp.Tests/JiraServerMcp.Tests.csproj" />
+  </Folder>
+</Solution>

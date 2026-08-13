@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ADR-0003: the Jira client references no MCP package, so its behaviour can be exercised
+       against an HTTP double alone. -->
+
+</Project>
