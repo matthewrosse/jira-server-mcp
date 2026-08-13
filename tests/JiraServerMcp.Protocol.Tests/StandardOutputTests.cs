@@ -1,0 +1,85 @@
+using System.Diagnostics;
+using System.Text.Json;
+
+namespace JiraServerMcp.Protocol.Tests;
+
+/// <summary>
+/// ADR-0002: standard output belongs to the protocol. The host is driven with raw JSON-RPC and
+/// logging turned all the way up, and every line it emits on standard output must still be a
+/// protocol message.
+/// </summary>
+public sealed class StandardOutputTests
+{
+    private const string Handshake = """
+        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"stdout-test","version":"1.0.0"}}}
+        {"jsonrpc":"2.0","method":"notifications/initialized"}
+        {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+        """;
+
+    [Fact]
+    public async Task Nothing_but_protocol_traffic_reaches_standard_output()
+    {
+        var startInfo = new ProcessStartInfo(HostProcess.Command)
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+
+        foreach (var argument in HostProcess.ArgumentsFor("serve"))
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        // Every logger at its loudest, so a log line landing on standard output would be seen.
+        startInfo.Environment["Logging__LogLevel__Default"] = "Trace";
+        startInfo.Environment["JIRA_SERVER_MCP_URL"] = "http://localhost:1/";
+        startInfo.Environment["JIRA_SERVER_MCP_TOKEN"] = "unused-by-this-test";
+
+        using var process = Process.Start(startInfo).ShouldNotBeNull();
+
+        try
+        {
+            await process.StandardInput.WriteAsync(Handshake.ReplaceLineEndings("\n") + "\n");
+            await process.StandardInput.FlushAsync(TestContext.Current.CancellationToken);
+
+            var lines = await ReadLinesAsync(process, expected: 2);
+
+            lines.Count.ShouldBe(2);
+
+            foreach (var line in lines)
+            {
+                var message = JsonDocument.Parse(line).RootElement;
+
+                message.GetProperty("jsonrpc").GetString().ShouldBe("2.0");
+            }
+        }
+        finally
+        {
+            process.Kill(entireProcessTree: true);
+        }
+    }
+
+    private static async Task<List<string>> ReadLinesAsync(Process process, int expected)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var lines = new List<string>();
+
+        while (lines.Count < expected)
+        {
+            var line = await process.StandardOutput.ReadLineAsync(timeout.Token);
+
+            if (line is null)
+            {
+                break;
+            }
+
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                lines.Add(line);
+            }
+        }
+
+        return lines;
+    }
+}
