@@ -72,3 +72,57 @@ jobs:
               branches = float(root.get("branch-rate", 0)) * 100
               print(f"| {report} | {lines:.1f}% | {branches:.1f}% |")
           PY
+
+  # The credential store is the one component whose behaviour is the operating system's rather
+  # than ours, so it is exercised against the genuine Keychain, Credential Manager and Secret
+  # Service rather than against a faked process runner alone.
+  credential-stores:
+    name: Credential stores on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # A hosted Linux runner has no desktop session and therefore no Secret Service. Without
+      # one, the genuine contract would skip and this leg would prove nothing.
+      - name: Provide a Secret Service
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnome-keyring libsecret-tools dbus-x11
+
+      - name: Build
+        run: dotnet build tests/JiraServerMcp.Tests -c Release -p:ContinuousIntegrationBuild=true
+
+      - name: Test
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # The keyring daemon is unlocked with an empty password and lives for the length of
+            # the bus session, which is the length of this command.
+            dbus-run-session -- bash -euo pipefail -c '
+              eval "$(echo -n "" | gnome-keyring-daemon --unlock --components=secrets --daemonize)"
+              export GNOME_KEYRING_CONTROL
+              dotnet test tests/JiraServerMcp.Tests --no-build -c Release \
+                -- --filter-class "*CredentialStore*" | tee credential-stores.log
+            '
+          else
+            dotnet test tests/JiraServerMcp.Tests --no-build -c Release \
+              -- --filter-class "*CredentialStore*" | tee credential-stores.log
+          fi
+
+      # A skip here means the native store was not reachable, which is exactly what this leg
+      # exists to rule out.
+      - name: The genuine backend was not skipped
+        run: |
+          grep -q "skipped: 0" credential-stores.log \
+            || { echo "The credential store contract skipped a test on $RUNNER_OS."; exit 1; }

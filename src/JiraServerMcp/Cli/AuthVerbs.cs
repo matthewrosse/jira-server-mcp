@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using JiraServerMcp.Credentials;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Errors;
@@ -191,34 +190,12 @@ internal static class AuthVerbs
         // produce, and on `serve` it carries the protocol itself (ADR-0002).
         await Console.Error.WriteAsync($"Personal access token for profile '{profileName}': ");
 
-        var token = new StringBuilder();
+        // intercept: true is what keeps the token off the screen.
+        var token = NoEchoPrompt.Read(() => Console.ReadKey(intercept: true));
 
-        while (true)
-        {
-            var key = Console.ReadKey(intercept: true);
+        await Console.Error.WriteLineAsync();
 
-            if (key.Key is ConsoleKey.Enter)
-            {
-                await Console.Error.WriteLineAsync();
-
-                return token.ToString().Trim();
-            }
-
-            if (key.Key is ConsoleKey.Backspace)
-            {
-                if (token.Length > 0)
-                {
-                    token.Length--;
-                }
-
-                continue;
-            }
-
-            if (!char.IsControl(key.KeyChar))
-            {
-                token.Append(key.KeyChar);
-            }
-        }
+        return token.Trim();
     }
 
     /// <summary>

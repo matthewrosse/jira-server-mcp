@@ -1,11 +1,12 @@
+using System.Text;
 using JiraServerMcp.Credentials;
 
 namespace JiraServerMcp.Tests;
 
 /// <summary>
-/// `security` as macOS implements it, down to the exit code for a missing item and the two
-/// prompts `add-generic-password -w` reads from standard input. The password never appears in
-/// an argument list, which the fake insists on rather than assumes.
+/// `security` as macOS implements it: the exit code for a missing item, and storing through
+/// `security -i`, which takes its command on standard input. The token never appears in an
+/// argument list, which the fake insists on rather than assumes.
 /// </summary>
 internal sealed class FakeSecurity : IProcessRunner
 {
@@ -38,7 +39,7 @@ internal sealed class FakeSecurity : IProcessRunner
             "find-generic-password" => _items.TryGetValue(Account(arguments), out var token)
                 ? new ProcessResult(true, 0, token + "\n", "")
                 : NotFound,
-            "add-generic-password" => Add(arguments, standardInput),
+            "-i" => Add(standardInput),
             "delete-generic-password" => _items.Remove(Account(arguments))
                 ? new ProcessResult(true, 0, "", "")
                 : NotFound,
@@ -52,21 +53,32 @@ internal sealed class FakeSecurity : IProcessRunner
         "",
         "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n");
 
-    private ProcessResult Add(IReadOnlyList<string> arguments, string? standardInput)
+    /// <summary>
+    /// The one command `security -i` is given: `add-generic-password -U -s "…" -a "…" -X &lt;hex&gt;`.
+    /// </summary>
+    private ProcessResult Add(string? standardInput)
     {
-        // -w last and empty is the whole point: a value here would put the token in an argument
-        // list every process on the machine can read.
-        arguments[^1].ShouldBe("-w");
+        var command = standardInput.ShouldNotBeNull().Trim();
 
-        var lines = (standardInput ?? "").Split('\n');
+        command.ShouldStartWith("add-generic-password ");
 
-        lines.Length.ShouldBeGreaterThanOrEqualTo(2);
-        lines[0].ShouldBe(lines[1]);
+        // The prompting form would hang against a controlling terminal, and the plain form would
+        // put the token in an argument list.
+        command.ShouldNotContain(" -w");
 
-        _items[Account(arguments)] = lines[0];
+        var words = command.Split(' ');
+
+        _items[Unquote(Word(words, "-a"))] =
+            Encoding.UTF8.GetString(Convert.FromHexString(Word(words, "-X")));
 
         return new ProcessResult(true, 0, "", "");
     }
+
+    private static string Word(string[] words, string flag) =>
+        words.SkipWhile(word => word != flag).Skip(1).FirstOrDefault().ShouldNotBeNull();
+
+    private static string Unquote(string value) =>
+        value.Trim('"').Replace("\\\"", "\"").Replace("\\\\", "\\");
 
     private static string Account(IReadOnlyList<string> arguments)
     {

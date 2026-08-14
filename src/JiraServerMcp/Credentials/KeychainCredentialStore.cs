@@ -1,11 +1,15 @@
+using System.Text;
 using JiraServerMcp.Configuration;
 
 namespace JiraServerMcp.Credentials;
 
 /// <summary>
-/// The macOS Keychain, through `security`. The token goes in on standard input — twice, because
-/// `add-generic-password -w` asks for it and then asks again to confirm — so it never reaches an
-/// argument list any other process on the machine can read.
+/// The macOS Keychain, through `security`. Storing goes through `security -i`, which takes its
+/// command on standard input: the token is neither an argument any other process can read nor a
+/// passphrase prompt. `-w` cannot be used for this — with a controlling terminal present it reads
+/// the passphrase from /dev/tty rather than from the pipe it was given, so an interactive
+/// `auth login` would hang at a second prompt [verified on macOS 15]. The token travels as hex
+/// under `-X`, which has no quoting rules to get wrong.
 /// </summary>
 internal sealed class KeychainCredentialStore(IProcessRunner processRunner) : INativeCredentialStore
 {
@@ -38,9 +42,10 @@ internal sealed class KeychainCredentialStore(IProcessRunner processRunner) : IN
         CancellationToken cancellationToken)
     {
         var result = await RunAsync(
+            ["-i"],
             // -U so a second login replaces the entry rather than failing on the duplicate.
-            ["add-generic-password", "-U", "-s", NativeCredentialStore.Service, "-a", profileName, "-w"],
-            $"{personalAccessToken}\n{personalAccessToken}\n",
+            $"add-generic-password -U -s {Quoted(NativeCredentialStore.Service)} "
+            + $"-a {Quoted(profileName)} -X {Convert.ToHexString(Encoding.UTF8.GetBytes(personalAccessToken))}\n",
             cancellationToken);
 
         Ensure(result, $"store the credential for profile '{profileName}'");
@@ -71,6 +76,13 @@ internal sealed class KeychainCredentialStore(IProcessRunner processRunner) : IN
 
         return result is { Started: true, ExitCode: 0 };
     }
+
+    /// <summary>
+    /// `security -i` groups with double quotes and escapes with a backslash inside them, which
+    /// is the whole of its quoting [verified on macOS 15].
+    /// </summary>
+    private static string Quoted(string value) =>
+        $"\"{value.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
 
     private Task<ProcessResult> RunAsync(
         string[] arguments,

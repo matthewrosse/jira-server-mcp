@@ -213,7 +213,9 @@ overridable with `--credential-store`:
 
 Shelling out to `security` and `secret-tool` follows Git Credential Manager's approach and buys
 two things: no native interop to build per runtime identifier, and a trivially fakeable seam in
-tests. The file store exists because headless Linux, WSL, and SSH sessions frequently have no
+tests. Windows is the exception, and has to be: `cmdkey` writes and deletes a generic credential
+but will never print one back, so a shelled-out Windows store could store a token and then fail to
+retrieve it. Hence P/Invoke there [verified — `cmdkey` has no read verb]. The file store exists because headless Linux, WSL, and SSH sessions frequently have no
 Secret Service, and hard-failing there would lock out real users; the README states plainly that
 it protects against casual reading and not against a compromised user account.
 
@@ -241,8 +243,9 @@ jira-server-mcp auth logout <name>                 # delete the credential, keep
 arguments are visible to every process on the machine and land in shell history. The escape hatch
 for containers and CI is `JIRA_SERVER_MCP__<PROFILE>__TOKEN`, documented as exactly that.
 
-`System.CommandLine` 2.0.11 [fact — stable on nuget.org] provides the verbs; `Spectre.Console`
-provides the no-echo prompt and table output.
+`System.CommandLine` 2.0.11 [fact — stable on nuget.org] provides the verbs. The no-echo prompt is
+`Console.ReadKey(intercept: true)` and about thirty lines rather than `Spectre.Console`: one prompt
+did not earn a dependency, and the output so far is plain lines, not tables.
 
 ---
 
