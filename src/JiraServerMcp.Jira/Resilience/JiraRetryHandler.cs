@@ -15,7 +15,7 @@ public sealed class JiraRetryHandler : DelegatingHandler
 {
     private const int Attempts = 3;
 
-    private static readonly TimeSpan FirstBackoff = TimeSpan.FromMilliseconds(250);
+    private const int FirstBackoffMilliseconds = 250;
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
@@ -72,7 +72,8 @@ public sealed class JiraRetryHandler : DelegatingHandler
             return asked;
         }
 
-        var backoff = FirstBackoff * Math.Pow(2, attempt - 1);
+        var backoff = TimeSpan.FromMilliseconds(
+            FirstBackoffMilliseconds * Math.Pow(2, attempt - 1));
 
         return backoff + backoff * Random.Shared.NextDouble() * 0.5;
     }
