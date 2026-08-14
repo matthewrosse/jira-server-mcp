@@ -33,7 +33,15 @@ internal static class HostProcess
             "jira-server-mcp.dll");
     }
 
-    public static string[] ArgumentsFor(params string[] verb) => [Assembly, .. verb];
+    /// <summary>
+    /// Every verb that reaches a credential store is pinned to the encrypted file. Left to
+    /// choose, a test run on a developer's macOS machine or a CI runner with a keyring would
+    /// read and write that machine's real credential store.
+    /// </summary>
+    public static string[] ArgumentsFor(params string[] verb) =>
+        verb is ["auth", ..] or ["serve", ..] or ["profile", "remove", ..]
+            ? [Assembly, .. verb, "--credential-store", "file"]
+            : [Assembly, .. verb];
 
     public static async Task<HostProcessResult> RunAsync(
         string[] verb,

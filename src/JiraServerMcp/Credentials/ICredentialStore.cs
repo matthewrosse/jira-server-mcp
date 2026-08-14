@@ -1,8 +1,9 @@
 namespace JiraServerMcp.Credentials;
 
 /// <summary>
-/// Where a profile's personal access token lives. One implementation exists so far — the
-/// encrypted file, which works everywhere including headless Linux and CI.
+/// Where a profile's personal access token lives: the operating system's own store where one is
+/// reachable, and otherwise the encrypted file, which works everywhere including headless Linux
+/// and CI.
 /// </summary>
 internal interface ICredentialStore
 {

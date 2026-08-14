@@ -85,7 +85,10 @@ internal static class ProfileVerbs
         return 0;
     }
 
-    public static async Task<int> RemoveAsync(string name, CancellationToken cancellationToken)
+    public static async Task<int> RemoveAsync(
+        string name,
+        CredentialStoreChoice storeChoice,
+        CancellationToken cancellationToken)
     {
         var store = ProfileStore.InConfigurationDirectory();
 
@@ -98,7 +101,10 @@ internal static class ProfileVerbs
 
         // The credential goes first: a failure here leaves a profile that still names the token
         // it owns, rather than a secret on disk that no verb can reach any more.
-        await FileCredentialStore.InConfigurationDirectory().DeleteAsync(name, cancellationToken);
+        var credentials = await CredentialStoreSelector.ForThisMachine()
+            .SelectAsync(storeChoice, Console.Error, cancellationToken);
+
+        await credentials.DeleteAsync(name, cancellationToken);
 
         store.Remove(name);
 

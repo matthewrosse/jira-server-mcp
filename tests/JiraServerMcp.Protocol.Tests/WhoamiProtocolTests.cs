@@ -69,6 +69,13 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
 
         added.ExitCode.ShouldBe(0);
 
+        // `auth login` validates the token before storing it, so Jira has to answer for the
+        // login itself. The stub and the request it logged are then cleared, leaving each test
+        // the empty slate it asserts against.
+        StubMyself(Response.Create().WithStatusCode(200)
+            .WithHeader("Content-Type", "application/json")
+            .WithBody(MyselfPayload));
+
         var loggedIn = await HostProcess.RunAsync(
             ["auth", "login", Profile],
             TestContext.Current.CancellationToken,
@@ -76,6 +83,8 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
             standardInput: Token + "\n");
 
         loggedIn.ExitCode.ShouldBe(0);
+
+        _jira.Reset();
     }
 
     [Fact]

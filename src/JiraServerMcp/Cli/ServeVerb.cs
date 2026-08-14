@@ -12,7 +12,10 @@ namespace JiraServerMcp.Cli;
 
 internal static class ServeVerb
 {
-    public static async Task<int> RunAsync(string profileName, CancellationToken cancellationToken)
+    public static async Task<int> RunAsync(
+        string profileName,
+        CredentialStoreChoice storeChoice,
+        CancellationToken cancellationToken)
     {
         // ADR-0005: the profile is chosen here, once, and is invisible to every tool.
         var profile = ProfileStore.InConfigurationDirectory().Find(profileName);
@@ -26,10 +29,12 @@ internal static class ServeVerb
             return 2;
         }
 
-        var token = await FileCredentialStore.InConfigurationDirectory()
-            .GetAsync(profileName, cancellationToken);
+        var store = await CredentialStoreSelector.ForThisMachine()
+            .SelectAsync(storeChoice, Console.Error, cancellationToken);
 
-        if (string.IsNullOrEmpty(token))
+        var token = await ProfileToken.ResolveAsync(profileName, store, cancellationToken);
+
+        if (token is not { } held)
         {
             await Console.Error.WriteLineAsync(
                 $"No personal access token is stored for profile '{profileName}'. Store one with "
@@ -46,7 +51,7 @@ internal static class ServeVerb
         builder.Services.Configure<JiraClientOptions>(options =>
         {
             options.BaseUrl = profile.BaseUrl;
-            options.PersonalAccessToken = token;
+            options.PersonalAccessToken = held.Value;
         });
 
         builder.Services.AddJiraClient();
