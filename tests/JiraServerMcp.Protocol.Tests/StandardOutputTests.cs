@@ -38,6 +38,10 @@ public sealed class StandardOutputTests
         // Every logger at its loudest, so a log line landing on standard output would be seen.
         startInfo.Environment["Logging__LogLevel__Default"] = "Trace";
 
+        // The token comes from the environment, the way a container is given one: nothing
+        // answers on this profile's URL, so there is no Jira to validate a login against.
+        startInfo.Environment["JIRA_SERVER_MCP__WORK__TOKEN"] = "unused-by-this-test";
+
         foreach (var (key, value) in home.Environment)
         {
             startInfo.Environment[key] = value;
@@ -88,12 +92,6 @@ public sealed class StandardOutputTests
             ["profile", "add", "work", "--url", "http://localhost:1/"],
             TestContext.Current.CancellationToken,
             home.Environment);
-
-        await HostProcess.RunAsync(
-            ["auth", "login", "work"],
-            TestContext.Current.CancellationToken,
-            home.Environment,
-            standardInput: "unused-by-this-test\n");
     }
 
     private static async Task<List<string>> ReadLinesAsync(Process process, int expected)

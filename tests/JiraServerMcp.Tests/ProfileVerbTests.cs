@@ -1,4 +1,7 @@
 using System.Text.Json;
+using WireMock.RequestBuilders;
+using WireMock.ResponseBuilders;
+using WireMock.Server;
 
 namespace JiraServerMcp.Tests;
 
@@ -10,7 +13,23 @@ public sealed class ProfileVerbTests : IDisposable
 {
     private readonly ConfigurationHome _home = new();
 
-    public void Dispose() => _home.Dispose();
+    /// <summary>
+    /// `auth login` validates a token before storing it, so the tests that store one need a Jira
+    /// to validate against.
+    /// </summary>
+    private readonly WireMockServer _jira = WireMockServer.Start();
+
+    public ProfileVerbTests() =>
+        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""{"name":"mrosse","displayName":"Mateusz Różański","active":true}"""));
+
+    public void Dispose()
+    {
+        _jira.Stop();
+        _home.Dispose();
+    }
 
     [Fact]
     public async Task Add_writes_the_profile_and_says_so()
@@ -104,7 +123,7 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task A_credential_that_cannot_be_decrypted_names_the_command_that_fixes_it()
     {
-        await AddAsync("work", "https://jira.example.com");
+        await AddJiraAsync("work");
         await LoginAsync("work", "s3cr3t-personal-access-token");
 
         // The key without its credentials, or the credentials without their key, is the same
@@ -121,8 +140,8 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task Storing_a_token_does_not_re_key_another_profiles_credential()
     {
-        await AddAsync("work", "https://jira.example.com");
-        await AddAsync("spare", "https://spare.example.com");
+        await AddJiraAsync("work");
+        await AddJiraAsync("spare");
         await LoginAsync("work", "work-personal-access-token");
         await LoginAsync("spare", "spare-personal-access-token");
 
@@ -165,7 +184,7 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task List_prints_no_secret_even_when_a_credential_is_stored()
     {
-        await AddAsync("work", "https://jira.example.com");
+        await AddJiraAsync("work");
         await LoginAsync("work", "s3cr3t-personal-access-token");
 
         var result = await RunAsync(["profile", "list"]);
@@ -187,7 +206,7 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task Remove_deletes_the_profile_and_its_credential()
     {
-        await AddAsync("work", "https://jira.example.com");
+        await AddJiraAsync("work");
         await LoginAsync("work", "s3cr3t-personal-access-token");
 
         var result = await RunAsync(["profile", "remove", "work"]);
@@ -214,7 +233,7 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task The_profile_file_never_holds_a_token()
     {
-        await AddAsync("work", "https://jira.example.com");
+        await AddJiraAsync("work");
         await LoginAsync("work", "s3cr3t-personal-access-token");
 
         _home.ReadProfiles().ShouldNotContain("s3cr3t");
@@ -230,7 +249,7 @@ public sealed class ProfileVerbTests : IDisposable
             return;
         }
 
-        await AddAsync("work", "https://jira.example.com");
+        await AddJiraAsync("work");
         await LoginAsync("work", "s3cr3t-personal-access-token");
 
         File.GetUnixFileMode(_home.Directory).ShouldBe(
@@ -241,6 +260,8 @@ public sealed class ProfileVerbTests : IDisposable
             File.GetUnixFileMode(file).ShouldBe(UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
     }
+
+    private Task<HostProcessResult> AddJiraAsync(string name) => AddAsync(name, _jira.Url!);
 
     private Task<HostProcessResult> AddAsync(string name, string url) =>
         RunAsync(["profile", "add", name, "--url", url]);

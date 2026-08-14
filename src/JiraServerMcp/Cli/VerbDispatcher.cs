@@ -1,5 +1,6 @@
 using System.CommandLine;
 using JiraServerMcp.Configuration;
+using JiraServerMcp.Credentials;
 
 namespace JiraServerMcp.Cli;
 
@@ -55,16 +56,32 @@ internal static class VerbDispatcher
             Required = true,
         };
 
+        var credentialStore = CredentialStoreOption();
+
         var serve = new Command("serve", "Serve the Model Context Protocol over stdio.")
         {
             profile,
+            credentialStore,
         };
 
-        serve.SetAction((parseResult, cancellationToken) =>
-            ServeVerb.RunAsync(parseResult.GetValue(profile)!, cancellationToken));
+        serve.SetAction((parseResult, cancellationToken) => ServeVerb.RunAsync(
+            parseResult.GetValue(profile)!,
+            parseResult.GetValue(credentialStore),
+            cancellationToken));
 
         return serve;
     }
+
+    /// <summary>
+    /// Which store to keep credentials in. Left alone, the operating system's own store is used
+    /// where it can be reached and the encrypted file where it cannot.
+    /// </summary>
+    private static Option<CredentialStoreChoice> CredentialStoreOption() =>
+        new("--credential-store")
+        {
+            Description = "Where credentials are kept: auto, native, or file.",
+            DefaultValueFactory = _ => CredentialStoreChoice.Auto,
+        };
 
     private static Command ProfileCommand()
     {
@@ -108,13 +125,18 @@ internal static class VerbDispatcher
             Description = "The profile to remove, along with its credential.",
         };
 
+        var removeCredentialStore = CredentialStoreOption();
+
         var remove = new Command("remove", "Remove a profile and its stored credential.")
         {
             removeName,
+            removeCredentialStore,
         };
 
-        remove.SetAction((parseResult, cancellationToken) =>
-            ProfileVerbs.RemoveAsync(parseResult.GetValue(removeName)!, cancellationToken));
+        remove.SetAction((parseResult, cancellationToken) => ProfileVerbs.RemoveAsync(
+            parseResult.GetValue(removeName)!,
+            parseResult.GetValue(removeCredentialStore),
+            cancellationToken));
 
         profile.Subcommands.Add(add);
         profile.Subcommands.Add(list);
@@ -127,21 +149,65 @@ internal static class VerbDispatcher
     {
         var auth = new Command("auth", "Hand a personal access token to a profile.");
 
+        // Declared so that passing it is an error with an explanation rather than "unknown
+        // option", and hidden so that help never suggests it exists.
+        var token = new Option<string?>("--token")
+        {
+            Description = "Not accepted; a token is never taken as an argument.",
+            Recursive = true,
+            Hidden = true,
+        };
+
+        auth.Options.Add(token);
+
+        auth.Subcommands.Add(AuthSubcommand(
+            "login",
+            "Prompt for a personal access token, validate it against Jira, and store it.",
+            token,
+            AuthVerbs.LoginAsync));
+
+        auth.Subcommands.Add(AuthSubcommand(
+            "status",
+            "Validate the stored credential and print the Jira user it resolves to.",
+            token,
+            AuthVerbs.StatusAsync));
+
+        auth.Subcommands.Add(AuthSubcommand(
+            "logout",
+            "Delete the stored credential and leave the profile.",
+            token,
+            AuthVerbs.LogoutAsync));
+
+        return auth;
+    }
+
+    private static Command AuthSubcommand(
+        string verb,
+        string description,
+        Option<string?> token,
+        Func<string, CredentialStoreChoice, CancellationToken, Task<int>> run)
+    {
         var name = new Argument<string>("name")
         {
             Description = "The profile the token belongs to.",
         };
 
-        var login = new Command("login", "Read a personal access token from standard input and store it.")
+        var credentialStore = CredentialStoreOption();
+
+        var command = new Command(verb, description)
         {
             name,
+            credentialStore,
         };
 
-        login.SetAction((parseResult, cancellationToken) =>
-            AuthVerbs.LoginAsync(parseResult.GetValue(name)!, cancellationToken));
+        command.SetAction((parseResult, cancellationToken) =>
+            parseResult.GetValue(token) is not null
+                ? AuthVerbs.RefuseTokenArgumentAsync(parseResult.GetValue(name)!)
+                : run(
+                    parseResult.GetValue(name)!,
+                    parseResult.GetValue(credentialStore),
+                    cancellationToken));
 
-        auth.Subcommands.Add(login);
-
-        return auth;
+        return command;
     }
 }

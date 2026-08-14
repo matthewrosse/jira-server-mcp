@@ -27,14 +27,15 @@ public sealed class CredentialRoundTripTests : IDisposable
     [Fact]
     public async Task Storing_a_token_twice_leaves_the_second_one_in_use()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(200)
-                .WithHeader("Content-Type", "application/json")
-                .WithBody("""{"name":"mrosse","displayName":"Mateusz Różański","active":true}"""));
+        StubMyself();
 
         await RunAsync(["profile", "add", Profile, "--url", _jira.Url!]);
         await RunAsync(["auth", "login", Profile], FirstToken + "\n");
         await RunAsync(["auth", "login", Profile], SecondToken + "\n");
+
+        // Each login validated its own token against Jira; what this test is about is the
+        // request the server makes afterwards.
+        _jira.ResetLogEntries();
 
         await CallWhoamiAsync();
 
@@ -48,6 +49,8 @@ public sealed class CredentialRoundTripTests : IDisposable
     [Fact]
     public async Task A_stored_token_is_not_readable_in_the_file_that_holds_it()
     {
+        StubMyself();
+
         await RunAsync(["profile", "add", Profile, "--url", _jira.Url!]);
         await RunAsync(["auth", "login", Profile], FirstToken + "\n");
 
@@ -57,6 +60,12 @@ public sealed class CredentialRoundTripTests : IDisposable
         contents.ShouldNotContain(FirstToken);
         contents.ShouldNotContain("personal-access-token");
     }
+
+    private void StubMyself() =>
+        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""{"name":"mrosse","displayName":"Mateusz Różański","active":true}"""));
 
     private async Task CallWhoamiAsync()
     {
