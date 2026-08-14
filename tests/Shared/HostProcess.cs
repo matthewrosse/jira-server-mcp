@@ -13,8 +13,25 @@ internal static class HostProcess
     /// </summary>
     public const string Command = "dotnet";
 
-    public static string Assembly { get; } =
-        Path.Combine(AppContext.BaseDirectory, "jira-server-mcp.dll");
+    /// <summary>
+    /// The host's own build output, not a copy beside the test assembly: an Exe-to-Exe
+    /// project reference does not reliably copy-local the referenced project's package
+    /// dependencies, so a copy here can be missing assemblies the host needs at runtime.
+    /// </summary>
+    public static string Assembly { get; } = FindHostAssembly();
+
+    private static string FindHostAssembly()
+    {
+        // .../tests/<TestProject>/bin/<Configuration>/<TargetFramework>/
+        var outputDirectory = new DirectoryInfo(AppContext.BaseDirectory);
+        var targetFramework = outputDirectory.Name;
+        var configuration = outputDirectory.Parent!.Name;
+        var repositoryRoot = outputDirectory.Parent!.Parent!.Parent!.Parent!.Parent!.FullName;
+
+        return Path.Combine(
+            repositoryRoot, "src", "JiraServerMcp", "bin", configuration, targetFramework,
+            "jira-server-mcp.dll");
+    }
 
     public static string[] ArgumentsFor(params string[] verb) => [Assembly, .. verb];
 
