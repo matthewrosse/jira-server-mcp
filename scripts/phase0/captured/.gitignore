@@ -1,0 +1,6 @@
+# Spike scratch: request traces, saved wizard pages, a session cookie jar, and a
+# live personal access token. None of it belongs in the repository — the findings
+# it produced are written up in tests/README.md and the payloads it captured are
+# committed under tests/fixtures/payloads/.
+*
+!.gitignore

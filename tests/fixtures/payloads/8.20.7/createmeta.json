@@ -1,0 +1,1455 @@
+{
+  "expand": "projects",
+  "projects": [
+    {
+      "expand": "issuetypes",
+      "self": "http://localhost:8080/rest/api/2/project/10000",
+      "id": "10000",
+      "key": "PZ",
+      "name": "Phase Zero",
+      "avatarUrls": {
+        "48x48": "http://localhost:8080/secure/projectavatar?avatarId=10324",
+        "24x24": "http://localhost:8080/secure/projectavatar?size=small&avatarId=10324",
+        "16x16": "http://localhost:8080/secure/projectavatar?size=xsmall&avatarId=10324",
+        "32x32": "http://localhost:8080/secure/projectavatar?size=medium&avatarId=10324"
+      },
+      "issuetypes": [
+        {
+          "self": "http://localhost:8080/rest/api/2/issuetype/10002",
+          "id": "10002",
+          "description": "A task that needs to be done.",
+          "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10318&avatarType=issuetype",
+          "name": "Task",
+          "subtask": false,
+          "expand": "fields",
+          "fields": {
+            "summary": {
+              "required": true,
+              "schema": {
+                "type": "string",
+                "system": "summary"
+              },
+              "name": "Summary",
+              "fieldId": "summary",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "issuetype": {
+              "required": true,
+              "schema": {
+                "type": "issuetype",
+                "system": "issuetype"
+              },
+              "name": "Issue Type",
+              "fieldId": "issuetype",
+              "hasDefaultValue": false,
+              "operations": [],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/issuetype/10002",
+                  "id": "10002",
+                  "description": "A task that needs to be done.",
+                  "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10318&avatarType=issuetype",
+                  "name": "Task",
+                  "subtask": false,
+                  "avatarId": 10318
+                }
+              ]
+            },
+            "reporter": {
+              "required": true,
+              "schema": {
+                "type": "user",
+                "system": "reporter"
+              },
+              "name": "Reporter",
+              "fieldId": "reporter",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/search?username=",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "components": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "component",
+                "system": "components"
+              },
+              "name": "Component/s",
+              "fieldId": "components",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "description": {
+              "required": false,
+              "schema": {
+                "type": "string",
+                "system": "description"
+              },
+              "name": "Description",
+              "fieldId": "description",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "fixVersions": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "version",
+                "system": "fixVersions"
+              },
+              "name": "Fix Version/s",
+              "fieldId": "fixVersions",
+              "hasDefaultValue": false,
+              "operations": [
+                "set",
+                "add",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "priority": {
+              "required": false,
+              "schema": {
+                "type": "priority",
+                "system": "priority"
+              },
+              "name": "Priority",
+              "fieldId": "priority",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/1",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/highest.svg",
+                  "name": "Highest",
+                  "id": "1"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/2",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/high.svg",
+                  "name": "High",
+                  "id": "2"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/3",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                  "name": "Medium",
+                  "id": "3"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/4",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/low.svg",
+                  "name": "Low",
+                  "id": "4"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/5",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/lowest.svg",
+                  "name": "Lowest",
+                  "id": "5"
+                }
+              ],
+              "defaultValue": {
+                "self": "http://localhost:8080/rest/api/2/priority/3",
+                "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                "name": "Medium",
+                "id": "3"
+              }
+            },
+            "labels": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "system": "labels"
+              },
+              "name": "Labels",
+              "fieldId": "labels",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/1.0/labels/suggest?query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ]
+            },
+            "attachment": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "attachment",
+                "system": "attachment"
+              },
+              "name": "Attachment",
+              "fieldId": "attachment",
+              "hasDefaultValue": false,
+              "operations": []
+            },
+            "issuelinks": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "issuelinks",
+                "system": "issuelinks"
+              },
+              "name": "Linked Issues",
+              "fieldId": "issuelinks",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/2/issue/picker?currentProjectId=&showSubTaskParent=true&showSubTasks=true&currentIssueKey=null&query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add"
+              ]
+            },
+            "customfield_10102": {
+              "required": false,
+              "schema": {
+                "type": "any",
+                "custom": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "customId": 10102
+              },
+              "name": "Epic Link",
+              "fieldId": "customfield_10102",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "customfield_10101": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "custom": "com.pyxis.greenhopper.jira:gh-sprint",
+                "customId": 10101
+              },
+              "name": "Sprint",
+              "fieldId": "customfield_10101",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "assignee": {
+              "required": false,
+              "schema": {
+                "type": "user",
+                "system": "assignee"
+              },
+              "name": "Assignee",
+              "fieldId": "assignee",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/assignable/search?issueKey=null&username=",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "defaultValue": {
+                "name": "-1"
+              }
+            },
+            "project": {
+              "required": true,
+              "schema": {
+                "type": "project",
+                "system": "project"
+              },
+              "name": "Project",
+              "fieldId": "project",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/project/10000",
+                  "id": "10000",
+                  "key": "PZ",
+                  "name": "Phase Zero",
+                  "projectTypeKey": "software",
+                  "avatarUrls": {
+                    "48x48": "http://localhost:8080/secure/projectavatar?avatarId=10324",
+                    "24x24": "http://localhost:8080/secure/projectavatar?size=small&avatarId=10324",
+                    "16x16": "http://localhost:8080/secure/projectavatar?size=xsmall&avatarId=10324",
+                    "32x32": "http://localhost:8080/secure/projectavatar?size=medium&avatarId=10324"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "self": "http://localhost:8080/rest/api/2/issuetype/10003",
+          "id": "10003",
+          "description": "The sub-task of the issue",
+          "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10316&avatarType=issuetype",
+          "name": "Sub-task",
+          "subtask": true,
+          "expand": "fields",
+          "fields": {
+            "summary": {
+              "required": true,
+              "schema": {
+                "type": "string",
+                "system": "summary"
+              },
+              "name": "Summary",
+              "fieldId": "summary",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "issuetype": {
+              "required": true,
+              "schema": {
+                "type": "issuetype",
+                "system": "issuetype"
+              },
+              "name": "Issue Type",
+              "fieldId": "issuetype",
+              "hasDefaultValue": false,
+              "operations": [],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/issuetype/10003",
+                  "id": "10003",
+                  "description": "The sub-task of the issue",
+                  "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10316&avatarType=issuetype",
+                  "name": "Sub-task",
+                  "subtask": true,
+                  "avatarId": 10316
+                }
+              ]
+            },
+            "reporter": {
+              "required": true,
+              "schema": {
+                "type": "user",
+                "system": "reporter"
+              },
+              "name": "Reporter",
+              "fieldId": "reporter",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/search?username=",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "components": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "component",
+                "system": "components"
+              },
+              "name": "Component/s",
+              "fieldId": "components",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "description": {
+              "required": false,
+              "schema": {
+                "type": "string",
+                "system": "description"
+              },
+              "name": "Description",
+              "fieldId": "description",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "fixVersions": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "version",
+                "system": "fixVersions"
+              },
+              "name": "Fix Version/s",
+              "fieldId": "fixVersions",
+              "hasDefaultValue": false,
+              "operations": [
+                "set",
+                "add",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "priority": {
+              "required": false,
+              "schema": {
+                "type": "priority",
+                "system": "priority"
+              },
+              "name": "Priority",
+              "fieldId": "priority",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/1",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/highest.svg",
+                  "name": "Highest",
+                  "id": "1"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/2",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/high.svg",
+                  "name": "High",
+                  "id": "2"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/3",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                  "name": "Medium",
+                  "id": "3"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/4",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/low.svg",
+                  "name": "Low",
+                  "id": "4"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/5",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/lowest.svg",
+                  "name": "Lowest",
+                  "id": "5"
+                }
+              ],
+              "defaultValue": {
+                "self": "http://localhost:8080/rest/api/2/priority/3",
+                "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                "name": "Medium",
+                "id": "3"
+              }
+            },
+            "labels": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "system": "labels"
+              },
+              "name": "Labels",
+              "fieldId": "labels",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/1.0/labels/suggest?query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ]
+            },
+            "attachment": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "attachment",
+                "system": "attachment"
+              },
+              "name": "Attachment",
+              "fieldId": "attachment",
+              "hasDefaultValue": false,
+              "operations": []
+            },
+            "issuelinks": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "issuelinks",
+                "system": "issuelinks"
+              },
+              "name": "Linked Issues",
+              "fieldId": "issuelinks",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/2/issue/picker?currentProjectId=&showSubTaskParent=true&showSubTasks=true&currentIssueKey=null&query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add"
+              ]
+            },
+            "customfield_10102": {
+              "required": false,
+              "schema": {
+                "type": "any",
+                "custom": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "customId": 10102
+              },
+              "name": "Epic Link",
+              "fieldId": "customfield_10102",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "customfield_10101": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "custom": "com.pyxis.greenhopper.jira:gh-sprint",
+                "customId": 10101
+              },
+              "name": "Sprint",
+              "fieldId": "customfield_10101",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "assignee": {
+              "required": false,
+              "schema": {
+                "type": "user",
+                "system": "assignee"
+              },
+              "name": "Assignee",
+              "fieldId": "assignee",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/assignable/search?issueKey=null&username=",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "defaultValue": {
+                "name": "-1"
+              }
+            },
+            "project": {
+              "required": true,
+              "schema": {
+                "type": "project",
+                "system": "project"
+              },
+              "name": "Project",
+              "fieldId": "project",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/project/10000",
+                  "id": "10000",
+                  "key": "PZ",
+                  "name": "Phase Zero",
+                  "projectTypeKey": "software",
+                  "avatarUrls": {
+                    "48x48": "http://localhost:8080/secure/projectavatar?avatarId=10324",
+                    "24x24": "http://localhost:8080/secure/projectavatar?size=small&avatarId=10324",
+                    "16x16": "http://localhost:8080/secure/projectavatar?size=xsmall&avatarId=10324",
+                    "32x32": "http://localhost:8080/secure/projectavatar?size=medium&avatarId=10324"
+                  }
+                }
+              ]
+            },
+            "parent": {
+              "required": true,
+              "schema": {
+                "type": "issuelink",
+                "system": "parent"
+              },
+              "name": "Parent",
+              "fieldId": "parent",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            }
+          }
+        },
+        {
+          "self": "http://localhost:8080/rest/api/2/issuetype/10001",
+          "id": "10001",
+          "description": "Created by Jira Software - do not edit or delete. Issue type for a user story.",
+          "iconUrl": "http://localhost:8080/images/icons/issuetypes/story.svg",
+          "name": "Story",
+          "subtask": false,
+          "expand": "fields",
+          "fields": {
+            "summary": {
+              "required": true,
+              "schema": {
+                "type": "string",
+                "system": "summary"
+              },
+              "name": "Summary",
+              "fieldId": "summary",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "issuetype": {
+              "required": true,
+              "schema": {
+                "type": "issuetype",
+                "system": "issuetype"
+              },
+              "name": "Issue Type",
+              "fieldId": "issuetype",
+              "hasDefaultValue": false,
+              "operations": [],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/issuetype/10001",
+                  "id": "10001",
+                  "description": "Created by Jira Software - do not edit or delete. Issue type for a user story.",
+                  "iconUrl": "http://localhost:8080/images/icons/issuetypes/story.svg",
+                  "name": "Story",
+                  "subtask": false
+                }
+              ]
+            },
+            "reporter": {
+              "required": true,
+              "schema": {
+                "type": "user",
+                "system": "reporter"
+              },
+              "name": "Reporter",
+              "fieldId": "reporter",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/search?username=",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "components": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "component",
+                "system": "components"
+              },
+              "name": "Component/s",
+              "fieldId": "components",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "description": {
+              "required": false,
+              "schema": {
+                "type": "string",
+                "system": "description"
+              },
+              "name": "Description",
+              "fieldId": "description",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "fixVersions": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "version",
+                "system": "fixVersions"
+              },
+              "name": "Fix Version/s",
+              "fieldId": "fixVersions",
+              "hasDefaultValue": false,
+              "operations": [
+                "set",
+                "add",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "priority": {
+              "required": false,
+              "schema": {
+                "type": "priority",
+                "system": "priority"
+              },
+              "name": "Priority",
+              "fieldId": "priority",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/1",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/highest.svg",
+                  "name": "Highest",
+                  "id": "1"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/2",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/high.svg",
+                  "name": "High",
+                  "id": "2"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/3",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                  "name": "Medium",
+                  "id": "3"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/4",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/low.svg",
+                  "name": "Low",
+                  "id": "4"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/5",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/lowest.svg",
+                  "name": "Lowest",
+                  "id": "5"
+                }
+              ],
+              "defaultValue": {
+                "self": "http://localhost:8080/rest/api/2/priority/3",
+                "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                "name": "Medium",
+                "id": "3"
+              }
+            },
+            "labels": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "system": "labels"
+              },
+              "name": "Labels",
+              "fieldId": "labels",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/1.0/labels/suggest?query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ]
+            },
+            "attachment": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "attachment",
+                "system": "attachment"
+              },
+              "name": "Attachment",
+              "fieldId": "attachment",
+              "hasDefaultValue": false,
+              "operations": []
+            },
+            "issuelinks": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "issuelinks",
+                "system": "issuelinks"
+              },
+              "name": "Linked Issues",
+              "fieldId": "issuelinks",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/2/issue/picker?currentProjectId=&showSubTaskParent=true&showSubTasks=true&currentIssueKey=null&query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add"
+              ]
+            },
+            "customfield_10102": {
+              "required": false,
+              "schema": {
+                "type": "any",
+                "custom": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "customId": 10102
+              },
+              "name": "Epic Link",
+              "fieldId": "customfield_10102",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "customfield_10101": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "custom": "com.pyxis.greenhopper.jira:gh-sprint",
+                "customId": 10101
+              },
+              "name": "Sprint",
+              "fieldId": "customfield_10101",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "assignee": {
+              "required": false,
+              "schema": {
+                "type": "user",
+                "system": "assignee"
+              },
+              "name": "Assignee",
+              "fieldId": "assignee",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/assignable/search?issueKey=null&username=",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "defaultValue": {
+                "name": "-1"
+              }
+            },
+            "project": {
+              "required": true,
+              "schema": {
+                "type": "project",
+                "system": "project"
+              },
+              "name": "Project",
+              "fieldId": "project",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/project/10000",
+                  "id": "10000",
+                  "key": "PZ",
+                  "name": "Phase Zero",
+                  "projectTypeKey": "software",
+                  "avatarUrls": {
+                    "48x48": "http://localhost:8080/secure/projectavatar?avatarId=10324",
+                    "24x24": "http://localhost:8080/secure/projectavatar?size=small&avatarId=10324",
+                    "16x16": "http://localhost:8080/secure/projectavatar?size=xsmall&avatarId=10324",
+                    "32x32": "http://localhost:8080/secure/projectavatar?size=medium&avatarId=10324"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "self": "http://localhost:8080/rest/api/2/issuetype/10004",
+          "id": "10004",
+          "description": "A problem which impairs or prevents the functions of the product.",
+          "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10303&avatarType=issuetype",
+          "name": "Bug",
+          "subtask": false,
+          "expand": "fields",
+          "fields": {
+            "summary": {
+              "required": true,
+              "schema": {
+                "type": "string",
+                "system": "summary"
+              },
+              "name": "Summary",
+              "fieldId": "summary",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "issuetype": {
+              "required": true,
+              "schema": {
+                "type": "issuetype",
+                "system": "issuetype"
+              },
+              "name": "Issue Type",
+              "fieldId": "issuetype",
+              "hasDefaultValue": false,
+              "operations": [],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/issuetype/10004",
+                  "id": "10004",
+                  "description": "A problem which impairs or prevents the functions of the product.",
+                  "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10303&avatarType=issuetype",
+                  "name": "Bug",
+                  "subtask": false,
+                  "avatarId": 10303
+                }
+              ]
+            },
+            "reporter": {
+              "required": true,
+              "schema": {
+                "type": "user",
+                "system": "reporter"
+              },
+              "name": "Reporter",
+              "fieldId": "reporter",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/search?username=",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "components": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "component",
+                "system": "components"
+              },
+              "name": "Component/s",
+              "fieldId": "components",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "description": {
+              "required": false,
+              "schema": {
+                "type": "string",
+                "system": "description"
+              },
+              "name": "Description",
+              "fieldId": "description",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "fixVersions": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "version",
+                "system": "fixVersions"
+              },
+              "name": "Fix Version/s",
+              "fieldId": "fixVersions",
+              "hasDefaultValue": false,
+              "operations": [
+                "set",
+                "add",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "priority": {
+              "required": false,
+              "schema": {
+                "type": "priority",
+                "system": "priority"
+              },
+              "name": "Priority",
+              "fieldId": "priority",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/1",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/highest.svg",
+                  "name": "Highest",
+                  "id": "1"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/2",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/high.svg",
+                  "name": "High",
+                  "id": "2"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/3",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                  "name": "Medium",
+                  "id": "3"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/4",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/low.svg",
+                  "name": "Low",
+                  "id": "4"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/5",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/lowest.svg",
+                  "name": "Lowest",
+                  "id": "5"
+                }
+              ],
+              "defaultValue": {
+                "self": "http://localhost:8080/rest/api/2/priority/3",
+                "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                "name": "Medium",
+                "id": "3"
+              }
+            },
+            "labels": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "system": "labels"
+              },
+              "name": "Labels",
+              "fieldId": "labels",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/1.0/labels/suggest?query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ]
+            },
+            "environment": {
+              "required": false,
+              "schema": {
+                "type": "string",
+                "system": "environment"
+              },
+              "name": "Environment",
+              "fieldId": "environment",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "attachment": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "attachment",
+                "system": "attachment"
+              },
+              "name": "Attachment",
+              "fieldId": "attachment",
+              "hasDefaultValue": false,
+              "operations": []
+            },
+            "versions": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "version",
+                "system": "versions"
+              },
+              "name": "Affects Version/s",
+              "fieldId": "versions",
+              "hasDefaultValue": false,
+              "operations": [
+                "set",
+                "add",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "issuelinks": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "issuelinks",
+                "system": "issuelinks"
+              },
+              "name": "Linked Issues",
+              "fieldId": "issuelinks",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/2/issue/picker?currentProjectId=&showSubTaskParent=true&showSubTasks=true&currentIssueKey=null&query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add"
+              ]
+            },
+            "customfield_10102": {
+              "required": false,
+              "schema": {
+                "type": "any",
+                "custom": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "customId": 10102
+              },
+              "name": "Epic Link",
+              "fieldId": "customfield_10102",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "customfield_10101": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "custom": "com.pyxis.greenhopper.jira:gh-sprint",
+                "customId": 10101
+              },
+              "name": "Sprint",
+              "fieldId": "customfield_10101",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "assignee": {
+              "required": false,
+              "schema": {
+                "type": "user",
+                "system": "assignee"
+              },
+              "name": "Assignee",
+              "fieldId": "assignee",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/assignable/search?issueKey=null&username=",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "defaultValue": {
+                "name": "-1"
+              }
+            },
+            "project": {
+              "required": true,
+              "schema": {
+                "type": "project",
+                "system": "project"
+              },
+              "name": "Project",
+              "fieldId": "project",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/project/10000",
+                  "id": "10000",
+                  "key": "PZ",
+                  "name": "Phase Zero",
+                  "projectTypeKey": "software",
+                  "avatarUrls": {
+                    "48x48": "http://localhost:8080/secure/projectavatar?avatarId=10324",
+                    "24x24": "http://localhost:8080/secure/projectavatar?size=small&avatarId=10324",
+                    "16x16": "http://localhost:8080/secure/projectavatar?size=xsmall&avatarId=10324",
+                    "32x32": "http://localhost:8080/secure/projectavatar?size=medium&avatarId=10324"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "self": "http://localhost:8080/rest/api/2/issuetype/10000",
+          "id": "10000",
+          "description": "Created by Jira Software - do not edit or delete. Issue type for a big user story that needs to be broken down.",
+          "iconUrl": "http://localhost:8080/images/icons/issuetypes/epic.svg",
+          "name": "Epic",
+          "subtask": false,
+          "expand": "fields",
+          "fields": {
+            "customfield_10104": {
+              "required": true,
+              "schema": {
+                "type": "string",
+                "custom": "com.pyxis.greenhopper.jira:gh-epic-label",
+                "customId": 10104
+              },
+              "name": "Epic Name",
+              "fieldId": "customfield_10104",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "summary": {
+              "required": true,
+              "schema": {
+                "type": "string",
+                "system": "summary"
+              },
+              "name": "Summary",
+              "fieldId": "summary",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "issuetype": {
+              "required": true,
+              "schema": {
+                "type": "issuetype",
+                "system": "issuetype"
+              },
+              "name": "Issue Type",
+              "fieldId": "issuetype",
+              "hasDefaultValue": false,
+              "operations": [],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/issuetype/10000",
+                  "id": "10000",
+                  "description": "Created by Jira Software - do not edit or delete. Issue type for a big user story that needs to be broken down.",
+                  "iconUrl": "http://localhost:8080/images/icons/issuetypes/epic.svg",
+                  "name": "Epic",
+                  "subtask": false
+                }
+              ]
+            },
+            "reporter": {
+              "required": true,
+              "schema": {
+                "type": "user",
+                "system": "reporter"
+              },
+              "name": "Reporter",
+              "fieldId": "reporter",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/search?username=",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "components": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "component",
+                "system": "components"
+              },
+              "name": "Component/s",
+              "fieldId": "components",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "description": {
+              "required": false,
+              "schema": {
+                "type": "string",
+                "system": "description"
+              },
+              "name": "Description",
+              "fieldId": "description",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "fixVersions": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "version",
+                "system": "fixVersions"
+              },
+              "name": "Fix Version/s",
+              "fieldId": "fixVersions",
+              "hasDefaultValue": false,
+              "operations": [
+                "set",
+                "add",
+                "remove"
+              ],
+              "allowedValues": []
+            },
+            "priority": {
+              "required": false,
+              "schema": {
+                "type": "priority",
+                "system": "priority"
+              },
+              "name": "Priority",
+              "fieldId": "priority",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/1",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/highest.svg",
+                  "name": "Highest",
+                  "id": "1"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/2",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/high.svg",
+                  "name": "High",
+                  "id": "2"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/3",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                  "name": "Medium",
+                  "id": "3"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/4",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/low.svg",
+                  "name": "Low",
+                  "id": "4"
+                },
+                {
+                  "self": "http://localhost:8080/rest/api/2/priority/5",
+                  "iconUrl": "http://localhost:8080/images/icons/priorities/lowest.svg",
+                  "name": "Lowest",
+                  "id": "5"
+                }
+              ],
+              "defaultValue": {
+                "self": "http://localhost:8080/rest/api/2/priority/3",
+                "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+                "name": "Medium",
+                "id": "3"
+              }
+            },
+            "labels": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "system": "labels"
+              },
+              "name": "Labels",
+              "fieldId": "labels",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/1.0/labels/suggest?query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add",
+                "set",
+                "remove"
+              ]
+            },
+            "attachment": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "attachment",
+                "system": "attachment"
+              },
+              "name": "Attachment",
+              "fieldId": "attachment",
+              "hasDefaultValue": false,
+              "operations": []
+            },
+            "issuelinks": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "issuelinks",
+                "system": "issuelinks"
+              },
+              "name": "Linked Issues",
+              "fieldId": "issuelinks",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/2/issue/picker?currentProjectId=&showSubTaskParent=true&showSubTasks=true&currentIssueKey=null&query=",
+              "hasDefaultValue": false,
+              "operations": [
+                "add"
+              ]
+            },
+            "customfield_10102": {
+              "required": false,
+              "schema": {
+                "type": "any",
+                "custom": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "customId": 10102
+              },
+              "name": "Epic Link",
+              "fieldId": "customfield_10102",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "customfield_10101": {
+              "required": false,
+              "schema": {
+                "type": "array",
+                "items": "string",
+                "custom": "com.pyxis.greenhopper.jira:gh-sprint",
+                "customId": 10101
+              },
+              "name": "Sprint",
+              "fieldId": "customfield_10101",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ]
+            },
+            "assignee": {
+              "required": false,
+              "schema": {
+                "type": "user",
+                "system": "assignee"
+              },
+              "name": "Assignee",
+              "fieldId": "assignee",
+              "autoCompleteUrl": "http://localhost:8080/rest/api/latest/user/assignable/search?issueKey=null&username=",
+              "hasDefaultValue": true,
+              "operations": [
+                "set"
+              ],
+              "defaultValue": {
+                "name": "-1"
+              }
+            },
+            "project": {
+              "required": true,
+              "schema": {
+                "type": "project",
+                "system": "project"
+              },
+              "name": "Project",
+              "fieldId": "project",
+              "hasDefaultValue": false,
+              "operations": [
+                "set"
+              ],
+              "allowedValues": [
+                {
+                  "self": "http://localhost:8080/rest/api/2/project/10000",
+                  "id": "10000",
+                  "key": "PZ",
+                  "name": "Phase Zero",
+                  "projectTypeKey": "software",
+                  "avatarUrls": {
+                    "48x48": "http://localhost:8080/secure/projectavatar?avatarId=10324",
+                    "24x24": "http://localhost:8080/secure/projectavatar?size=small&avatarId=10324",
+                    "16x16": "http://localhost:8080/secure/projectavatar?size=xsmall&avatarId=10324",
+                    "32x32": "http://localhost:8080/secure/projectavatar?size=medium&avatarId=10324"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

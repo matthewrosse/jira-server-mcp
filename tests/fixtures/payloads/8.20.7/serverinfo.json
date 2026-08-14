@@ -1,0 +1,16 @@
+{
+  "baseUrl": "http://localhost:8080",
+  "version": "8.20.7",
+  "versionNumbers": [
+    8,
+    20,
+    7
+  ],
+  "deploymentType": "Server",
+  "buildNumber": 820007,
+  "buildDate": "2022-03-16T00:00:00.000+0000",
+  "databaseBuildNumber": 820007,
+  "serverTime": "2026-08-14T11:32:14.465+0000",
+  "scmInfo": "98f6b160ab2ff5d8f9ec9088d10ba11ef78e8764",
+  "serverTitle": "Phase Zero Jira"
+}

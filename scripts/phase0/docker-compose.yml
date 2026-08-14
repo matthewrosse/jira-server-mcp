@@ -1,0 +1,52 @@
+# Phase 0 spike harness. Throwaway: the durable Compose file lands in Phase 5,
+# built from whatever this run proves. See tests/README.md for findings.
+name: jira-server-mcp-phase0
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: jira
+      POSTGRES_USER: jira
+      POSTGRES_PASSWORD: jira
+      # Jira requires this collation; the default in the image is fine on Debian
+      # but pin it so a different host locale cannot change the result.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jira -d jira"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  jira:
+    image: atlassian/jira-software:8.20.7-jdk11
+    # The 8.20.7 tag is a single-arch amd64 manifest with no arm64 variant,
+    # so an Apple Silicon host runs this under emulation. CI runners are amd64
+    # and take this path natively.
+    platform: linux/amd64
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ATL_DB_TYPE: postgres72
+      # Required. The image's dbconfig.xml.j2 renders <driver-class> straight from
+      # this variable with no default, and Jira reports "database is not yet
+      # configured" and falls back to the wizard's database step when it is empty.
+      ATL_DB_DRIVER: org.postgresql.Driver
+      ATL_JDBC_URL: jdbc:postgresql://postgres:5432/jira
+      ATL_JDBC_USER: jira
+      ATL_JDBC_PASSWORD: jira
+      ATL_DB_SCHEMA_NAME: public
+      JVM_MINIMUM_MEMORY: 1024m
+      JVM_MAXIMUM_MEMORY: 2048m
+      ATL_TOMCAT_PORT: 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - jira-home:/var/atlassian/application-data/jira
+
+volumes:
+  postgres-data:
+  jira-home:

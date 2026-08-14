@@ -1,0 +1,26 @@
+{
+  "self": "http://localhost:8080/rest/api/2/user?username=admin",
+  "key": "JIRAUSER10000",
+  "name": "admin",
+  "emailAddress": "admin@example.com",
+  "avatarUrls": {
+    "48x48": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=48",
+    "24x24": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=24",
+    "16x16": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=16",
+    "32x32": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=32"
+  },
+  "displayName": "Phase Zero Admin",
+  "active": true,
+  "deleted": false,
+  "timeZone": "Etc/UTC",
+  "locale": "en_US",
+  "groups": {
+    "size": 2,
+    "items": []
+  },
+  "applicationRoles": {
+    "size": 1,
+    "items": []
+  },
+  "expand": "groups,applicationRoles"
+}
