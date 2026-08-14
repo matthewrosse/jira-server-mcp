@@ -43,6 +43,7 @@ public sealed class VerbDispatchTests
     {
         var result = await HostProcess.RunAsync(["serve"], TestContext.Current.CancellationToken);
 
+        Console.WriteLine("DEBUG STDERR: " + result.StandardError);
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("JIRA_SERVER_MCP_URL");
         result.StandardError.ShouldContain("JIRA_SERVER_MCP_TOKEN");
