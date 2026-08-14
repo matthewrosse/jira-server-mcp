@@ -1,5 +1,6 @@
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Authentication;
+using JiraServerMcp.Jira.Diagnostics;
 using JiraServerMcp.Jira.Resilience;
 using Microsoft.Extensions.Options;
 
@@ -8,19 +9,26 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class JiraClientServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="JiraClient"/> as a typed client on <c>IHttpClientFactory</c>, with
-    /// redirects disabled and the bearer handler in the chain.
+    /// Registers <see cref="JiraClient"/> as a typed client on <c>IHttpClientFactory</c>: the
+    /// retry, logging, and bearer handlers in that order, redirects disabled, HTTPS enforced, and
+    /// the whole call bounded by a timeout.
     /// </summary>
     public static IServiceCollection AddJiraClient(this IServiceCollection services)
     {
         services.AddTransient<PersonalAccessTokenHandler>();
         services.AddTransient<JiraRetryHandler>();
+        services.AddTransient<JiraRequestLoggingHandler>();
 
         services
             .AddHttpClient<JiraClient>(ConfigureClient)
             .ConfigurePrimaryHttpMessageHandler(CreatePrimaryHandler)
-            // Outermost, so a retried read is authenticated afresh on every attempt.
+            // The factory's own logging writes every request and response header at trace level,
+            // and one of those headers is the personal access token.
+            .RemoveAllLoggers()
+            // Outermost, so a retried read is authenticated afresh on every attempt and every
+            // attempt is logged in its own right.
             .AddHttpMessageHandler<JiraRetryHandler>()
+            .AddHttpMessageHandler<JiraRequestLoggingHandler>()
             .AddHttpMessageHandler<PersonalAccessTokenHandler>();
 
         return services;
