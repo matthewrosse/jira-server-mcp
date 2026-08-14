@@ -69,7 +69,15 @@ internal static class HostProcess
         {
             if (standardInput is not null)
             {
-                await process.StandardInput.WriteAsync(standardInput);
+                try
+                {
+                    await process.StandardInput.WriteAsync(standardInput);
+                }
+                catch (IOException)
+                {
+                    // A verb that refuses before it reads — an unknown profile, say — can exit
+                    // first, and a broken pipe here is that verb working, not a test failure.
+                }
             }
 
             // Nothing is being served, so the host is told at once that no more input is coming.

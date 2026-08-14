@@ -1,4 +1,5 @@
 using System.CommandLine;
+using JiraServerMcp.Configuration;
 
 namespace JiraServerMcp.Cli;
 
@@ -14,9 +15,24 @@ internal static class VerbDispatcher
         {
             Output = Console.Error,
             Error = Console.Error,
+
+            // Off, so a ConfigurationException reaches the handler below instead of being
+            // printed as "Unhandled exception" by System.CommandLine's own catch-all.
+            EnableDefaultExceptionHandler = false,
         };
 
-        return await Root().Parse(args).InvokeAsync(configuration, CancellationToken.None);
+        try
+        {
+            return await Root().Parse(args).InvokeAsync(configuration, CancellationToken.None);
+        }
+        catch (ConfigurationException exception)
+        {
+            // A file this tool owns is unusable. That is the user's to fix, so they get the
+            // sentence that tells them how rather than a stack trace.
+            await Console.Error.WriteLineAsync(exception.Message);
+
+            return 2;
+        }
     }
 
     private static RootCommand Root()

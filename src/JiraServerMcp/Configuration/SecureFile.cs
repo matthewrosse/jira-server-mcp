@@ -11,7 +11,8 @@ internal static class SecureFile
     public static void WriteAllText(string path, string contents) =>
         Write(path, stream =>
         {
-            using var writer = new StreamWriter(stream);
+            // The writer leaves the stream open: the caller still has to flush it to disk.
+            using var writer = new StreamWriter(stream, leaveOpen: true);
             writer.Write(contents);
         });
 
@@ -20,6 +21,10 @@ internal static class SecureFile
 
     private static void Write(string path, Action<FileStream> write)
     {
+        // Written beside the target and moved over it, so an interrupted write leaves the
+        // previous file intact rather than a truncated one holding every profile and token.
+        var temporaryPath = path + ".tmp";
+
         var options = new FileStreamOptions
         {
             Mode = FileMode.Create,
@@ -31,16 +36,19 @@ internal static class SecureFile
             options.UnixCreateMode = OwnerOnly;
         }
 
-        using (var stream = new FileStream(path, options))
+        using (var stream = new FileStream(temporaryPath, options))
         {
             write(stream);
+            stream.Flush(flushToDisk: true);
         }
 
         if (!OperatingSystem.IsWindows())
         {
-            // A file that already existed keeps whatever mode it had, and this project's files
-            // are owner-only whether they were created a moment ago or a year ago.
-            File.SetUnixFileMode(path, OwnerOnly);
+            // A temporary file left by an earlier run keeps the mode it had, and this project's
+            // files are owner-only however they came to exist.
+            File.SetUnixFileMode(temporaryPath, OwnerOnly);
         }
+
+        File.Move(temporaryPath, path, overwrite: true);
     }
 }

@@ -26,6 +26,14 @@ internal sealed class FileCredentialStore(string configurationDirectory) : ICred
 
     private string KeyFile => Path.Combine(configurationDirectory, "credentials.key");
 
+    private string Unreadable =>
+        $"{File} cannot be read as a credential file. Move it aside and store your tokens again "
+        + "with 'jira-server-mcp auth login'.";
+
+    private static string Undecryptable(string profileName) =>
+        $"The stored credential for profile '{profileName}' cannot be decrypted. Store the token "
+        + $"again with 'jira-server-mcp auth login {profileName}'.";
+
     public static FileCredentialStore InConfigurationDirectory() =>
         new(ConfigurationPaths.ConfigurationDirectory());
 
@@ -36,26 +44,36 @@ internal sealed class FileCredentialStore(string configurationDirectory) : ICred
             return Task.FromResult<string?>(null);
         }
 
-        using var aes = new AesGcm(ReadKey(), AesGcm.TagByteSizes.MaxSize);
+        try
+        {
+            using var aes = new AesGcm(ReadKey(profileName), AesGcm.TagByteSizes.MaxSize);
 
-        var ciphertext = Convert.FromBase64String(entry.Ciphertext);
-        var plaintext = new byte[ciphertext.Length];
+            var ciphertext = Convert.FromBase64String(entry.Ciphertext);
+            var plaintext = new byte[ciphertext.Length];
 
-        aes.Decrypt(
-            Convert.FromBase64String(entry.Nonce),
-            ciphertext,
-            Convert.FromBase64String(entry.Tag),
-            plaintext,
-            // The profile name is authenticated too, so an entry cannot be moved between
-            // profiles by editing the file.
-            Encoding.UTF8.GetBytes(profileName));
+            aes.Decrypt(
+                Convert.FromBase64String(entry.Nonce),
+                ciphertext,
+                Convert.FromBase64String(entry.Tag),
+                plaintext,
+                // The profile name is authenticated too, so an entry cannot be moved between
+                // profiles by editing the file.
+                Encoding.UTF8.GetBytes(profileName));
 
-        return Task.FromResult<string?>(Encoding.UTF8.GetString(plaintext));
+            return Task.FromResult<string?>(Encoding.UTF8.GetString(plaintext));
+        }
+        catch (Exception exception) when (exception is CryptographicException or FormatException)
+        {
+            // A key restored without its credentials, a credentials file restored without its
+            // key, or either one edited. The token cannot be recovered, and saying so is more
+            // use than a tag-mismatch stack trace.
+            throw new ConfigurationException(Undecryptable(profileName));
+        }
     }
 
     public Task SetAsync(string profileName, string personalAccessToken, CancellationToken cancellationToken)
     {
-        using var aes = new AesGcm(ReadKey(), AesGcm.TagByteSizes.MaxSize);
+        using var aes = new AesGcm(ReadOrCreateKey(), AesGcm.TagByteSizes.MaxSize);
 
         var nonce = RandomNumberGenerator.GetBytes(AesGcm.NonceByteSizes.MaxSize);
         var plaintext = Encoding.UTF8.GetBytes(personalAccessToken);
@@ -100,12 +118,16 @@ internal sealed class FileCredentialStore(string configurationDirectory) : ICred
             return [];
         }
 
-        var document = JsonSerializer.Deserialize<CredentialFile>(
-                           System.IO.File.ReadAllText(File), _serializerOptions)
-                       ?? throw new InvalidOperationException(
-                           $"{File} is empty. Delete it and authenticate again.");
-
-        return document.Credentials;
+        try
+        {
+            return JsonSerializer.Deserialize<CredentialFile>(
+                       System.IO.File.ReadAllText(File), _serializerOptions)?.Credentials
+                   ?? throw new ConfigurationException(Unreadable);
+        }
+        catch (JsonException)
+        {
+            throw new ConfigurationException(Unreadable);
+        }
     }
 
     private void Write(Dictionary<string, StoredCredential> credentials)
@@ -117,20 +139,35 @@ internal sealed class FileCredentialStore(string configurationDirectory) : ICred
             JsonSerializer.Serialize(new CredentialFile { Credentials = credentials }, _serializerOptions));
     }
 
-    private byte[] ReadKey()
+    /// <summary>
+    /// Reading never mints key material: a missing key file with credentials still in place
+    /// means the token is unrecoverable, and quietly writing a fresh key would orphan every
+    /// other profile's credential too.
+    /// </summary>
+    private byte[] ReadKey(string profileName)
     {
-        ConfigurationPaths.Ensure(configurationDirectory);
-
         if (!System.IO.File.Exists(KeyFile))
         {
-            var created = RandomNumberGenerator.GetBytes(KeyBytes);
-
-            SecureFile.WriteAllBytes(KeyFile, Protect(created));
-
-            return created;
+            throw new ConfigurationException(Undecryptable(profileName));
         }
 
         return Unprotect(System.IO.File.ReadAllBytes(KeyFile));
+    }
+
+    private byte[] ReadOrCreateKey()
+    {
+        ConfigurationPaths.Ensure(configurationDirectory);
+
+        if (System.IO.File.Exists(KeyFile))
+        {
+            return Unprotect(System.IO.File.ReadAllBytes(KeyFile));
+        }
+
+        var created = RandomNumberGenerator.GetBytes(KeyBytes);
+
+        SecureFile.WriteAllBytes(KeyFile, Protect(created));
+
+        return created;
     }
 
     private static byte[] Protect(byte[] key) =>

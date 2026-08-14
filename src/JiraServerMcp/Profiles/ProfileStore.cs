@@ -18,6 +18,10 @@ internal sealed class ProfileStore(string configurationDirectory)
 
     private string File => Path.Combine(configurationDirectory, "profiles.json");
 
+    private string Unreadable =>
+        $"{File} cannot be read as a profile file. Move it aside and register your profiles "
+        + "again with 'jira-server-mcp profile add'.";
+
     public static ProfileStore InConfigurationDirectory() =>
         new(ConfigurationPaths.ConfigurationDirectory());
 
@@ -61,10 +65,17 @@ internal sealed class ProfileStore(string configurationDirectory)
 
         var contents = System.IO.File.ReadAllText(File);
 
-        var document = JsonSerializer.Deserialize<ProfileFile>(contents, _serializerOptions)
-            ?? throw new InvalidOperationException($"{File} is empty. Delete it and add the profile again.");
-
-        return document.Profiles;
+        try
+        {
+            // A file truncated by a crash or edited by hand must not turn every verb, including
+            // the one that would repair it, into a stack trace.
+            return JsonSerializer.Deserialize<ProfileFile>(contents, _serializerOptions)?.Profiles
+                   ?? throw new ConfigurationException(Unreadable);
+        }
+        catch (JsonException)
+        {
+            throw new ConfigurationException(Unreadable);
+        }
     }
 
     private void Write(Dictionary<string, Profile> profiles)

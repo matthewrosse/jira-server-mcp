@@ -27,16 +27,16 @@ internal static class ProfileUrl
 
         if (candidate.Scheme is not ("http" or "https"))
         {
-            error = $"'{value}' is not an HTTPS URL. The base URL must use HTTPS.";
+            error = $"'{value}' is not an HTTP or HTTPS URL. The base URL must use HTTPS.";
 
             return false;
         }
 
-        if (candidate.Scheme is "http" && !IsLoopback(candidate))
+        if (candidate.Scheme is "http" && !candidate.IsLoopback)
         {
-            error = $"'{value}' is not an HTTPS URL. The base URL must use HTTPS, except for "
-                    + "http://localhost or http://127.0.0.1. There is no option to disable "
-                    + "certificate validation.";
+            error = $"'{value}' is not an HTTPS URL. The base URL must use HTTPS, except for a "
+                    + "loopback address such as http://localhost or http://127.0.0.1. There is "
+                    + "no option to disable certificate validation.";
 
             return false;
         }
@@ -46,7 +46,4 @@ internal static class ProfileUrl
 
         return true;
     }
-
-    private static bool IsLoopback(Uri url) =>
-        url.Host is "localhost" or "127.0.0.1";
 }

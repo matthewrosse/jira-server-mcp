@@ -31,7 +31,10 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task Add_records_a_certificate_authority_bundle_when_one_is_given()
     {
-        var bundle = Path.Combine(Path.GetTempPath(), "corporate-ca.pem");
+        var bundle = Path.Combine(_home.Directory, "corporate-ca.pem");
+
+        Directory.CreateDirectory(_home.Directory);
+        await File.WriteAllTextAsync(bundle, "-----BEGIN CERTIFICATE-----", TestContext.Current.CancellationToken);
 
         var result = await RunAsync(
             ["profile", "add", "work", "--url", "https://jira.example.com", "--ca-bundle", bundle]);
@@ -59,12 +62,75 @@ public sealed class ProfileVerbTests : IDisposable
     [Theory]
     [InlineData("http://localhost:8080")]
     [InlineData("http://127.0.0.1:8080")]
+    [InlineData("http://[::1]:8080")]
     [InlineData("https://jira.example.com/jira")]
     public async Task Add_accepts_https_and_explicit_localhost(string url)
     {
         var result = await AddAsync("work", url);
 
         result.ExitCode.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Add_refuses_a_certificate_authority_bundle_that_is_not_there()
+    {
+        var result = await RunAsync(
+            [
+                "profile", "add", "work",
+                "--url", "https://jira.example.com",
+                "--ca-bundle", Path.Combine(Path.GetTempPath(), "no-such-bundle.pem"),
+            ]);
+
+        result.ExitCode.ShouldNotBe(0);
+        result.StandardError.ShouldContain("no-such-bundle.pem");
+        File.Exists(_home.ProfilesFile).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task A_damaged_profile_file_is_reported_rather_than_thrown()
+    {
+        await AddAsync("work", "https://jira.example.com");
+
+        await File.WriteAllTextAsync(
+            _home.ProfilesFile, "{ truncated", TestContext.Current.CancellationToken);
+
+        var result = await RunAsync(["profile", "list"]);
+
+        result.ExitCode.ShouldNotBe(0);
+        result.StandardError.ShouldContain("profiles.json");
+        result.StandardError.ShouldNotContain("Unhandled exception");
+    }
+
+    [Fact]
+    public async Task A_credential_that_cannot_be_decrypted_names_the_command_that_fixes_it()
+    {
+        await AddAsync("work", "https://jira.example.com");
+        await LoginAsync("work", "s3cr3t-personal-access-token");
+
+        // The key without its credentials, or the credentials without their key, is the same
+        // situation: a restored backup that took one and not the other.
+        File.Delete(Path.Combine(_home.Directory, "credentials.key"));
+
+        var result = await RunAsync(["serve", "--profile", "work"]);
+
+        result.ExitCode.ShouldNotBe(0);
+        result.StandardError.ShouldContain("auth login work");
+        result.StandardError.ShouldNotContain("Unhandled exception");
+    }
+
+    [Fact]
+    public async Task Storing_a_token_does_not_re_key_another_profiles_credential()
+    {
+        await AddAsync("work", "https://jira.example.com");
+        await AddAsync("spare", "https://spare.example.com");
+        await LoginAsync("work", "work-personal-access-token");
+        await LoginAsync("spare", "spare-personal-access-token");
+
+        // Both were encrypted under the same key, and neither login replaced it.
+        var served = await RunAsync(["serve", "--profile", "work"]);
+
+        served.StandardError.ShouldNotContain("cannot be decrypted");
+        served.StandardError.ShouldNotContain("Unhandled exception");
     }
 
     [Fact]

@@ -22,6 +22,14 @@ internal static class ProfileVerbs
             return 1;
         }
 
+        if (caBundlePath is not null && !File.Exists(caBundlePath))
+        {
+            await Console.Error.WriteLineAsync(
+                $"There is no certificate authority bundle at '{caBundlePath}'.");
+
+            return 1;
+        }
+
         var store = ProfileStore.InConfigurationDirectory();
 
         if (store.Find(name) is not null)
@@ -65,7 +73,7 @@ internal static class ProfileVerbs
         }
 
         // Names and URLs only: nothing a profile holds is secret, and nothing secret is read.
-        var width = profiles.Keys.Max(name => name.Length);
+        var width = Math.Max("NAME".Length, profiles.Keys.Max(name => name.Length));
 
         await Console.Out.WriteLineAsync($"{"NAME".PadRight(width)}  URL");
 
@@ -79,15 +87,20 @@ internal static class ProfileVerbs
 
     public static async Task<int> RemoveAsync(string name, CancellationToken cancellationToken)
     {
-        if (!ProfileStore.InConfigurationDirectory().Remove(name))
+        var store = ProfileStore.InConfigurationDirectory();
+
+        if (store.Find(name) is null)
         {
             await Console.Error.WriteLineAsync($"There is no profile named '{name}'.");
 
             return 1;
         }
 
-        // The credential goes with the profile, so removing one leaves no orphaned secret.
+        // The credential goes first: a failure here leaves a profile that still names the token
+        // it owns, rather than a secret on disk that no verb can reach any more.
         await FileCredentialStore.InConfigurationDirectory().DeleteAsync(name, cancellationToken);
+
+        store.Remove(name);
 
         await Console.Out.WriteLineAsync($"Removed profile '{name}' and its credential.");
 
