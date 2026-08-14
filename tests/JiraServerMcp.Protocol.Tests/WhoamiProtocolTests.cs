@@ -15,6 +15,8 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
 {
     private const string Token = "s3cr3t-personal-access-token";
 
+    private const string Profile = "work";
+
     private const string MyselfPayload = """
         {
           "self": "http://localhost/rest/api/2/user?username=mrosse",
@@ -28,21 +30,25 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
 
     private readonly WireMockServer _jira = WireMockServer.Start();
 
+    private readonly ConfigurationHome _home = new();
+
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
+        // The server is configured the way a user configures it: a registered profile and a
+        // stored credential, with no environment variable in sight.
+        await RegisterProfileAsync();
+
         _client = await McpClient.CreateAsync(
             new StdioClientTransport(new StdioClientTransportOptions
             {
                 Name = "jira-server-mcp",
                 Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor("serve"),
-                EnvironmentVariables = new Dictionary<string, string?>
-                {
-                    ["JIRA_SERVER_MCP_URL"] = _jira.Url,
-                    ["JIRA_SERVER_MCP_TOKEN"] = Token,
-                },
+                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
+                EnvironmentVariables = _home.Environment.ToDictionary(
+                    entry => entry.Key,
+                    entry => (string?)entry.Value),
             }),
             cancellationToken: TestContext.Current.CancellationToken);
     }
@@ -51,6 +57,25 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
     {
         await _client.DisposeAsync();
         _jira.Stop();
+        _home.Dispose();
+    }
+
+    private async Task RegisterProfileAsync()
+    {
+        var added = await HostProcess.RunAsync(
+            ["profile", "add", Profile, "--url", _jira.Url!],
+            TestContext.Current.CancellationToken,
+            _home.Environment);
+
+        added.ExitCode.ShouldBe(0);
+
+        var loggedIn = await HostProcess.RunAsync(
+            ["auth", "login", Profile],
+            TestContext.Current.CancellationToken,
+            _home.Environment,
+            standardInput: Token + "\n");
+
+        loggedIn.ExitCode.ShouldBe(0);
     }
 
     [Fact]
