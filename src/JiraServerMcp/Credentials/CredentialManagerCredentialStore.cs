@@ -24,6 +24,12 @@ internal sealed class CredentialManagerCredentialStore : INativeCredentialStore
 
     private const int ErrorNotFound = 1168;
 
+    /// <summary>
+    /// Read to see whether the store answers at all. Nothing is stored under this name, so the
+    /// expected answer is "not found" — which is the answer that proves it can be reached.
+    /// </summary>
+    private const string ProbeAccount = "__probe__";
+
     public Task<string?> GetAsync(string profileName, CancellationToken cancellationToken)
     {
         if (!CredRead(Target(profileName), GenericCredential, 0, out var handle))
@@ -116,7 +122,7 @@ internal sealed class CredentialManagerCredentialStore : INativeCredentialStore
     {
         try
         {
-            if (CredRead(Target(" probe"), GenericCredential, 0, out var handle))
+            if (CredRead(Target(ProbeAccount), GenericCredential, 0, out var handle))
             {
                 CredFree(handle);
 
