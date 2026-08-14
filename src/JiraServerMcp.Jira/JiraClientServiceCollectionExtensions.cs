@@ -18,11 +18,7 @@ public static class JiraClientServiceCollectionExtensions
 
         services
             .AddHttpClient<JiraClient>(ConfigureClient)
-            .ConfigurePrimaryHttpMessageHandler(static () => new HttpClientHandler
-            {
-                // A redirect would replay the bearer token at whatever host Jira names.
-                AllowAutoRedirect = false,
-            })
+            .ConfigurePrimaryHttpMessageHandler(CreatePrimaryHandler)
             // Outermost, so a retried read is authenticated afresh on every attempt.
             .AddHttpMessageHandler<JiraRetryHandler>()
             .AddHttpMessageHandler<PersonalAccessTokenHandler>();
@@ -30,10 +26,37 @@ public static class JiraClientServiceCollectionExtensions
         return services;
     }
 
+    private static HttpMessageHandler CreatePrimaryHandler(IServiceProvider provider)
+    {
+        var handler = new HttpClientHandler
+        {
+            // A redirect would replay the bearer token at whatever host Jira names.
+            AllowAutoRedirect = false,
+        };
+
+        if (provider.GetRequiredService<IOptions<JiraClientOptions>>().Value.CaBundlePath
+            is { } caBundlePath)
+        {
+            handler.ServerCertificateCustomValidationCallback =
+                PrivateCertificateAuthority.TrustingBundleAt(caBundlePath);
+        }
+
+        return handler;
+    }
+
     private static void ConfigureClient(IServiceProvider provider, HttpClient client)
     {
         var baseUrl = provider.GetRequiredService<IOptions<JiraClientOptions>>().Value.BaseUrl
             ?? throw new InvalidOperationException("No Jira base URL is configured.");
+
+        // The token is a bearer secret with nothing else protecting it in transit. Loopback is
+        // the only exception, because there is no network there to intercept.
+        if (baseUrl.Scheme is not "https" && !baseUrl.IsLoopback)
+        {
+            throw new InvalidOperationException(
+                $"The Jira base URL '{baseUrl}' does not use HTTPS. The base URL must use HTTPS, "
+                + "except for a loopback address such as http://localhost or http://127.0.0.1.");
+        }
 
         // The whole call, retries included, is bounded here: a hung Jira must not hold an agent's
         // tool call open indefinitely.

@@ -52,6 +52,7 @@ internal static class ServeVerb
         {
             options.BaseUrl = profile.BaseUrl;
             options.PersonalAccessToken = held.Value;
+            options.CaBundlePath = profile.CaBundlePath;
         });
 
         builder.Services.AddJiraClient();
