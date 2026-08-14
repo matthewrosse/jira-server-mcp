@@ -38,7 +38,8 @@ internal static class HostProcess
     public static async Task<HostProcessResult> RunAsync(
         string[] verb,
         CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, string>? environment = null)
+        IReadOnlyDictionary<string, string>? environment = null,
+        string? standardInput = null)
     {
         var startInfo = new ProcessStartInfo(Command)
         {
@@ -66,6 +67,11 @@ internal static class HostProcess
 
         try
         {
+            if (standardInput is not null)
+            {
+                await process.StandardInput.WriteAsync(standardInput);
+            }
+
             // Nothing is being served, so the host is told at once that no more input is coming.
             process.StandardInput.Close();
 

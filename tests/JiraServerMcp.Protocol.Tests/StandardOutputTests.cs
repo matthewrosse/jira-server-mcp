@@ -19,6 +19,10 @@ public sealed class StandardOutputTests
     [Fact]
     public async Task Nothing_but_protocol_traffic_reaches_standard_output()
     {
+        using var home = new ConfigurationHome();
+
+        await SetUpProfileAsync(home);
+
         var startInfo = new ProcessStartInfo(HostProcess.Command)
         {
             RedirectStandardInput = true,
@@ -26,15 +30,18 @@ public sealed class StandardOutputTests
             RedirectStandardError = true,
         };
 
-        foreach (var argument in HostProcess.ArgumentsFor("serve"))
+        foreach (var argument in HostProcess.ArgumentsFor("serve", "--profile", "work"))
         {
             startInfo.ArgumentList.Add(argument);
         }
 
         // Every logger at its loudest, so a log line landing on standard output would be seen.
         startInfo.Environment["Logging__LogLevel__Default"] = "Trace";
-        startInfo.Environment["JIRA_SERVER_MCP_URL"] = "http://localhost:1/";
-        startInfo.Environment["JIRA_SERVER_MCP_TOKEN"] = "unused-by-this-test";
+
+        foreach (var (key, value) in home.Environment)
+        {
+            startInfo.Environment[key] = value;
+        }
 
         using var process = Process.Start(startInfo).ShouldNotBeNull();
 
@@ -72,6 +79,21 @@ public sealed class StandardOutputTests
                 process.Kill(entireProcessTree: true);
             }
         }
+    }
+
+    private static async Task SetUpProfileAsync(ConfigurationHome home)
+    {
+        // Nothing answers on port 1, which is all this test needs: no tool is called.
+        await HostProcess.RunAsync(
+            ["profile", "add", "work", "--url", "http://localhost:1/"],
+            TestContext.Current.CancellationToken,
+            home.Environment);
+
+        await HostProcess.RunAsync(
+            ["auth", "login", "work"],
+            TestContext.Current.CancellationToken,
+            home.Environment,
+            standardInput: "unused-by-this-test\n");
     }
 
     private static async Task<List<string>> ReadLinesAsync(Process process, int expected)

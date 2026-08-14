@@ -4,12 +4,16 @@ namespace JiraServerMcp.Tests;
 /// ADR-0002: standard output belongs to the protocol, so even a usage message goes to standard
 /// error.
 /// </summary>
-public sealed class VerbDispatchTests
+public sealed class VerbDispatchTests : IDisposable
 {
+    private readonly ConfigurationHome _home = new();
+
+    public void Dispose() => _home.Dispose();
+
     [Fact]
     public async Task An_unknown_verb_fails_and_explains_itself_on_standard_error()
     {
-        var result = await HostProcess.RunAsync(["frobnicate"], TestContext.Current.CancellationToken);
+        var result = await RunAsync(["frobnicate"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("frobnicate");
@@ -20,7 +24,7 @@ public sealed class VerbDispatchTests
     [Fact]
     public async Task No_verb_fails_and_explains_itself_on_standard_error()
     {
-        var result = await HostProcess.RunAsync([], TestContext.Current.CancellationToken);
+        var result = await RunAsync([]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("Usage:");
@@ -28,42 +32,55 @@ public sealed class VerbDispatchTests
     }
 
     [Fact]
-    public async Task An_argument_after_serve_is_reported_as_the_argument_not_the_verb()
+    public async Task Serving_without_a_profile_says_which_option_is_missing()
     {
-        var result = await HostProcess.RunAsync(["serve", "--verbose"], TestContext.Current.CancellationToken);
+        var result = await RunAsync(["serve"]);
 
         result.ExitCode.ShouldNotBe(0);
-        result.StandardError.ShouldContain("takes no arguments");
-        result.StandardError.ShouldNotContain("Unknown verb");
+        result.StandardError.ShouldContain("--profile");
         result.StandardOutput.ShouldBeEmpty();
     }
 
     [Fact]
-    public async Task Missing_configuration_is_reported_rather_than_thrown()
+    public async Task Serving_an_unknown_profile_fails_at_startup_and_names_it()
     {
-        var result = await HostProcess.RunAsync(["serve"], TestContext.Current.CancellationToken);
+        var result = await RunAsync(["serve", "--profile", "absent"]);
 
         result.ExitCode.ShouldNotBe(0);
-        result.StandardError.ShouldContain("JIRA_SERVER_MCP_URL");
-        result.StandardError.ShouldContain("JIRA_SERVER_MCP_TOKEN");
+        result.StandardError.ShouldContain("absent");
+        result.StandardError.ShouldContain("profile add absent");
         result.StandardError.ShouldNotContain("Unhandled exception");
         result.StandardOutput.ShouldBeEmpty();
     }
 
     [Fact]
-    public async Task A_base_url_that_is_not_http_is_refused_at_startup()
+    public async Task Serving_a_profile_with_no_credential_names_the_command_that_fixes_it()
     {
-        var result = await HostProcess.RunAsync(
-            ["serve"],
-            TestContext.Current.CancellationToken,
-            new Dictionary<string, string>
-            {
-                ["JIRA_SERVER_MCP_URL"] = "file:///etc/passwd",
-                ["JIRA_SERVER_MCP_TOKEN"] = "unused-by-this-test",
-            });
+        await RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
+
+        var result = await RunAsync(["serve", "--profile", "work"]);
 
         result.ExitCode.ShouldNotBe(0);
-        result.StandardError.ShouldContain("must be an http or https URL");
+        result.StandardError.ShouldContain("work");
+        result.StandardError.ShouldContain("auth login work");
+        result.StandardError.ShouldNotContain("Unhandled exception");
         result.StandardOutput.ShouldBeEmpty();
     }
+
+    [Fact]
+    public async Task Logging_in_to_an_unknown_profile_is_refused()
+    {
+        var result = await HostProcess.RunAsync(
+            ["auth", "login", "absent"],
+            TestContext.Current.CancellationToken,
+            _home.Environment,
+            standardInput: "s3cr3t-personal-access-token\n");
+
+        result.ExitCode.ShouldNotBe(0);
+        result.StandardError.ShouldContain("absent");
+        File.Exists(_home.CredentialsFile).ShouldBeFalse();
+    }
+
+    private Task<HostProcessResult> RunAsync(string[] verb) =>
+        HostProcess.RunAsync(verb, TestContext.Current.CancellationToken, _home.Environment);
 }
