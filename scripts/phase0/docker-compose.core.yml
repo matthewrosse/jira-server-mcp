@@ -1,0 +1,46 @@
+# Question 4 needs the other half of the comparison: an instance where Jira
+# Software is not licensed, so the capability probe's discrimination can be read
+# off a real response rather than assumed. Same shape as docker-compose.yml,
+# different image and a port that does not collide with it.
+name: jira-server-mcp-phase0-core
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: jira
+      POSTGRES_USER: jira
+      POSTGRES_PASSWORD: jira
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jira -d jira"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  jira:
+    image: atlassian/jira-core:8.20.7-jdk11
+    platform: linux/amd64
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ATL_DB_TYPE: postgres72
+      ATL_DB_DRIVER: org.postgresql.Driver
+      ATL_JDBC_URL: jdbc:postgresql://postgres:5432/jira
+      ATL_JDBC_USER: jira
+      ATL_JDBC_PASSWORD: jira
+      ATL_DB_SCHEMA_NAME: public
+      JVM_MINIMUM_MEMORY: 1024m
+      JVM_MAXIMUM_MEMORY: 2048m
+      ATL_TOMCAT_PORT: 8080
+    ports:
+      - "8081:8080"
+    volumes:
+      - jira-home:/var/atlassian/application-data/jira
+
+volumes:
+  postgres-data:
+  jira-home:
