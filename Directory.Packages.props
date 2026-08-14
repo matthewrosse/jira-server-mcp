@@ -9,6 +9,9 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.11" />
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.11" />
+    <!-- Windows key material for the file credential store; a no-op reference elsewhere. -->
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
     <!-- Pinned to line up with the rest of the Microsoft.Extensions.* graph above: left
          floating, Microsoft.Extensions.AI.Abstractions pulls 10.0.10 here while everything
          else resolves to 10.0.11, and a fresh restore can pick a mismatched version that
