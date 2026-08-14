@@ -1,0 +1,3 @@
+# The formatting rules ask for LF (.editorconfig, end_of_line), and IDE0055 is an error in CI, so
+# a Windows checkout must not rewrite line endings on the way in.
+* text=auto eol=lf

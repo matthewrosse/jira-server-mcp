@@ -107,10 +107,15 @@ jobs:
       - name: Test
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            # The keyring daemon is unlocked with an empty password and lives for the length of
-            # the bus session, which is the length of this command.
+            # The keyring daemon is unlocked with an empty password, which also creates the login
+            # collection that `secret-tool store` writes into, and lives for the length of the bus
+            # session, which is the length of this command. The password arrives as a bare
+            # newline: given nothing at all on standard input the daemon takes it as "no password
+            # supplied" and tries to raise a graphical prompt, which a headless runner cannot
+            # answer.
+            mkdir -p ~/.local/share/keyrings
             dbus-run-session -- bash -euo pipefail -c '
-              eval "$(echo -n "" | gnome-keyring-daemon --unlock --components=secrets --daemonize)"
+              eval "$(printf "\n" | gnome-keyring-daemon --unlock --components=secrets --daemonize)"
               export GNOME_KEYRING_CONTROL
               dotnet test tests/JiraServerMcp.Tests --no-build -c Release \
                 -- --filter-class "*CredentialStore*" | tee credential-stores.log
