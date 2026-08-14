@@ -1,0 +1,48 @@
+{
+  "startAt": 0,
+  "maxResults": 1,
+  "total": 1,
+  "worklogs": [
+    {
+      "self": "http://localhost:8080/rest/api/2/issue/10000/worklog/10000",
+      "author": {
+        "self": "http://localhost:8080/rest/api/2/user?username=admin",
+        "name": "admin",
+        "key": "JIRAUSER10000",
+        "emailAddress": "admin@example.com",
+        "avatarUrls": {
+          "48x48": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=48",
+          "24x24": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=24",
+          "16x16": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=16",
+          "32x32": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=32"
+        },
+        "displayName": "Phase Zero Admin",
+        "active": true,
+        "timeZone": "Etc/UTC"
+      },
+      "updateAuthor": {
+        "self": "http://localhost:8080/rest/api/2/user?username=admin",
+        "name": "admin",
+        "key": "JIRAUSER10000",
+        "emailAddress": "admin@example.com",
+        "avatarUrls": {
+          "48x48": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=48",
+          "24x24": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=24",
+          "16x16": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=16",
+          "32x32": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=32"
+        },
+        "displayName": "Phase Zero Admin",
+        "active": true,
+        "timeZone": "Etc/UTC"
+      },
+      "comment": "Logged with Jira's own duration syntax.",
+      "created": "2026-08-14T11:32:14.228+0000",
+      "updated": "2026-08-14T11:32:14.228+0000",
+      "started": "2026-08-14T11:32:14.223+0000",
+      "timeSpent": "1h 30m",
+      "timeSpentSeconds": 5400,
+      "id": "10000",
+      "issueId": "10000"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "expand": "description,lead,url,projectKeys",
+  "self": "http://localhost:8080/rest/api/2/project/10000",
+  "id": "10000",
+  "key": "PZ",
+  "description": "Spike fixtures. Deliberately contains *wiki markup* and a {code}block{code}.",
+  "lead": {
+    "self": "http://localhost:8080/rest/api/2/user?username=admin",
+    "key": "JIRAUSER10000",
+    "name": "admin",
+    "avatarUrls": {
+      "48x48": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=48",
+      "24x24": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=24",
+      "16x16": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=16",
+      "32x32": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?d=mm&s=32"
+    },
+    "displayName": "Phase Zero Admin",
+    "active": true
+  },
+  "components": [],
+  "issueTypes": [
+    {
+      "self": "http://localhost:8080/rest/api/2/issuetype/10002",
+      "id": "10002",
+      "description": "A task that needs to be done.",
+      "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10318&avatarType=issuetype",
+      "name": "Task",
+      "subtask": false,
+      "avatarId": 10318
+    },
+    {
+      "self": "http://localhost:8080/rest/api/2/issuetype/10003",
+      "id": "10003",
+      "description": "The sub-task of the issue",
+      "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10316&avatarType=issuetype",
+      "name": "Sub-task",
+      "subtask": true,
+      "avatarId": 10316
+    },
+    {
+      "self": "http://localhost:8080/rest/api/2/issuetype/10001",
+      "id": "10001",
+      "description": "Created by Jira Software - do not edit or delete. Issue type for a user story.",
+      "iconUrl": "http://localhost:8080/images/icons/issuetypes/story.svg",
+      "name": "Story",
+      "subtask": false
+    },
+    {
+      "self": "http://localhost:8080/rest/api/2/issuetype/10004",
+      "id": "10004",
+      "description": "A problem which impairs or prevents the functions of the product.",
+      "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10303&avatarType=issuetype",
+      "name": "Bug",
+      "subtask": false,
+      "avatarId": 10303
+    },
+    {
+      "self": "http://localhost:8080/rest/api/2/issuetype/10000",
+      "id": "10000",
+      "description": "Created by Jira Software - do not edit or delete. Issue type for a big user story that needs to be broken down.",
+      "iconUrl": "http://localhost:8080/images/icons/issuetypes/epic.svg",
+      "name": "Epic",
+      "subtask": false
+    }
+  ],
+  "assigneeType": "PROJECT_LEAD",
+  "versions": [],
+  "name": "Phase Zero",
+  "roles": {
+    "Administrators": "http://localhost:8080/rest/api/2/project/10000/role/10002"
+  },
+  "avatarUrls": {
+    "48x48": "http://localhost:8080/secure/projectavatar?avatarId=10324",
+    "24x24": "http://localhost:8080/secure/projectavatar?size=small&avatarId=10324",
+    "16x16": "http://localhost:8080/secure/projectavatar?size=xsmall&avatarId=10324",
+    "32x32": "http://localhost:8080/secure/projectavatar?size=medium&avatarId=10324"
+  },
+  "projectTypeKey": "software",
+  "archived": false
+}

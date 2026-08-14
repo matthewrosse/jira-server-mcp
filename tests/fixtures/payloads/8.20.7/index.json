@@ -1,0 +1,86 @@
+{
+  "myself": {
+    "path": "/rest/api/2/myself",
+    "status": 200
+  },
+  "serverinfo": {
+    "path": "/rest/api/2/serverInfo",
+    "status": 200
+  },
+  "search": {
+    "path": "/rest/api/2/search?jql=project+%3D+PZ+ORDER+BY+created+DESC&maxResults=50",
+    "status": 200
+  },
+  "issue-default": {
+    "path": "/rest/api/2/issue/PZ-1",
+    "status": 200
+  },
+  "issue-expanded": {
+    "path": "/rest/api/2/issue/PZ-1?expand=changelog%2CrenderedFields%2Ctransitions",
+    "status": 200
+  },
+  "issue-transitions": {
+    "path": "/rest/api/2/issue/PZ-1/transitions",
+    "status": 200
+  },
+  "issue-comments": {
+    "path": "/rest/api/2/issue/PZ-1/comment",
+    "status": 200
+  },
+  "issue-worklogs": {
+    "path": "/rest/api/2/issue/PZ-1/worklog",
+    "status": 200
+  },
+  "project-list": {
+    "path": "/rest/api/2/project",
+    "status": 200
+  },
+  "project-detail": {
+    "path": "/rest/api/2/project/PZ",
+    "status": 200
+  },
+  "project-statuses": {
+    "path": "/rest/api/2/project/PZ/statuses",
+    "status": 200
+  },
+  "project-components": {
+    "path": "/rest/api/2/project/PZ/components",
+    "status": 200
+  },
+  "project-versions": {
+    "path": "/rest/api/2/project/PZ/versions",
+    "status": 200
+  },
+  "createmeta": {
+    "path": "/rest/api/2/issue/createmeta?projectKeys=PZ&expand=projects.issuetypes.fields",
+    "status": 200
+  },
+  "user-search": {
+    "path": "/rest/api/2/user/search?username=admin",
+    "status": 200
+  },
+  "fields": {
+    "path": "/rest/api/2/field",
+    "status": 200
+  },
+  "agile-board": {
+    "path": "/rest/agile/1.0/board?maxResults=50",
+    "status": 200
+  },
+  "agile-board-detail": {
+    "path": "/rest/agile/1.0/board/1",
+    "status": 200
+  },
+  "agile-sprints": {
+    "path": "/rest/agile/1.0/board/1/sprint",
+    "status": 200
+  },
+  "agile-backlog": {
+    "path": "/rest/agile/1.0/board/1/backlog",
+    "status": 200
+  },
+  "agile-board-issues": {
+    "path": "/rest/agile/1.0/board/1/issue",
+    "status": 200
+  }
+}

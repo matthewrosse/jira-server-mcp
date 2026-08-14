@@ -1,0 +1,6 @@
+{
+  "id": 1,
+  "self": "http://localhost:8080/rest/agile/1.0/board/1",
+  "name": "PZ board",
+  "type": "scrum"
+}
