@@ -70,10 +70,14 @@ public sealed class JiraResilienceTests : IDisposable
         ReceivedRequests().Count.ShouldBe(1);
     }
 
-    [Fact]
-    public async Task A_status_jira_will_not_recover_from_is_not_retried()
+    [Theory]
+    [InlineData(400)]
+    [InlineData(401)]
+    [InlineData(403)]
+    [InlineData(404)]
+    public async Task A_status_jira_will_not_recover_from_is_not_retried(int status)
     {
-        Stub(Request.Create().WithPath("/read").UsingGet(), Response.Create().WithStatusCode(404));
+        Stub(Request.Create().WithPath("/read").UsingGet(), Response.Create().WithStatusCode(status));
 
         using var response = await Send(HttpMethod.Get, "read");
 
