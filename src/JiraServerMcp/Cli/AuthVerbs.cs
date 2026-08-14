@@ -121,6 +121,9 @@ internal static class AuthVerbs
         }
 
         var store = await SelectStoreAsync(storeChoice, cancellationToken);
+
+        // Read only to tell "removed it" from "there was nothing to remove". The token itself
+        // goes no further than this variable.
         var stored = await store.GetAsync(profileName, cancellationToken);
 
         await store.DeleteAsync(profileName, cancellationToken);

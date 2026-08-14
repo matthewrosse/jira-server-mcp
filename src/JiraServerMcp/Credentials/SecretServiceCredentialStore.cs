@@ -25,6 +25,8 @@ internal sealed class SecretServiceCredentialStore(IProcessRunner processRunner)
 
         if (result is { Started: true, ExitCode: 0 })
         {
+            // Byte for byte, with no newline of its own — unlike `security`, which adds one when
+            // it prints, so the Keychain store has to trim and this one must not.
             return result.StandardOutput;
         }
 

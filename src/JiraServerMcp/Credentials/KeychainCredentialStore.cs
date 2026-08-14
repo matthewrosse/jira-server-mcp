@@ -78,8 +78,10 @@ internal sealed class KeychainCredentialStore(IProcessRunner processRunner) : IN
     }
 
     /// <summary>
-    /// `security -i` groups with double quotes and escapes with a backslash inside them, which
-    /// is the whole of its quoting [verified on macOS 15].
+    /// `security -i` groups an argument with double quotes, and inside those quotes a backslash
+    /// escapes the character after it — a literal backslash or a literal double quote. That is
+    /// the whole of its quoting [verified on macOS 15]; backslashes are doubled first so the
+    /// escapes added for quotes are not escaped in turn.
     /// </summary>
     private static string Quoted(string value) =>
         $"\"{value.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
