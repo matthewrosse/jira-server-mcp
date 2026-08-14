@@ -54,6 +54,13 @@ dotnet_naming_rule.types_and_members_are_pascal_case.style = pascal_case
 dotnet_naming_symbols.type_and_member_symbols.applicable_kinds = class,struct,enum,property,method,event,delegate
 dotnet_naming_style.pascal_case.capitalization = pascal_case
 
+# Constants are fields too, so this has to win over the private-field rule below.
+dotnet_naming_rule.constants_are_pascal_case.severity = warning
+dotnet_naming_rule.constants_are_pascal_case.symbols = constant_symbols
+dotnet_naming_rule.constants_are_pascal_case.style = pascal_case
+dotnet_naming_symbols.constant_symbols.applicable_kinds = field
+dotnet_naming_symbols.constant_symbols.required_modifiers = const
+
 dotnet_naming_rule.private_fields_are_camel_case_with_underscore.severity = warning
 dotnet_naming_rule.private_fields_are_camel_case_with_underscore.symbols = private_field_symbols
 dotnet_naming_rule.private_fields_are_camel_case_with_underscore.style = underscore_camel_case
