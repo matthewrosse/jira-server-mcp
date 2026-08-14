@@ -55,6 +55,7 @@ internal static class ServeVerb
             options.CaBundlePath = profile.CaBundlePath;
         });
 
+        builder.Services.AddSingleton(new ServedProfile(profileName));
         builder.Services.AddJiraClient();
 
         builder.Services
