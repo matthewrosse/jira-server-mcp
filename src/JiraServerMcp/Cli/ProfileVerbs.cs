@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using JiraServerMcp.Credentials;
 using JiraServerMcp.Profiles;
 
@@ -26,6 +28,17 @@ internal static class ProfileVerbs
         {
             await Console.Error.WriteLineAsync(
                 $"There is no certificate authority bundle at '{caBundlePath}'.");
+
+            return 1;
+        }
+
+        // A file with no certificate in it would become an empty trust store, and every handshake
+        // would then fail for a reason that never mentions this file.
+        if (caBundlePath is not null && !HoldsACertificate(caBundlePath))
+        {
+            await Console.Error.WriteLineAsync(
+                $"The certificate authority bundle at '{caBundlePath}' holds no certificate. A "
+                + "bundle is one or more PEM CERTIFICATE blocks.");
 
             return 1;
         }
@@ -111,5 +124,21 @@ internal static class ProfileVerbs
         await Console.Out.WriteLineAsync($"Removed profile '{name}' and its credential.");
 
         return 0;
+    }
+
+    private static bool HoldsACertificate(string caBundlePath)
+    {
+        var roots = new X509Certificate2Collection();
+
+        try
+        {
+            roots.ImportFromPemFile(caBundlePath);
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+
+        return roots.Count > 0;
     }
 }

@@ -82,6 +82,30 @@ public sealed class JiraTransportSecurityTests : IDisposable
     }
 
     [Fact]
+    public void A_bundle_holding_no_certificate_is_refused_rather_than_trusted_emptily()
+    {
+        // An empty trust store rejects every certificate, and the handshake error it produces
+        // says nothing about the file that caused it.
+        var exception = Should.Throw<InvalidOperationException>(
+            () => CreateClient(
+                new Uri("https://jira.example.com", UriKind.Absolute),
+                CaBundle("not a certificate")));
+
+        exception.Message.ShouldContain("jira-ca-");
+    }
+
+    [Fact]
+    public void A_bundle_that_is_not_there_is_refused_by_name()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), "no-such-bundle.pem");
+
+        var exception = Should.Throw<InvalidOperationException>(
+            () => CreateClient(new Uri("https://jira.example.com", UriKind.Absolute), missing));
+
+        exception.Message.ShouldContain("no-such-bundle.pem");
+    }
+
+    [Fact]
     public void Nothing_on_the_options_can_switch_certificate_validation_off()
     {
         // Permanently out of scope: an insecure shortcut would be pasted into every teammate's

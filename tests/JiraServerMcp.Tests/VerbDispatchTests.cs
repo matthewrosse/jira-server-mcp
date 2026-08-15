@@ -68,6 +68,34 @@ public sealed class VerbDispatchTests : IDisposable
     }
 
     [Fact]
+    public async Task Serving_a_profile_whose_ca_bundle_has_gone_fails_at_startup_and_names_it()
+    {
+        // The bundle existed when the profile was added. Finding out it has moved during a tool
+        // call, once per handler, is worse than refusing to start.
+        var bundle = Path.Combine(_home.Directory, "corporate-ca.pem");
+
+        Directory.CreateDirectory(_home.Directory);
+        await File.WriteAllTextAsync(
+            bundle, TestCertificate.Pem(), TestContext.Current.CancellationToken);
+
+        await RunAsync(
+            [
+                "profile", "add", "work",
+                "--url", "https://jira.example.com",
+                "--ca-bundle", bundle,
+            ]);
+
+        File.Delete(bundle);
+
+        var result = await RunAsync(["serve", "--profile", "work"]);
+
+        result.ExitCode.ShouldNotBe(0);
+        result.StandardError.ShouldContain("corporate-ca.pem");
+        result.StandardError.ShouldNotContain("Unhandled exception");
+        result.StandardOutput.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task Logging_in_to_an_unknown_profile_is_refused()
     {
         var result = await HostProcess.RunAsync(

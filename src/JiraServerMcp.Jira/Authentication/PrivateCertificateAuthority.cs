@@ -12,9 +12,25 @@ internal static class PrivateCertificateAuthority
     public static Func<HttpRequestMessage, X509Certificate2?, X509Chain?, SslPolicyErrors, bool>
         TrustingBundleAt(string path)
     {
+        if (!File.Exists(path))
+        {
+            throw new InvalidOperationException(
+                $"This profile's certificate authority bundle '{path}' is not there. Point the "
+                + "profile at the bundle again with 'jira-server-mcp profile add'.");
+        }
+
         var roots = new X509Certificate2Collection();
 
         roots.ImportFromPemFile(path);
+
+        // An empty trust store rejects every certificate, and the handshake error says nothing
+        // about the file that caused it.
+        if (roots.Count is 0)
+        {
+            throw new InvalidOperationException(
+                $"This profile's certificate authority bundle '{path}' holds no certificate. A "
+                + "bundle is one or more PEM CERTIFICATE blocks.");
+        }
 
         return (_, certificate, chain, errors) => IsTrusted(roots, certificate, chain, errors);
     }
