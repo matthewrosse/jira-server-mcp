@@ -50,10 +50,7 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task Add_records_a_certificate_authority_bundle_when_one_is_given()
     {
-        var bundle = Path.Combine(_home.Directory, "corporate-ca.pem");
-
-        Directory.CreateDirectory(_home.Directory);
-        await File.WriteAllTextAsync(bundle, "-----BEGIN CERTIFICATE-----", TestContext.Current.CancellationToken);
+        var bundle = await WriteBundleAsync(TestCertificate.Pem());
 
         var result = await RunAsync(
             ["profile", "add", "work", "--url", "https://jira.example.com", "--ca-bundle", bundle]);
@@ -102,6 +99,25 @@ public sealed class ProfileVerbTests : IDisposable
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("no-such-bundle.pem");
+        File.Exists(_home.ProfilesFile).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Add_refuses_a_certificate_authority_bundle_with_no_certificate_in_it()
+    {
+        // A bundle that holds nothing is worse than none at all: it becomes an empty trust store,
+        // and every handshake then fails for a reason that says nothing about this file.
+        var bundle = await WriteBundleAsync("not a certificate");
+
+        var result = await RunAsync(
+            [
+                "profile", "add", "work",
+                "--url", "https://jira.example.com",
+                "--ca-bundle", bundle,
+            ]);
+
+        result.ExitCode.ShouldNotBe(0);
+        result.StandardError.ShouldContain("corporate-ca.pem");
         File.Exists(_home.ProfilesFile).ShouldBeFalse();
     }
 
@@ -259,6 +275,16 @@ public sealed class ProfileVerbTests : IDisposable
         {
             File.GetUnixFileMode(file).ShouldBe(UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
+    }
+
+    private async Task<string> WriteBundleAsync(string contents)
+    {
+        var bundle = Path.Combine(_home.Directory, "corporate-ca.pem");
+
+        Directory.CreateDirectory(_home.Directory);
+        await File.WriteAllTextAsync(bundle, contents, TestContext.Current.CancellationToken);
+
+        return bundle;
     }
 
     private Task<HostProcessResult> AddJiraAsync(string name) => AddAsync(name, _jira.Url!);
