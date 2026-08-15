@@ -38,6 +38,15 @@ internal sealed class WhoamiTool(JiraClient jira, ServedProfile profile)
         {
             return Error($"Could not reach Jira: {exception.Message}");
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The client's own timeout, not the caller hanging up: the caller's cancellation is
+            // left to propagate, because there is nobody waiting for an answer to it.
+            return Error(
+                $"Jira did not answer for profile '{profile.Name}' in time, and the request was "
+                + "given up. It may be under load or behind a proxy holding the request; try "
+                + "again, and check the profile's base URL if it keeps happening.");
+        }
     }
 
     private static CallToolResult Text(string text) =>
