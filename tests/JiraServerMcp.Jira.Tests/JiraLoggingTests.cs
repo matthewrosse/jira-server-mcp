@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using JiraServerMcp.Jira.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WireMock.RequestBuilders;
@@ -86,6 +88,34 @@ public sealed class JiraLoggingTests : IDisposable
         _log.Lines.ShouldHaveSingleItem().ShouldNotContain("a name only this response knows");
     }
 
+    [Fact]
+    public async Task A_call_that_runs_out_of_time_is_logged_too()
+    {
+        // The one failure with nothing to show for it: no status, no exception from Jira. Without
+        // a line here, a hung Jira leaves the log silent about the request that never came back.
+        using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(_log));
+        using var handler = new JiraRequestLoggingHandler(
+            loggerFactory.CreateLogger<JiraRequestLoggingHandler>())
+        {
+            InnerHandler = new NeverAnswers(),
+        };
+
+        using var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://jira.example.com", UriKind.Absolute),
+            Timeout = TimeSpan.FromMilliseconds(200),
+        };
+
+        await Should.ThrowAsync<TaskCanceledException>(
+            () => client.GetAsync("rest/api/2/myself", TestContext.Current.CancellationToken));
+
+        var line = _log.Lines.ShouldHaveSingleItem();
+
+        line.ShouldContain("GET");
+        line.ShouldContain("/rest/api/2/myself");
+        line.ShouldContain("ms");
+    }
+
     private void StubMyself(int status) =>
         _jira
             .Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
@@ -121,6 +151,18 @@ public sealed class JiraLoggingTests : IDisposable
         _providers.Add(provider);
 
         return provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(JiraClient));
+    }
+
+    private sealed class NeverAnswers : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+
+            throw new UnreachableException();
+        }
     }
 
     private sealed class CapturedLog : ILoggerProvider, ILogger

@@ -42,5 +42,17 @@ public sealed class JiraRequestLoggingHandler(ILogger<JiraRequestLoggingHandler>
 
             throw;
         }
+        catch (OperationCanceledException)
+        {
+            // A call that timed out or was abandoned has no status and no exception from Jira, so
+            // without this line the request that never came back leaves no trace at all.
+            logger.LogWarning(
+                "{Method} {Endpoint} did not answer within {Elapsed} ms",
+                request.Method,
+                endpoint,
+                stopwatch.ElapsedMilliseconds);
+
+            throw;
+        }
     }
 }
