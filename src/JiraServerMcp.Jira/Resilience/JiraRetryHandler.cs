@@ -22,7 +22,7 @@ public sealed class JiraRetryHandler : DelegatingHandler
     /// spending the client's whole budget on that hands the caller an opaque timeout instead of
     /// the status and message Jira already sent.
     /// </summary>
-    private static readonly TimeSpan LongestWait = TimeSpan.FromSeconds(5);
+    private const int LongestWaitSeconds = 5;
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
@@ -53,7 +53,9 @@ public sealed class JiraRetryHandler : DelegatingHandler
 
             var retryAfter = RetryAfter(response);
 
-            if (lastAttempt || !IsWorthRetrying(response.StatusCode) || retryAfter > LongestWait)
+            if (lastAttempt
+                || !IsWorthRetrying(response.StatusCode)
+                || retryAfter?.TotalSeconds > LongestWaitSeconds)
             {
                 return response;
             }
