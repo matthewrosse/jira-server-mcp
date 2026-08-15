@@ -29,7 +29,7 @@ public sealed class JiraRetryHandler : DelegatingHandler
         CancellationToken cancellationToken)
     {
         // Only a read is safe to repeat. Everything else is surfaced the first time it fails.
-        if (request.Method != HttpMethod.Get && request.Method != HttpMethod.Head)
+        if (!IsSafeToRepeat(request))
         {
             return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
@@ -67,6 +67,16 @@ public sealed class JiraRetryHandler : DelegatingHandler
             await Task.Delay(backoff, cancellationToken).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// A GET or a HEAD, or the one request the client marks as a read behind a POST: the search
+    /// endpoint's POST form, taken when a JQL is too long for a URL.
+    /// </summary>
+    private static bool IsSafeToRepeat(HttpRequestMessage request) =>
+        request.Method == HttpMethod.Get
+        || request.Method == HttpMethod.Head
+        || (request.Options.TryGetValue(JiraRequestOptions.RetrySafe, out var retrySafe)
+            && retrySafe);
 
     /// <summary>
     /// A rejected certificate and a name that does not resolve are settled: the profile is
