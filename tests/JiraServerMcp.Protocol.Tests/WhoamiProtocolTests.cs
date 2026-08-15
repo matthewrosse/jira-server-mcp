@@ -93,9 +93,8 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
         var tools = await _client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
 
-        var whoami = tools.ShouldHaveSingleItem();
+        var whoami = tools.Single(tool => tool.Name is "jira_whoami");
 
-        whoami.Name.ShouldBe("jira_whoami");
         whoami.ProtocolTool.Annotations.ShouldNotBeNull().ReadOnlyHint.ShouldBe(true);
         whoami.JsonSchema.GetProperty("properties").EnumerateObject().ShouldBeEmpty();
     }

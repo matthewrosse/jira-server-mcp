@@ -73,7 +73,8 @@ internal static class ServeVerb
         builder.Services
             .AddMcpServer(options => options.ServerInfo = ServerInfo())
             .WithStdioServerTransport()
-            .WithTools<WhoamiTool>();
+            .WithTools<WhoamiTool>()
+            .WithTools<SearchTool>();
 
         await builder.Build().RunAsync(cancellationToken);
 
