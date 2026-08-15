@@ -17,6 +17,13 @@ public sealed class JiraRetryHandler : DelegatingHandler
 
     private const int FirstBackoffMilliseconds = 250;
 
+    /// <summary>
+    /// The longest wait worth taking. Jira behind a throttling proxy can ask for minutes, and
+    /// spending the client's whole budget on that hands the caller an opaque timeout instead of
+    /// the status and message Jira already sent.
+    /// </summary>
+    private static readonly TimeSpan LongestWait = TimeSpan.FromSeconds(5);
+
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
@@ -37,25 +44,35 @@ public sealed class JiraRetryHandler : DelegatingHandler
             {
                 response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
             }
-            catch (HttpRequestException) when (!lastAttempt)
+            catch (HttpRequestException exception) when (!lastAttempt && IsWorthRetrying(exception))
             {
                 await Task.Delay(Backoff(attempt, null), cancellationToken).ConfigureAwait(false);
 
                 continue;
             }
 
-            if (lastAttempt || !IsWorthRetrying(response.StatusCode))
+            var retryAfter = RetryAfter(response);
+
+            if (lastAttempt || !IsWorthRetrying(response.StatusCode) || retryAfter > LongestWait)
             {
                 return response;
             }
 
-            var backoff = Backoff(attempt, RetryAfter(response));
+            var backoff = Backoff(attempt, retryAfter);
 
             response.Dispose();
 
             await Task.Delay(backoff, cancellationToken).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// A rejected certificate and a name that does not resolve are settled: the profile is
+    /// misconfigured, and asking twice more only delays the same error.
+    /// </summary>
+    private static bool IsWorthRetrying(HttpRequestException exception) =>
+        exception.HttpRequestError is not (HttpRequestError.SecureConnectionError
+            or HttpRequestError.NameResolutionError);
 
     private static bool IsWorthRetrying(HttpStatusCode status) =>
         status is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests

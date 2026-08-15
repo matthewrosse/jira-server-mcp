@@ -160,6 +160,39 @@ public sealed class JiraResilienceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_retry_after_longer_than_the_call_can_wait_surfaces_the_response_instead()
+    {
+        // Waiting five minutes would spend the whole 30-second budget and hand the agent an
+        // opaque timeout instead of the 429 and Jira's own message.
+        Stub(
+            Request.Create().WithPath("/read").UsingGet(),
+            Response.Create().WithStatusCode(429).WithHeader("Retry-After", "300"));
+
+        var stopwatch = Stopwatch.StartNew();
+
+        using var response = await Send(HttpMethod.Get, "read");
+
+        ((int)response.StatusCode).ShouldBe(429);
+        ReceivedRequests().Count.ShouldBe(1);
+        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task A_transport_failure_that_will_never_heal_is_not_retried()
+    {
+        // Nothing vouches for this certificate, and nothing will in the next second either.
+        using var jira = TlsTestServer.StartWithASelfSignedCertificate();
+
+        var client = CreateClient(jira.Url);
+        var stopwatch = Stopwatch.StartNew();
+
+        await Should.ThrowAsync<HttpRequestException>(
+            () => client.GetAsync("read", TestContext.Current.CancellationToken));
+
+        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromMilliseconds(600));
+    }
+
+    [Fact]
     public void The_whole_call_including_retries_is_bounded_by_thirty_seconds()
     {
         CreateClient().Timeout.ShouldBe(TimeSpan.FromSeconds(30));
