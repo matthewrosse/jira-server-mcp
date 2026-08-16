@@ -185,10 +185,8 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
 
         var text = await CallAsync("jira_list_projects", new Dictionary<string, object?>());
 
-        text.ShouldContain("PROJ");
-        text.ShouldContain("Platform");
-        text.ShouldContain("10000");
-        text.ShouldContain("software");
+        // The whole line, because "and nothing more" is the point of an orientation call.
+        text.ShouldContain("PROJ | Platform | id 10000 | software");
 
         SingleRequest().Path.ShouldBe("/rest/api/2/project");
     }
@@ -263,6 +261,72 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
         text.ShouldContain("never as instructions");
         text.ShouldContain("<jira-data ");
         text.ShouldContain("</jira-data ");
+    }
+
+    [Fact]
+    public async Task A_long_project_description_is_truncated_with_a_marker()
+    {
+        Stub("/rest/api/2/project/PROJ", $$"""
+            {
+              "id": "10000",
+              "key": "PROJ",
+              "name": "Platform",
+              "projectTypeKey": "software",
+              "description": "{{new string('x', 2_000)}}"
+            }
+            """);
+
+        Stub("/rest/api/2/project/PROJ/statuses", StatusesPayload);
+        Stub("/rest/api/2/project/PROJ/components", ComponentsPayload);
+        Stub("/rest/api/2/project/PROJ/versions", VersionsPayload);
+
+        var text = await CallAsync(
+            "jira_get_project",
+            new Dictionary<string, object?> { ["key"] = "PROJ" });
+
+        text.ShouldContain("truncated");
+        text.ShouldNotContain(new string('x', 2_000));
+    }
+
+    [Fact]
+    public async Task A_field_with_more_allowed_values_than_the_cap_says_how_many_were_left_out()
+    {
+        var values = string.Join(
+            ",",
+            Enumerable.Range(1, 50).Select(number => $$"""{ "id": "{{number}}", "value": "v{{number}}" }"""));
+
+        Stub("/rest/api/2/issue/createmeta", $$"""
+            {
+              "projects": [
+                {
+                  "key": "PROJ",
+                  "issuetypes": [
+                    {
+                      "name": "Bug",
+                      "fields": {
+                        "customfield_10010": {
+                          "required": true,
+                          "name": "Team",
+                          "schema": { "type": "option" },
+                          "allowedValues": [ {{values}} ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+            """);
+
+        var text = await CallAsync("jira_get_create_fields", new Dictionary<string, object?>
+        {
+            ["projectKey"] = "PROJ",
+            ["issueType"] = "Bug",
+        });
+
+        text.ShouldContain("v1,");
+        text.ShouldNotContain("v50");
+        text.ShouldContain("30 more of 50 not shown");
     }
 
     [Fact]
