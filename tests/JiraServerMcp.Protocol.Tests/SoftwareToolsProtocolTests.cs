@@ -18,7 +18,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
 
     private const string Profile = "work";
 
-    private static readonly string[] SoftwareTools =
+    private static readonly string[] _softwareTools =
     [
         "jira_list_boards",
         "jira_list_sprints",
@@ -123,7 +123,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
 
         // Absent rather than present and failing: four tools that always 404 are four tools the
         // model will try.
-        foreach (var name in SoftwareTools)
+        foreach (var name in _softwareTools)
         {
             tools.ShouldNotContain(name);
         }
@@ -140,7 +140,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
         var tools = await client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
 
-        foreach (var name in SoftwareTools)
+        foreach (var name in _softwareTools)
         {
             tools.Single(tool => tool.Name == name)
                 .ProtocolTool.Annotations.ShouldNotBeNull().ReadOnlyHint.ShouldBe(true);
@@ -173,7 +173,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
 
         var tools = await ToolsAsync(await ClientAsync());
 
-        foreach (var name in SoftwareTools)
+        foreach (var name in _softwareTools)
         {
             tools.ShouldNotContain(name);
         }
@@ -194,7 +194,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
 
         // Stale is not an error: what was recorded is the best answer there is until someone
         // refreshes it.
-        foreach (var name in SoftwareTools)
+        foreach (var name in _softwareTools)
         {
             tools.ShouldContain(name);
         }
