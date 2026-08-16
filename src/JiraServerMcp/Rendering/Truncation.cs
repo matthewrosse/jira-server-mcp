@@ -12,6 +12,13 @@ internal static class Truncation
     /// </summary>
     public const int Budget = 200;
 
+    /// <summary>
+    /// The most characters one piece of prose is worth when it is the thing being read rather than
+    /// a line in a list. A comment is why a caller asked for the comments, so it gets room a
+    /// summary in a search result does not.
+    /// </summary>
+    public const int BodyBudget = 1_000;
+
     public static string Apply(string text, string issueKey)
     {
         if (text.Length <= Budget)
@@ -25,4 +32,13 @@ internal static class Truncation
                + $"…[truncated, {left} more characters — call jira_get_issue with key "
                + $"{issueKey} for the full text]";
     }
+
+    /// <summary>
+    /// Prose inside an issue read. The marker names what was left behind but no tool to get it
+    /// with: the caller is already reading the issue, and there is nothing further to call.
+    /// </summary>
+    public static string Body(string text) =>
+        text.Length <= BodyBudget
+            ? text
+            : text[..BodyBudget] + $"…[truncated, {text.Length - BodyBudget} more characters]";
 }
