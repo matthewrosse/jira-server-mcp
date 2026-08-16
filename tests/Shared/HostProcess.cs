@@ -39,7 +39,8 @@ internal static class HostProcess
     /// read and write that machine's real credential store.
     /// </summary>
     public static string[] ArgumentsFor(params string[] verb) =>
-        verb is ["auth", ..] or ["serve", ..] or ["profile", "remove", ..]
+        verb is ["auth", ..] or ["serve", ..]
+            or ["profile", "remove", ..] or ["profile", "refresh", ..]
             ? [Assembly, .. verb, "--credential-store", "file"]
             : [Assembly, .. verb];
 

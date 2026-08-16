@@ -98,6 +98,65 @@ internal static class ProfileVerbs
         return 0;
     }
 
+    /// <summary>
+    /// Takes the capability probe again. The recorded one expires after seven days, and a Jira
+    /// that has just been licensed for Jira Software — or has just lost that licence — is a
+    /// reason not to wait for it to.
+    /// </summary>
+    public static async Task<int> RefreshAsync(
+        string name,
+        CredentialStoreChoice storeChoice,
+        CancellationToken cancellationToken)
+    {
+        var profile = ProfileStore.InConfigurationDirectory().Find(name);
+
+        if (profile is null)
+        {
+            await Console.Error.WriteLineAsync(
+                $"There is no profile named '{name}'. Add it with "
+                + $"'jira-server-mcp profile add {name} --url <url>'.");
+
+            return 1;
+        }
+
+        var credentials = await CredentialStoreSelector.ForThisMachine()
+            .SelectAsync(storeChoice, Console.Error, cancellationToken);
+
+        var token = await ProfileToken.ResolveAsync(name, credentials, cancellationToken);
+
+        if (token is not { } held)
+        {
+            await Console.Error.WriteLineAsync(
+                $"No personal access token is stored for profile '{name}', and the capability "
+                + $"probe is taken as the Jira user. Store one with 'jira-server-mcp auth login "
+                + $"{name}'.");
+
+            return 1;
+        }
+
+        var capabilities = await CapabilityProbe.TakeAsync(
+            name,
+            profile,
+            held.Value,
+            cancellationToken);
+
+        if (capabilities is null)
+        {
+            // Nothing was written, so whatever was recorded before is still the best answer there
+            // is — an unreachable instance is not evidence that it lost Jira Software.
+            await Console.Error.WriteLineAsync(
+                $"The capability probe recorded for profile '{name}' is unchanged.");
+
+            return 1;
+        }
+
+        await Console.Out.WriteLineAsync(
+            $"Refreshed the capability probe for profile '{name}': "
+            + CapabilityProbe.Describe(capabilities));
+
+        return 0;
+    }
+
     public static async Task<int> RemoveAsync(
         string name,
         CredentialStoreChoice storeChoice,
