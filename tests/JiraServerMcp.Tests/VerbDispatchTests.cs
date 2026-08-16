@@ -96,6 +96,34 @@ public sealed class VerbDispatchTests : IDisposable
     }
 
     [Fact]
+    public async Task Serving_with_a_grant_nobody_recognises_fails_at_startup_and_lists_the_real_ones()
+    {
+        await RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
+
+        var result = await RunAsync(["serve", "--profile", "work", "--allow", "issues:delete"]);
+
+        result.ExitCode.ShouldNotBe(0);
+        result.StandardError.ShouldContain("issues:delete");
+        result.StandardError.ShouldContain("issues:write");
+        result.StandardError.ShouldContain("comments:write");
+        result.StandardError.ShouldContain("worklogs:write");
+        result.StandardError.ShouldNotContain("Unhandled exception");
+        result.StandardOutput.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task An_unknown_grant_is_refused_before_a_credential_is_ever_read()
+    {
+        // The profile has no credential, and its own refusal names 'auth login'. The grant is
+        // wrong first, so that is the sentence the operator should get.
+        await RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
+
+        var result = await RunAsync(["serve", "--profile", "work", "--allow", "issues:delete"]);
+
+        result.StandardError.ShouldNotContain("auth login");
+    }
+
+    [Fact]
     public async Task Logging_in_to_an_unknown_profile_is_refused()
     {
         var result = await HostProcess.RunAsync(
