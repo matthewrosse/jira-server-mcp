@@ -60,7 +60,7 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
         {
             var logged = await jira.AddWorklogAsync(
                 key,
-                timeSpent,
+                timeSpent.Trim(),
                 startedAt,
                 comment,
                 cancellationToken);

@@ -29,6 +29,13 @@ internal sealed class AddCommentTool(JiraClient jira, ServedProfile profile)
         string body,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return Error(
+                $"An empty comment was not added to {key}. Jira refuses one, and there would be "
+                + "nothing in it for anyone reading the issue.");
+        }
+
         try
         {
             var added = await jira.AddCommentAsync(key, body, cancellationToken);

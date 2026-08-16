@@ -51,7 +51,7 @@ public sealed class JiraTransitionTests : IDisposable
     }
 
     [Fact]
-    public async Task The_transitions_available_now_come_back_with_their_identifiers_and_screens()
+    public async Task The_transitions_available_now_come_back_named_and_numbered()
     {
         StubTransitions(200, TransitionsPayload);
 
@@ -61,14 +61,10 @@ public sealed class JiraTransitionTests : IDisposable
         transitions.Select(transition => transition.Name).ShouldBe(["Start Progress", "Done"]);
         transitions[1].Id.ShouldBe("31");
         transitions[1].ToStatus.ShouldBe("Done");
-
-        // The screen is what says a transition cannot be made without a resolution.
-        transitions[1].Fields.ShouldHaveSingleItem().Id.ShouldBe("resolution");
-        transitions[1].Fields[0].Required.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task Asking_for_the_transitions_asks_jira_for_their_screens_too()
+    public async Task The_transition_screens_are_not_asked_for()
     {
         StubTransitions(200, TransitionsPayload);
 
@@ -78,7 +74,10 @@ public sealed class JiraTransitionTests : IDisposable
 
         request.Method.ShouldBe("GET");
         request.Path.ShouldBe("/rest/api/2/issue/PROJ-42/transitions");
-        request.Url.ShouldContain("expand=transitions.fields");
+
+        // The screens are the largest part of that response, and resolving a name needs none of
+        // them. An agent that wants them asks jira_get_issue for the transitions expansion.
+        request.Url.ShouldNotContain("expand");
     }
 
     [Fact]

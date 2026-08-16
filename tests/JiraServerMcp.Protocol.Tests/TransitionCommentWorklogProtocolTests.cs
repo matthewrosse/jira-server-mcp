@@ -166,6 +166,57 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task One_name_on_two_transitions_moves_the_issue_nowhere()
+    {
+        // A workflow may offer a global transition and a local one under one name, going to
+        // different statuses. Picking either would move the issue somewhere nobody asked for.
+        StubTransitions(200, """
+            {
+              "transitions": [
+                { "id": "31", "name": "Done", "to": { "name": "Done" } },
+                { "id": "41", "name": "Done", "to": { "name": "Closed" } }
+              ]
+            }
+            """);
+
+        StubTransition(204);
+
+        var text = await FailedCallAsync(
+            await ClientAsync("issues:write"),
+            "jira_transition_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["transition"] = "Done",
+            });
+
+        text.ShouldContain("Closed");
+        Requests().Count(request => request.Method == "POST").ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_failure_reading_the_transitions_never_claims_a_transition_was_sent()
+    {
+        StubTransitions(404, """{ "errorMessages": ["Issue Does Not Exist"], "errors": {} }""");
+
+        var text = await FailedCallAsync(
+            await ClientAsync("issues:write"),
+            "jira_transition_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["transition"] = "Done",
+            });
+
+        // Nothing was written, so nothing may have landed, and the agent must not be sent reading
+        // the issue back to find out.
+        text.ShouldNotContain("was sent once");
+        text.ShouldContain("Nothing was transitioned");
+
+        Requests().Count(request => request.Method == "POST").ShouldBe(0);
+    }
+
+    [Fact]
     public async Task A_transition_carrying_a_comment_and_screen_fields_is_one_request()
     {
         StubTransitions();
@@ -242,6 +293,22 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task An_empty_comment_is_refused_before_anything_is_sent()
+    {
+        var text = await FailedCallAsync(
+            await ClientAsync("comments:write"),
+            "jira_add_comment",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["body"] = "   ",
+            });
+
+        text.ShouldContain("PROJ-42");
+        Requests().ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task A_comment_jira_could_not_answer_is_asked_exactly_once()
     {
         _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
@@ -283,6 +350,25 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         body.GetProperty("timeSpent").GetString().ShouldBe("3h 30m");
         body.GetProperty("started").GetString().ShouldBe("2026-08-16T09:00:00.000+0200");
         body.GetProperty("comment").GetString().ShouldBe("Tracked down the 500s.");
+    }
+
+    [Fact]
+    public async Task A_duration_reaches_jira_without_the_spaces_around_it()
+    {
+        StubWorklog(201);
+
+        await CallAsync(
+            await ClientAsync("worklogs:write"),
+            "jira_add_worklog",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["timeSpent"] = "  3h 30m  ",
+            });
+
+        // Checked trimmed and sent trimmed, or the check passes something Jira still refuses.
+        Body(Requests().ShouldHaveSingleItem()).GetProperty("timeSpent").GetString()
+            .ShouldBe("3h 30m");
     }
 
     [Fact]
@@ -366,9 +452,11 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
             .WithHeader("Content-Type", "application/json")
             .WithBody(body);
 
-    private void StubTransitions() =>
+    private void StubTransitions() => StubTransitions(200, TransitionsPayload);
+
+    private void StubTransitions(int status, string payload) =>
         _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/transitions").UsingGet())
-            .RespondWith(Json(200, TransitionsPayload));
+            .RespondWith(Json(status, payload));
 
     private void StubTransition(int status) =>
         _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/transitions").UsingPost())

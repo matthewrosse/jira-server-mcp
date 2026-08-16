@@ -16,6 +16,7 @@ public sealed class WorklogInputTests
     [InlineData("1.5h")]
     [InlineData("  3h   30m  ")]
     [InlineData("3H 30M")]
+    [InlineData("3h30m")]
     public void Jiras_own_duration_syntax_is_accepted(string duration) =>
         WorklogInput.IsDuration(duration).ShouldBeTrue();
 
@@ -24,8 +25,8 @@ public sealed class WorklogInputTests
     [InlineData("   ")]
     [InlineData("three hours")]
     [InlineData("3 hours")]
-    [InlineData("3h30m")]
     [InlineData("PT3H30M")]
+    [InlineData("3h\n30m")]
     [InlineData("-3h")]
     [InlineData("3y")]
     public void Anything_that_is_not_jiras_duration_syntax_is_refused(string duration) =>

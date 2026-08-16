@@ -260,16 +260,16 @@ public sealed class JiraClient(HttpClient httpClient)
     }
 
     /// <summary>
-    /// The transitions this account can make on this issue right now, with the fields each one's
-    /// screen asks for. Read at the moment of transitioning: what was available when the issue was
-    /// read may not be available now.
+    /// The transitions this account can make on this issue right now, named and numbered. Read at
+    /// the moment of transitioning: what was available when the issue was read may not be
+    /// available now. The screens are not asked for — the issue read's transitions expansion is
+    /// where those belong, and they are the largest part of the response.
     /// </summary>
     public async Task<IReadOnlyList<JiraTransition>> ListTransitionsAsync(
         string key,
         CancellationToken cancellationToken)
     {
-        var query = $"rest/api/2/issue/{Uri.EscapeDataString(key)}/transitions"
-                    + "?expand=transitions.fields";
+        var query = $"rest/api/2/issue/{Uri.EscapeDataString(key)}/transitions";
 
         using var response = await httpClient
             .GetAsync(query, cancellationToken)

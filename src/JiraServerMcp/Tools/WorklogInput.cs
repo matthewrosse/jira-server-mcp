@@ -12,8 +12,9 @@ internal static partial class WorklogInput
 {
     /// <summary>
     /// Jira's own duration syntax: a run of amounts, each naming its unit — weeks, days, hours,
-    /// minutes. A bare number is deliberately not one: Jira reads it as whatever the instance's
-    /// default unit is set to, which the caller cannot know.
+    /// minutes — spaced or run together, both of which Jira reads. A bare number is deliberately
+    /// not one: Jira reads it as whatever the instance's default unit is set to, which the caller
+    /// cannot know.
     /// </summary>
     public static bool IsDuration(string duration) => DurationPattern().IsMatch(duration.Trim());
 
@@ -51,7 +52,7 @@ internal static partial class WorklogInput
     }
 
     [GeneratedRegex(
-        @"^\d+(\.\d+)?[wdhm](\s+\d+(\.\d+)?[wdhm])*$",
+        @"^\d+(\.\d+)?[wdhm]([ \t]*\d+(\.\d+)?[wdhm])*$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DurationPattern();
 }
