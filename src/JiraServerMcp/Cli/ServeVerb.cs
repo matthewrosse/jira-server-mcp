@@ -75,7 +75,11 @@ internal static class ServeVerb
             .WithStdioServerTransport()
             .WithTools<WhoamiTool>()
             .WithTools<SearchTool>()
-            .WithTools<GetIssueTool>();
+            .WithTools<GetIssueTool>()
+            .WithTools<ListProjectsTool>()
+            .WithTools<GetProjectTool>()
+            .WithTools<GetCreateFieldsTool>()
+            .WithTools<SearchUsersTool>();
 
         await builder.Build().RunAsync(cancellationToken);
 
