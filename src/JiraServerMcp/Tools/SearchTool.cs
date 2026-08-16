@@ -22,7 +22,7 @@ internal sealed class SearchTool(JiraClient jira, ServedProfile profile)
     /// </summary>
     private const int LargestPageSize = 100;
 
-    [McpServerTool(Name = Name, ReadOnly = true)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
     [Description(
         "Search Jira Server with JQL. Returns one line per issue, the issue key first, with the "
         + "total number of matches and where to resume from. Text authored in Jira is delimited "

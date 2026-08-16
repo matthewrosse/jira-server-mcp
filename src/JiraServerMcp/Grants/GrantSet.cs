@@ -8,7 +8,7 @@ namespace JiraServerMcp.Grants;
 /// </summary>
 internal sealed class GrantSet
 {
-    private static readonly IReadOnlyDictionary<string, Grant> Names =
+    private static readonly IReadOnlyDictionary<string, Grant> _names =
         new Dictionary<string, Grant>(StringComparer.OrdinalIgnoreCase)
         {
             ["issues:write"] = Grant.IssuesWrite,
@@ -40,10 +40,10 @@ internal sealed class GrantSet
     public bool Allows(Grant grant) => _granted.Contains(grant);
 
     private static Grant Named(string name) =>
-        Names.TryGetValue(name, out var grant)
+        _names.TryGetValue(name, out var grant)
             ? grant
             : throw new ConfigurationException(
                 $"'{name}' is not a grant this server knows. The grants are "
-                + $"{string.Join(", ", Names.Keys)}. They are given at launch, as "
+                + $"{string.Join(", ", _names.Keys)}. They are given at launch, as "
                 + "'--allow issues:write,comments:write'.");
 }

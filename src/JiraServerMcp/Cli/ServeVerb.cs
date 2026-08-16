@@ -76,7 +76,7 @@ internal static class ServeVerb
         builder.Services.AddSingleton(new ServedProfile(profileName));
         builder.Services.AddJiraClient();
 
-        builder.Services
+        var server = builder.Services
             .AddMcpServer(options => options.ServerInfo = ServerInfo())
             .WithStdioServerTransport()
             .WithTools<WhoamiTool>()
@@ -86,6 +86,15 @@ internal static class ServeVerb
             .WithTools<GetProjectTool>()
             .WithTools<GetCreateFieldsTool>()
             .WithTools<SearchUsersTool>();
+
+        // Without its grant a write tool is not registered, so the model never discovers it,
+        // attempts it, and burns context learning that it is forbidden.
+        if (grants.Allows(Grant.IssuesWrite))
+        {
+            server
+                .WithTools<CreateIssueTool>()
+                .WithTools<UpdateIssueTool>();
+        }
 
         await builder.Build().RunAsync(cancellationToken);
 
