@@ -1,6 +1,8 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using JiraServerMcp.Jira.Capabilities;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Jira.Resilience;
@@ -35,6 +37,47 @@ public sealed class JiraClient(HttpClient httpClient)
                    .ConfigureAwait(false)
                ?? throw new InvalidOperationException(
                    "Jira returned an empty body for /rest/api/2/myself.");
+    }
+
+    /// <summary>
+    /// What this Jira is and what it has: its version, what it calls its deployment, and whether
+    /// the software API answers. Two requests, taken together, because they are only ever wanted
+    /// together.
+    /// </summary>
+    public async Task<JiraCapabilities> ProbeCapabilitiesAsync(CancellationToken cancellationToken)
+    {
+        var serverInfo = await GetAsync<JiraServerInfo>("rest/api/2/serverInfo", cancellationToken)
+            .ConfigureAwait(false);
+
+        return new JiraCapabilities(
+            serverInfo.Version,
+            serverInfo.DeploymentType,
+            await IsSoftwareLicensedAsync(cancellationToken).ConfigureAwait(false),
+            DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// Whether Jira Software is licensed, asked with the smallest page the software API will
+    /// serve. The answer is the status code and nothing else: Jira Core's 404 here carries an HTML
+    /// body, so reading it would throw where the absence of a licence is the ordinary case.
+    /// </summary>
+    private async Task<bool> IsSoftwareLicensedAsync(CancellationToken cancellationToken)
+    {
+        using var response = await httpClient
+            .GetAsync("rest/agile/1.0/board?maxResults=1", cancellationToken)
+            .ConfigureAwait(false);
+
+        if (response.StatusCode is HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+
+        // Anything else that failed — a revoked token, an outage — is a failed probe rather than
+        // an instance without Jira Software, and recording it as the latter would hide four tools
+        // until someone refreshed the profile.
+        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return true;
     }
 
     /// <summary>
@@ -185,6 +228,62 @@ public sealed class JiraClient(HttpClient httpClient)
             $"rest/api/2/user/search?username={Uri.EscapeDataString(query)}"
             + $"&startAt={startAt}&maxResults={maxResults}"
             + $"&includeInactive={(includeInactive ? "true" : "false")}",
+            cancellationToken);
+
+    /// <summary>
+    /// One page of the boards this account can see. Reached over the software API, so a caller
+    /// that has not read the capability probe first will meet a 404 on a Jira Core instance.
+    /// </summary>
+    public Task<JiraAgilePage<JiraBoard>> ListBoardsAsync(
+        int startAt,
+        int maxResults,
+        CancellationToken cancellationToken) =>
+        GetAsync<JiraAgilePage<JiraBoard>>(
+            $"rest/agile/1.0/board?startAt={startAt}&maxResults={maxResults}",
+            cancellationToken);
+
+    /// <summary>
+    /// One page of a board's sprints, whatever their state: an agent asking what to work on needs
+    /// the active one, and an agent planning needs the future ones.
+    /// </summary>
+    public Task<JiraAgilePage<JiraSprint>> ListSprintsAsync(
+        int boardId,
+        int startAt,
+        int maxResults,
+        CancellationToken cancellationToken) =>
+        GetAsync<JiraAgilePage<JiraSprint>>(
+            $"rest/agile/1.0/board/{boardId}/sprint?startAt={startAt}&maxResults={maxResults}",
+            cancellationToken);
+
+    /// <summary>
+    /// One page of the issues in a sprint. The software API answers this one the platform API's
+    /// way — with a total — so it comes back as the same page type a JQL search does.
+    /// </summary>
+    public Task<JiraSearchPage> GetSprintIssuesAsync(
+        int sprintId,
+        int startAt,
+        int maxResults,
+        IReadOnlyList<string> fields,
+        CancellationToken cancellationToken) =>
+        GetAsync<JiraSearchPage>(
+            $"rest/agile/1.0/sprint/{sprintId}/issue"
+            + $"?startAt={startAt}&maxResults={maxResults}"
+            + $"&fields={Uri.EscapeDataString(string.Join(",", fields))}",
+            cancellationToken);
+
+    /// <summary>
+    /// One page of a board's backlog — the issues on the board that no sprint has taken.
+    /// </summary>
+    public Task<JiraSearchPage> GetBacklogAsync(
+        int boardId,
+        int startAt,
+        int maxResults,
+        IReadOnlyList<string> fields,
+        CancellationToken cancellationToken) =>
+        GetAsync<JiraSearchPage>(
+            $"rest/agile/1.0/board/{boardId}/backlog"
+            + $"?startAt={startAt}&maxResults={maxResults}"
+            + $"&fields={Uri.EscapeDataString(string.Join(",", fields))}",
             cancellationToken);
 
     /// <summary>
