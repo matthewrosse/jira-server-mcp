@@ -56,16 +56,30 @@ internal static class VerbDispatcher
             Required = true,
         };
 
+        // ADR-0005: what this client may write is decided here, in the configuration file its
+        // operator already reads, and never by anything a tool call carries.
+        var allow = new Option<string[]>("--allow")
+        {
+            Description =
+                "Write categories this client is granted: issues:write, comments:write, "
+                + "worklogs:write. Repeatable, or separated by commas. Tools without their grant "
+                + "are not registered.",
+            AllowMultipleArgumentsPerToken = true,
+            DefaultValueFactory = _ => [],
+        };
+
         var credentialStore = CredentialStoreOption();
 
         var serve = new Command("serve", "Serve the Model Context Protocol over stdio.")
         {
             profile,
+            allow,
             credentialStore,
         };
 
         serve.SetAction((parseResult, cancellationToken) => ServeVerb.RunAsync(
             parseResult.GetValue(profile)!,
+            parseResult.GetValue(allow)!,
             parseResult.GetValue(credentialStore),
             cancellationToken));
 

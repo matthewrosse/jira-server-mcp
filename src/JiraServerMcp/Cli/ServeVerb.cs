@@ -1,5 +1,6 @@
 using System.Reflection;
 using JiraServerMcp.Credentials;
+using JiraServerMcp.Grants;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Tools;
@@ -14,9 +15,14 @@ internal static class ServeVerb
 {
     public static async Task<int> RunAsync(
         string profileName,
+        string[] allowed,
         CredentialStoreChoice storeChoice,
         CancellationToken cancellationToken)
     {
+        // Before anything else: a grant nobody recognises is a mistake in the launch arguments,
+        // and the operator should hear about that rather than about the next problem along.
+        var grants = GrantSet.Parse(allowed);
+
         // ADR-0005: the profile is chosen here, once, and is invisible to every tool.
         var profile = ProfileStore.InConfigurationDirectory().Find(profileName);
 
@@ -70,7 +76,7 @@ internal static class ServeVerb
         builder.Services.AddSingleton(new ServedProfile(profileName));
         builder.Services.AddJiraClient();
 
-        builder.Services
+        var server = builder.Services
             .AddMcpServer(options => options.ServerInfo = ServerInfo())
             .WithStdioServerTransport()
             .WithTools<WhoamiTool>()
@@ -80,6 +86,15 @@ internal static class ServeVerb
             .WithTools<GetProjectTool>()
             .WithTools<GetCreateFieldsTool>()
             .WithTools<SearchUsersTool>();
+
+        // Without its grant a write tool is not registered, so the model never discovers it,
+        // attempts it, and burns context learning that it is forbidden.
+        if (grants.Allows(Grant.IssuesWrite))
+        {
+            server
+                .WithTools<CreateIssueTool>()
+                .WithTools<UpdateIssueTool>();
+        }
 
         await builder.Build().RunAsync(cancellationToken);
 

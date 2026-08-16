@@ -14,7 +14,7 @@ internal sealed class GetIssueTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_get_issue";
 
-    [McpServerTool(Name = Name, ReadOnly = true)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
     [Description(
         "Read one Jira Server issue. Returns the default field projection, plus a section for "
         + "each expansion asked for in 'include' — comments, transitions, changelog, links, "

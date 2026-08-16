@@ -187,6 +187,94 @@ public sealed class JiraClient(HttpClient httpClient)
             + $"&includeInactive={(includeInactive ? "true" : "false")}",
             cancellationToken);
 
+    /// <summary>
+    /// Creates one issue and returns the key Jira gave it. Never retried: a repeated create is a
+    /// second issue, and Jira offers nothing to make it idempotent.
+    /// </summary>
+    public async Task<JiraCreatedIssue> CreateIssueAsync(
+        string projectKey,
+        string issueTypeName,
+        string summary,
+        IReadOnlyDictionary<string, JsonElement> fields,
+        CancellationToken cancellationToken)
+    {
+        var body = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["project"] = new Dictionary<string, string> { ["key"] = projectKey },
+            ["issuetype"] = new Dictionary<string, string> { ["name"] = issueTypeName },
+            ["summary"] = summary,
+        };
+
+        foreach (var (name, value) in fields)
+        {
+            body[name] = value;
+        }
+
+        using var request = Write(HttpMethod.Post, "rest/api/2/issue", body);
+
+        using var response = await httpClient
+            .SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return await response.Content
+                   .ReadFromJsonAsync<JiraCreatedIssue>(cancellationToken)
+                   .ConfigureAwait(false)
+               ?? throw new InvalidOperationException(
+                   "Jira returned an empty body for a created issue.");
+    }
+
+    /// <summary>
+    /// Changes the named fields of one issue, and its assignee in the same request. A field whose
+    /// value is JSON null is cleared; a field not named is left alone. Never retried.
+    /// </summary>
+    public async Task UpdateIssueAsync(
+        string key,
+        IReadOnlyDictionary<string, JsonElement> fields,
+        JiraAssignee? assignee,
+        CancellationToken cancellationToken)
+    {
+        var body = fields.ToDictionary(
+            field => field.Key,
+            field => (object?)field.Value,
+            StringComparer.Ordinal);
+
+        if (assignee is { } assigned)
+        {
+            body["assignee"] = assigned.Name is { } name
+                ? new Dictionary<string, string> { ["name"] = name }
+                : null;
+        }
+
+        using var request = Write(
+            HttpMethod.Put,
+            $"rest/api/2/issue/{Uri.EscapeDataString(key)}",
+            body);
+
+        using var response = await httpClient
+            .SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A write, carrying Jira's <c>fields</c> envelope. The request is not marked as safe to
+    /// repeat, so the resilience pipeline sends it exactly once.
+    /// </summary>
+    private static HttpRequestMessage Write(
+        HttpMethod method,
+        string path,
+        IReadOnlyDictionary<string, object?> fields) =>
+        new(method, path)
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(new { fields }),
+                Encoding.UTF8,
+                "application/json"),
+        };
+
     private async Task<T> GetAsync<T>(string path, CancellationToken cancellationToken)
     {
         using var response = await httpClient
