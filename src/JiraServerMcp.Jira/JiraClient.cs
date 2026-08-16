@@ -210,7 +210,7 @@ public sealed class JiraClient(HttpClient httpClient)
             body[name] = value;
         }
 
-        using var request = Write(HttpMethod.Post, "rest/api/2/issue", body);
+        using var request = WriteFields(HttpMethod.Post, "rest/api/2/issue", body);
 
         using var response = await httpClient
             .SendAsync(request, cancellationToken)
@@ -247,7 +247,7 @@ public sealed class JiraClient(HttpClient httpClient)
                 : null;
         }
 
-        using var request = Write(
+        using var request = WriteFields(
             HttpMethod.Put,
             $"rest/api/2/issue/{Uri.EscapeDataString(key)}",
             body);
@@ -260,17 +260,166 @@ public sealed class JiraClient(HttpClient httpClient)
     }
 
     /// <summary>
-    /// A write, carrying Jira's <c>fields</c> envelope. The request is not marked as safe to
-    /// repeat, so the resilience pipeline sends it exactly once.
+    /// The transitions this account can make on this issue right now, with the fields each one's
+    /// screen asks for. Read at the moment of transitioning: what was available when the issue was
+    /// read may not be available now.
     /// </summary>
-    private static HttpRequestMessage Write(
+    public async Task<IReadOnlyList<JiraTransition>> ListTransitionsAsync(
+        string key,
+        CancellationToken cancellationToken)
+    {
+        var query = $"rest/api/2/issue/{Uri.EscapeDataString(key)}/transitions"
+                    + "?expand=transitions.fields";
+
+        using var response = await httpClient
+            .GetAsync(query, cancellationToken)
+            .ConfigureAwait(false);
+
+        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+        using var document = await response.Content
+                                 .ReadFromJsonAsync<JsonDocument>(cancellationToken)
+                                 .ConfigureAwait(false)
+                             ?? throw new InvalidOperationException(
+                                 $"Jira returned an empty body for the transitions of {key}.");
+
+        return IssueDetailReader.ReadTransitions(document.RootElement);
+    }
+
+    /// <summary>
+    /// Performs one transition, carrying its screen's fields and a comment in the same request so
+    /// that a transition demanding either succeeds in one call. Never retried.
+    /// </summary>
+    public async Task TransitionIssueAsync(
+        string key,
+        string transitionId,
+        IReadOnlyDictionary<string, JsonElement> fields,
+        string? comment,
+        CancellationToken cancellationToken)
+    {
+        var body = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["transition"] = new Dictionary<string, string> { ["id"] = transitionId },
+        };
+
+        if (fields.Count > 0)
+        {
+            body["fields"] = fields;
+        }
+
+        if (comment is not null)
+        {
+            body["update"] = new Dictionary<string, object?>
+            {
+                ["comment"] = new[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["add"] = new Dictionary<string, string> { ["body"] = comment },
+                    },
+                },
+            };
+        }
+
+        using var request = Write(
+            HttpMethod.Post,
+            $"rest/api/2/issue/{Uri.EscapeDataString(key)}/transitions",
+            body);
+
+        using var response = await httpClient
+            .SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Adds one comment and returns the identifier and timestamp Jira gave it. Never retried: a
+    /// repeated comment is a second comment.
+    /// </summary>
+    public Task<JiraAddedComment> AddCommentAsync(
+        string key,
+        string body,
+        CancellationToken cancellationToken) =>
+        PostAsync<JiraAddedComment>(
+            $"rest/api/2/issue/{Uri.EscapeDataString(key)}/comment",
+            new Dictionary<string, object?>(StringComparer.Ordinal) { ["body"] = body },
+            cancellationToken);
+
+    /// <summary>
+    /// Logs work against one issue. <paramref name="timeSpent"/> is Jira's own duration syntax, in
+    /// which Jira alone decides how long a day is. Never retried.
+    /// </summary>
+    public Task<JiraAddedWorklog> AddWorklogAsync(
+        string key,
+        string timeSpent,
+        string? started,
+        string? comment,
+        CancellationToken cancellationToken)
+    {
+        var body = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["timeSpent"] = timeSpent,
+        };
+
+        if (started is not null)
+        {
+            body["started"] = started;
+        }
+
+        if (comment is not null)
+        {
+            body["comment"] = comment;
+        }
+
+        return PostAsync<JiraAddedWorklog>(
+            $"rest/api/2/issue/{Uri.EscapeDataString(key)}/worklog",
+            body,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// A write posted as its body verbatim, rather than inside Jira's <c>fields</c> envelope, and
+    /// sent exactly once.
+    /// </summary>
+    private async Task<T> PostAsync<T>(
+        string path,
+        IReadOnlyDictionary<string, object?> body,
+        CancellationToken cancellationToken)
+    {
+        using var request = Write(HttpMethod.Post, path, body);
+
+        using var response = await httpClient
+            .SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return await response.Content
+                   .ReadFromJsonAsync<T>(cancellationToken)
+                   .ConfigureAwait(false)
+               ?? throw new InvalidOperationException(
+                   $"Jira returned an empty body for /{path}.");
+    }
+
+    /// <summary>
+    /// A write, carrying Jira's <c>fields</c> envelope.
+    /// </summary>
+    private static HttpRequestMessage WriteFields(
         HttpMethod method,
         string path,
         IReadOnlyDictionary<string, object?> fields) =>
+        Write(method, path, new { fields });
+
+    /// <summary>
+    /// A write, carrying its body as it stands. The request is not marked as safe to repeat, so the
+    /// resilience pipeline sends it exactly once.
+    /// </summary>
+    private static HttpRequestMessage Write(HttpMethod method, string path, object body) =>
         new(method, path)
         {
             Content = new StringContent(
-                JsonSerializer.Serialize(new { fields }),
+                JsonSerializer.Serialize(body),
                 Encoding.UTF8,
                 "application/json"),
         };
