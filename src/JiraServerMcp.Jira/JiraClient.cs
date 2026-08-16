@@ -63,6 +63,40 @@ public sealed class JiraClient(HttpClient httpClient)
     }
 
     /// <summary>
+    /// One issue, carrying the fields asked for and the sections named in <paramref name="expand"/>.
+    /// Both are named by the caller and sent in a single request, because Jira's expand mechanism
+    /// covers every section this client needs and a second round trip buys nothing.
+    /// </summary>
+    public async Task<JiraIssueDetail> GetIssueAsync(
+        string key,
+        IReadOnlyList<string> fields,
+        IReadOnlyList<string> expand,
+        CancellationToken cancellationToken)
+    {
+        var query = $"rest/api/2/issue/{Uri.EscapeDataString(key)}"
+                    + $"?fields={Uri.EscapeDataString(string.Join(",", fields))}";
+
+        if (expand.Count > 0)
+        {
+            query += $"&expand={Uri.EscapeDataString(string.Join(",", expand))}";
+        }
+
+        using var response = await httpClient
+            .GetAsync(query, cancellationToken)
+            .ConfigureAwait(false);
+
+        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+        using var document = await response.Content
+                                 .ReadFromJsonAsync<JsonDocument>(cancellationToken)
+                                 .ConfigureAwait(false)
+                             ?? throw new InvalidOperationException(
+                                 $"Jira returned an empty body for issue {key}.");
+
+        return IssueDetailReader.Read(document.RootElement);
+    }
+
+    /// <summary>
     /// A GET while the query fits in a URL, and the POST form once it does not. Jira's own limit
     /// is whatever sits in front of it — a proxy rejecting a long URI — so the switch happens well
     /// before any of them complain.

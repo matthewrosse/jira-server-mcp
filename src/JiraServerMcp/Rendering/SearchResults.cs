@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Models;
 
@@ -78,7 +77,7 @@ internal static class SearchResults
 
         foreach (var field in issue.Fields)
         {
-            if (Value(field.Value) is not { Length: > 0 } value)
+            if (FieldValue.Read(field.Value) is not { Length: > 0 } value)
             {
                 continue;
             }
@@ -88,38 +87,5 @@ internal static class SearchResults
         }
 
         return line.ToString();
-    }
-
-    /// <summary>
-    /// Jira answers with a different shape per field type: a bare string, an object naming
-    /// something, or a list of either. A field Jira left empty is left out rather than rendered as
-    /// an empty slot the agent has to read past.
-    /// </summary>
-    private static string? Value(JsonElement element) => element.ValueKind switch
-    {
-        JsonValueKind.Null or JsonValueKind.Undefined => null,
-        JsonValueKind.String => element.GetString(),
-        JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => element.GetRawText(),
-        JsonValueKind.Array => string.Join(
-            ", ",
-            element.EnumerateArray().Select(Value).OfType<string>()),
-        JsonValueKind.Object => Named(element),
-        _ => null,
-    };
-
-    private static string? Named(JsonElement element)
-    {
-        foreach (var property in (string[])["name", "displayName", "value", "key"])
-        {
-            if (element.TryGetProperty(property, out var named)
-                && named.ValueKind is JsonValueKind.String)
-            {
-                return named.GetString();
-            }
-        }
-
-        // A widened projection can name a custom field whose value is some shape of Jira's own.
-        // Its JSON is worth more to an agent than nothing at all.
-        return element.GetRawText();
     }
 }
