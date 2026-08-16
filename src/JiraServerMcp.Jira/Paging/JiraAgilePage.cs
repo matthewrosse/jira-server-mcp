@@ -16,6 +16,11 @@ public sealed record JiraAgilePage<T>(
     /// <summary>Whether Jira has results beyond this page.</summary>
     public bool HasMore => !IsLast;
 
-    /// <summary>The <c>startAt</c> that fetches the next page, when there is one.</summary>
-    public int NextStartAt => StartAt + Values.Count;
+    /// <summary>
+    /// The <c>startAt</c> that fetches the next page, when there is one. It advances by the page
+    /// size rather than by the rows returned: Jira filters a page by permission after it has paged
+    /// it, so a page can carry fewer rows than it covers — and advancing by the rows would ask for
+    /// the same page again for ever.
+    /// </summary>
+    public int NextStartAt => StartAt + MaxResults;
 }

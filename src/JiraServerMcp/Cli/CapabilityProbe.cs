@@ -57,6 +57,16 @@ internal static class CapabilityProbe
 
             return null;
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The client's own timeout, which arrives as a cancellation nobody asked for. A Jira
+            // that hangs — a laptop off the VPN, an address that black-holes — is a probe that did
+            // not happen, not a crash.
+            await Console.Error.WriteLineAsync(
+                $"{profile.BaseUrl} did not answer in time, so it could not be asked what it is.");
+
+            return null;
+        }
 
         ProfileStore.InConfigurationDirectory().Add(profileName, profile with
         {

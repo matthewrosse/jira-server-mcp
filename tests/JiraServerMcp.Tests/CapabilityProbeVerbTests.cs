@@ -81,6 +81,34 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     }
 
     [Fact]
+    public async Task Logging_in_again_with_a_probe_that_fails_leaves_the_recorded_one_alone()
+    {
+        StubSoftware(licensed: true);
+
+        await AddAsync("work");
+        await LoginAsync("work");
+
+        _jira.Reset();
+        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+            .RespondWith(Json("""{"name":"mrosse","displayName":"Mateusz Różański","active":true}"""));
+        _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(503));
+
+        // Rotating a token onto a profile that has been probed before.
+        var result = await LoginAsync("work");
+
+        result.ExitCode.ShouldBe(0);
+
+        // The probe is still there, and so are the tools it registers, so saying there is none
+        // would contradict what the next `serve` does.
+        result.StandardError.ShouldNotContain("has no capability probe");
+        result.StandardError.ShouldContain("unchanged");
+        result.StandardError.ShouldContain("profile refresh work");
+
+        CapabilitiesOf("work").GetProperty("softwareLicensed").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Refresh_takes_the_probe_again_and_reports_what_it_found()
     {
         StubSoftware(licensed: true);

@@ -112,6 +112,8 @@ public sealed class JiraAgileTests : IDisposable
         var page = await CreateClient().ListBoardsAsync(0, 2, TestContext.Current.CancellationToken);
 
         page.HasMore.ShouldBeTrue();
+
+        // The page size, not the rows returned: Jira filters a page by permission after paging it.
         page.NextStartAt.ShouldBe(2);
     }
 

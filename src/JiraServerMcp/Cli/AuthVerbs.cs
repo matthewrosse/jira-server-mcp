@@ -69,10 +69,14 @@ internal static class AuthVerbs
         }
         else
         {
-            await Console.Error.WriteLineAsync(
-                $"Profile '{profileName}' has no capability probe, so the Jira Software tools "
-                + $"will not be registered. Take it again with 'jira-server-mcp profile refresh "
-                + $"{profileName}'.");
+            // A login onto a profile that has been probed before leaves that probe in place, so
+            // saying there is none would contradict the tools `serve` goes on to register.
+            await Console.Error.WriteLineAsync(profile.Capabilities is null
+                ? $"Profile '{profileName}' has no capability probe, so the Jira Software tools "
+                  + $"will not be registered. Take it again with 'jira-server-mcp profile refresh "
+                  + $"{profileName}'."
+                : $"The capability probe recorded for profile '{profileName}' is unchanged. Take "
+                  + $"it again with 'jira-server-mcp profile refresh {profileName}'.");
         }
 
         return 0;

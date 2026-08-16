@@ -10,32 +10,24 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class SprintList
 {
-    public static string Render(JiraAgilePage<JiraSprint> page)
+    public static string Render(JiraAgilePage<JiraSprint> page) => AgilePage.Render(page, Line);
+
+    private static string Line(JiraSprint sprint)
     {
-        var lines = new StringBuilder();
+        var line = new StringBuilder()
+            .Append(sprint.Id).Append(" | ").Append(Truncation.Body(sprint.Name))
+            .Append(" | ").Append(sprint.State);
 
-        foreach (var sprint in page.Values)
+        if (sprint.StartDate is { Length: > 0 } start)
         {
-            lines.Append(sprint.Id).Append(" | ").Append(Truncation.Body(sprint.Name))
-                .Append(" | ").Append(sprint.State);
-
-            if (sprint.StartDate is { Length: > 0 } start)
-            {
-                lines.Append(" | start ").Append(start);
-            }
-
-            if (sprint.EndDate is { Length: > 0 } end)
-            {
-                lines.Append(" | end ").Append(end);
-            }
-
-            lines.AppendLine();
+            line.Append(" | start ").Append(start);
         }
 
-        return $"""
-            {AgilePage.Header(page)}
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(lines.ToString().TrimEnd())}
-            """;
+        if (sprint.EndDate is { Length: > 0 } end)
+        {
+            line.Append(" | end ").Append(end);
+        }
+
+        return line.ToString();
     }
 }

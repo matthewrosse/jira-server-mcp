@@ -10,26 +10,18 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class BoardList
 {
-    public static string Render(JiraAgilePage<JiraBoard> page)
+    public static string Render(JiraAgilePage<JiraBoard> page) => AgilePage.Render(page, Line);
+
+    private static string Line(JiraBoard board)
     {
-        var lines = new StringBuilder();
+        var line = new StringBuilder()
+            .Append(board.Id).Append(" | ").Append(Truncation.Body(board.Name));
 
-        foreach (var board in page.Values)
+        if (board.Type is { Length: > 0 } type)
         {
-            lines.Append(board.Id).Append(" | ").Append(Truncation.Body(board.Name));
-
-            if (board.Type is { Length: > 0 } type)
-            {
-                lines.Append(" | ").Append(type);
-            }
-
-            lines.AppendLine();
+            line.Append(" | ").Append(type);
         }
 
-        return $"""
-            {AgilePage.Header(page)}
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(lines.ToString().TrimEnd())}
-            """;
+        return line.ToString();
     }
 }
