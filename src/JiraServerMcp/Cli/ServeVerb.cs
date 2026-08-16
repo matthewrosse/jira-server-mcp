@@ -87,6 +87,20 @@ internal static class ServeVerb
             .WithTools<GetCreateFieldsTool>()
             .WithTools<SearchUsersTool>();
 
+        // The capability probe decides this, and it is read from the profile: startup does no
+        // network input or output, so a client that times out a slow start does not drop the
+        // server, and a laptop off the VPN fails one call rather than failing to start.
+        if (profile.Capabilities is { SoftwareLicensed: true })
+        {
+            server
+                .WithTools<ListBoardsTool>()
+                .WithTools<ListSprintsTool>()
+                .WithTools<GetSprintIssuesTool>()
+                .WithTools<GetBacklogTool>();
+        }
+
+        await SayWhatTheProbeLeavesUnansweredAsync(profileName, profile);
+
         // Without its grant a write tool is not registered, so the model never discovers it,
         // attempts it, and burns context learning that it is forbidden.
         if (grants.Allows(Grant.IssuesWrite))
@@ -111,6 +125,35 @@ internal static class ServeVerb
         await builder.Build().RunAsync(cancellationToken);
 
         return 0;
+    }
+
+    /// <summary>
+    /// A missing or stale capability probe is not an error — the tools registered are the ones the
+    /// profile knows about — but the operator is told, because a Jira that has since been licensed
+    /// for Jira Software will otherwise look as though this server cannot see its boards.
+    /// </summary>
+    private static async Task SayWhatTheProbeLeavesUnansweredAsync(
+        string profileName,
+        Profile profile)
+    {
+        var refresh = $"Run 'jira-server-mcp profile refresh {profileName}'.";
+
+        if (profile.Capabilities is not { } capabilities)
+        {
+            await Console.Error.WriteLineAsync(
+                $"Profile '{profileName}' has no capability probe, so the Jira Software tools are "
+                + $"not registered. {refresh}");
+
+            return;
+        }
+
+        if (capabilities.IsStale(DateTimeOffset.UtcNow))
+        {
+            await Console.Error.WriteLineAsync(
+                $"The capability probe for profile '{profileName}' was taken on "
+                + $"{capabilities.ProbedAt:yyyy-MM-dd} and has expired. The tools registered are "
+                + $"the ones it recorded. {refresh}");
+        }
     }
 
     private static Implementation ServerInfo()
