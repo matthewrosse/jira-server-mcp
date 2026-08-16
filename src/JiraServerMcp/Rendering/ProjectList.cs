@@ -42,7 +42,8 @@ internal static class ProjectList
 
     private static string Header(int shown, int total) =>
         shown < total
-            ? $"projects: {total} — showing the first {shown}. This tool cannot page, so the rest "
-              + "are not available from it; narrow the question with jira_search instead."
+            ? $"projects: {total} — showing the first {shown}. Jira's project endpoint has no page "
+              + "of its own, so the rest are not available from this tool; a project outside them "
+              + "has to be named by its key, which jira_get_project takes directly."
             : $"projects: {total}.";
 }

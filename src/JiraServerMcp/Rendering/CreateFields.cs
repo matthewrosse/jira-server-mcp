@@ -15,6 +15,13 @@ internal static class CreateFields
     /// </summary>
     public const int ValueCap = 20;
 
+    /// <summary>
+    /// The most optional fields one response is worth. An enterprise create screen carries well
+    /// over a hundred, and an agent filing a ticket sets a handful. The required ones are never
+    /// cut: a create call fails without every one of them.
+    /// </summary>
+    public const int OptionalCap = 40;
+
     public static string Render(JiraCreateFields fields)
     {
         var required = fields.Fields.Where(field => field.Required).ToArray();
@@ -22,19 +29,27 @@ internal static class CreateFields
 
         var body = new StringBuilder();
 
-        Section(body, "required", required);
-        Section(body, "optional", optional);
+        body.Append("issue type: ").AppendLine(fields.IssueTypeName);
+
+        Section(body, "required", required, required.Length);
+        Section(body, "optional", optional.Take(OptionalCap).ToArray(), optional.Length);
 
         return $"""
-            {fields.ProjectKey} / {fields.IssueTypeName} — {fields.Fields.Count} fields on the create screen
+            {fields.ProjectKey} — {fields.Fields.Count} fields on the create screen
             {UntrustedContent.Preamble}
             {UntrustedContent.Delimit(body.ToString().TrimEnd())}
             """;
     }
 
-    private static void Section(StringBuilder body, string name, IReadOnlyList<JiraCreateField> fields)
+    private static void Section(
+        StringBuilder body,
+        string name,
+        IReadOnlyList<JiraCreateField> fields,
+        int total)
     {
-        body.Append(name).Append(" (").Append(fields.Count).AppendLine("):");
+        body.AppendLine().Append(name).Append(fields.Count < total
+            ? $" (showing the first {fields.Count} of {total})"
+            : $" ({total})").AppendLine(":");
 
         foreach (var field in fields)
         {
@@ -52,8 +67,6 @@ internal static class CreateFields
 
             body.AppendLine();
         }
-
-        body.AppendLine();
     }
 
     private static string AllowedValues(IReadOnlyList<string> values)

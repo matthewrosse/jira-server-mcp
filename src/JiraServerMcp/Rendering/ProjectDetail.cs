@@ -96,10 +96,15 @@ internal static class ProjectDetail
 
     private static void Versions(StringBuilder body, IReadOnlyList<JiraProjectVersion> versions)
     {
-        var shown = versions.Take(SectionCap).ToArray();
+        // Jira orders versions oldest first, so a project with a long release history would be cut
+        // down to versions released years ago — and the unreleased ones at the end are the only
+        // ones a create call would sensibly name.
+        IReadOnlyList<JiraProjectVersion> shown = versions.Count > SectionCap
+            ? [.. versions.TakeLast(SectionCap)]
+            : versions;
 
         body.AppendLine().Append("versions ")
-            .Append(Heading(shown.Length, versions.Count)).AppendLine(":");
+            .Append(Heading(shown.Count, versions.Count, "most recent")).AppendLine(":");
 
         foreach (var version in shown)
         {
@@ -120,10 +125,10 @@ internal static class ProjectDetail
         }
     }
 
-    private static string Heading(int shown, int total) =>
+    private static string Heading(int shown, int total, string which = "first") =>
         shown is 0
             ? "(none)"
             : shown < total
-                ? $"(showing the first {shown} of {total})"
+                ? $"(showing the {which} {shown} of {total})"
                 : $"({total})";
 }
