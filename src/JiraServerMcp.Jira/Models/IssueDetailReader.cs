@@ -54,6 +54,13 @@ internal static class IssueDetailReader
         return projection;
     }
 
+    /// <summary>
+    /// The transitions section, which the dedicated transitions endpoint answers with in exactly
+    /// the shape it takes inside an issue read.
+    /// </summary>
+    public static IReadOnlyList<JiraTransition> ReadTransitions(JsonElement root) =>
+        Transitions(root);
+
     private static IReadOnlyList<JiraTransition> Transitions(JsonElement root)
     {
         if (!TryArray(root, "transitions", out var transitions))
