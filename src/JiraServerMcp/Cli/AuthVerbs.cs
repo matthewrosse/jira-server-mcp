@@ -237,6 +237,11 @@ internal static class AuthVerbs
         {
             options.BaseUrl = profile.BaseUrl;
             options.PersonalAccessToken = token;
+
+            // Without this the handshake is validated against the machine's own trust store, and
+            // a Jira behind a private certificate authority fails here — leaving `auth login`
+            // unable to store a token for a profile `serve` would have connected to happily.
+            options.CaBundlePath = profile.CaBundlePath;
         });
 
         services.AddJiraClient();
