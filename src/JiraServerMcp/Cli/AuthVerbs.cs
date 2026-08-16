@@ -59,6 +59,26 @@ internal static class AuthVerbs
             $"The personal access token for profile '{profileName}' is stored in the "
             + $"{store.Describe()}.");
 
+        // The probe comes last, and its failure does not undo a login: the token is valid — Jira
+        // just said so — and losing it because the instance would not describe itself would be a
+        // worse answer than a profile with no probe on it yet.
+        if (await CapabilityProbe.TakeAsync(profileName, profile, token, cancellationToken)
+            is { } capabilities)
+        {
+            await Console.Out.WriteLineAsync(CapabilityProbe.Describe(capabilities));
+        }
+        else
+        {
+            // A login onto a profile that has been probed before leaves that probe in place, so
+            // saying there is none would contradict the tools `serve` goes on to register.
+            await Console.Error.WriteLineAsync(profile.Capabilities is null
+                ? $"Profile '{profileName}' has no capability probe, so the Jira Software tools "
+                  + $"will not be registered. Take it again with 'jira-server-mcp profile refresh "
+                  + $"{profileName}'."
+                : $"The capability probe recorded for profile '{profileName}' is unchanged. Take "
+                  + $"it again with 'jira-server-mcp profile refresh {profileName}'.");
+        }
+
         return 0;
     }
 

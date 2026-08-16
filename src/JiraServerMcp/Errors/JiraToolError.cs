@@ -35,6 +35,13 @@ internal static class JiraToolError
                 + "but you cannot browse it, so there is nothing to retry: check the project key "
                 + "with jira_list_projects, or ask someone with access to it.",
 
+            HttpStatusCode.NotFound when IsTheSoftwareApi(exception.Endpoint) =>
+                $"Jira answered {exception.Endpoint} with a 404. The whole software API answers "
+                + "that way where Jira Software is not licensed, so this instance may have lost "
+                + $"the licence the capability probe recorded. Run 'jira-server-mcp profile "
+                + $"refresh {profileName}'; if it is still licensed, check the board or sprint "
+                + "identifier.",
+
             HttpStatusCode.NotFound =>
                 $"Jira has nothing at {exception.Endpoint} (404). Check the profile's base URL, "
                 + "including any context path such as /jira.",
@@ -56,6 +63,9 @@ internal static class JiraToolError
     private static bool IsAnIssue(string endpoint) =>
         endpoint.Contains("/rest/api/2/issue/", StringComparison.Ordinal)
         && !endpoint.Contains("/rest/api/2/issue/createmeta", StringComparison.Ordinal);
+
+    private static bool IsTheSoftwareApi(string endpoint) =>
+        endpoint.Contains("/rest/agile/1.0/", StringComparison.Ordinal);
 
     private static bool IsAProject(string endpoint) =>
         endpoint.Contains("/rest/api/2/project/", StringComparison.Ordinal);

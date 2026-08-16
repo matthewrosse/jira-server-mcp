@@ -1,3 +1,5 @@
+using JiraServerMcp.Jira.Capabilities;
+
 namespace JiraServerMcp.Profiles;
 
 /// <summary>
@@ -9,6 +11,13 @@ internal sealed record Profile
     public required Uri BaseUrl { get; init; }
 
     public string? CaBundlePath { get; init; }
+
+    /// <summary>
+    /// What the capability probe last found, or null where it has never been taken. Nothing reads
+    /// this at startup by asking Jira again: the record is the answer, and `profile refresh`
+    /// replaces it.
+    /// </summary>
+    public JiraCapabilities? Capabilities { get; init; }
 
     public required DateTimeOffset CreatedAt { get; init; }
 

@@ -134,6 +134,27 @@ internal static class VerbDispatcher
 
         list.SetAction((_, cancellationToken) => ProfileVerbs.ListAsync(cancellationToken));
 
+        var refreshName = new Argument<string>("name")
+        {
+            Description = "The profile whose capability probe is taken again.",
+        };
+
+        var refreshCredentialStore = CredentialStoreOption();
+
+        var refresh = new Command(
+            "refresh",
+            "Take this profile's capability probe again: version, deployment type, and whether "
+            + "Jira Software is licensed.")
+        {
+            refreshName,
+            refreshCredentialStore,
+        };
+
+        refresh.SetAction((parseResult, cancellationToken) => ProfileVerbs.RefreshAsync(
+            parseResult.GetValue(refreshName)!,
+            parseResult.GetValue(refreshCredentialStore),
+            cancellationToken));
+
         var removeName = new Argument<string>("name")
         {
             Description = "The profile to remove, along with its credential.",
@@ -154,6 +175,7 @@ internal static class VerbDispatcher
 
         profile.Subcommands.Add(add);
         profile.Subcommands.Add(list);
+        profile.Subcommands.Add(refresh);
         profile.Subcommands.Add(remove);
 
         return profile;
