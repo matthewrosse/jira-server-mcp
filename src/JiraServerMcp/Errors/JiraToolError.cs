@@ -29,6 +29,12 @@ internal static class JiraToolError
                 + "but you cannot see it, so there is nothing to retry: check the issue key, or "
                 + "ask someone with access to it.",
 
+            HttpStatusCode.NotFound when IsAProject(exception.Endpoint) =>
+                $"Jira has no project at {exception.Endpoint} that this account can see. Jira "
+                + "answers the same way whether the project does not exist and whether it exists "
+                + "but you cannot browse it, so there is nothing to retry: check the project key "
+                + "with jira_list_projects, or ask someone with access to it.",
+
             HttpStatusCode.NotFound =>
                 $"Jira has nothing at {exception.Endpoint} (404). Check the profile's base URL, "
                 + "including any context path such as /jira.",
@@ -42,8 +48,17 @@ internal static class JiraToolError
             _ => $"{operation} failed. {exception.Message}",
         };
 
+    /// <summary>
+    /// An endpoint naming one issue. The create metadata lives under the same path and names no
+    /// issue at all, so telling its caller to check an issue key would send it looking for one it
+    /// never sent.
+    /// </summary>
     private static bool IsAnIssue(string endpoint) =>
-        endpoint.Contains("/rest/api/2/issue/", StringComparison.Ordinal);
+        endpoint.Contains("/rest/api/2/issue/", StringComparison.Ordinal)
+        && !endpoint.Contains("/rest/api/2/issue/createmeta", StringComparison.Ordinal);
+
+    private static bool IsAProject(string endpoint) =>
+        endpoint.Contains("/rest/api/2/project/", StringComparison.Ordinal);
 
     private static string Jira(JiraApiException exception) =>
         exception.ErrorMessages.Count is 0
