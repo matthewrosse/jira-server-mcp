@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -13,25 +14,28 @@ internal sealed record SetupWizardForm(string Action, IReadOnlyDictionary<string
     /// takes the form off it, and posts the fields back with the ones it has answers for
     /// overwritten — so a reordered wizard, or one with a step added, needs no change here.
     /// </summary>
-    public static SetupWizardForm SelectFrom(string html)
-    {
-        var forms = ParseAll(html);
-
-        if (forms.Count is 0)
-        {
-            throw new InvalidOperationException(
-                "No form on the page the setup wizard served. Jira is either not finished "
+    public static SetupWizardForm SelectFrom(string html) =>
+        TrySelectStep(html, out var step)
+            ? step
+            : throw new InvalidOperationException(
+                "No setup step on the page the wizard served. Jira is either not finished "
                 + "starting or the wizard has changed shape; see tests/README.md.");
-        }
 
+    /// <summary>
+    /// True when the page is a wizard step. A configured Jira serves ordinary pages with ordinary
+    /// forms on them, so only a form posting to a <c>Setup*</c> action counts — anything else, and
+    /// the wizard is behind us.
+    /// </summary>
+    public static bool TrySelectStep(string html, [NotNullWhen(true)] out SetupWizardForm? step)
+    {
         // The licence page carries two forms posting to SetupLicense.jspa: a stub holding
         // nothing but atl_token, whose post returns 500, and the real one carrying the key.
         // Whichever offers the most fields besides the token is the real one.
-        var candidates = forms.Where(form => form.Action.Contains("Setup", StringComparison.Ordinal))
-            .ToList();
+        step = ParseAll(html)
+            .Where(form => form.Action.Contains("Setup", StringComparison.Ordinal))
+            .MaxBy(form => form.Fields.Count(field => field.Key is not AtlassianTokenField));
 
-        return (candidates.Count is 0 ? forms : candidates)
-            .MaxBy(form => form.Fields.Count(field => field.Key is not AtlassianTokenField))!;
+        return step is not null;
     }
 
     public const string AtlassianTokenField = "atl_token";

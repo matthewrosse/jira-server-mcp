@@ -115,4 +115,30 @@ public class SetupWizardFormTests
         Should.Throw<InvalidOperationException>(
             () => SetupWizardForm.SelectFrom("<html><body>Jira is starting.</body></html>"));
     }
+
+    /// <summary>
+    /// A configured Jira serves ordinary pages carrying ordinary forms — the header's quick search
+    /// among them. Treating one of those as a wizard step is how a driver walks past the end of
+    /// the wizard and posts site search to itself until it runs out of steps.
+    /// </summary>
+    [Fact]
+    public void A_page_whose_only_form_is_the_sites_own_is_not_a_wizard_step()
+    {
+        const string AfterTheWizard = """
+            <form action="/secure/QuickSearch.jspa" method="get">
+              <input type="text" name="searchString" value=""/>
+            </form>
+            """;
+
+        SetupWizardForm.TrySelectStep(AfterTheWizard, out var step).ShouldBeFalse();
+        step.ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_wizard_step_is_recognised_as_one()
+    {
+        SetupWizardForm.TrySelectStep(Page("2-license.html"), out var step).ShouldBeTrue();
+
+        step.ShouldNotBeNull().Action.ShouldBe("SetupLicense.jspa");
+    }
 }
