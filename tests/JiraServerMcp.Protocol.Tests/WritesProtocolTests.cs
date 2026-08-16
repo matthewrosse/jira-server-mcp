@@ -80,20 +80,24 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         // never discovers, attempts, and burns context learning it may not have.
         tools.ShouldNotContain("jira_create_issue");
         tools.ShouldNotContain("jira_update_issue");
+        tools.ShouldNotContain("jira_transition_issue");
+        tools.ShouldNotContain("jira_add_comment");
+        tools.ShouldNotContain("jira_add_worklog");
 
         tools.ShouldContain("jira_search");
         tools.ShouldContain("jira_get_issue");
     }
 
     [Fact]
-    public async Task The_issues_grant_registers_the_two_issue_writes_and_nothing_further()
+    public async Task The_issues_grant_registers_the_three_issue_writes_and_nothing_further()
     {
         var tools = await ToolsAsync(await ClientAsync("issues:write"));
 
         tools.ShouldContain("jira_create_issue");
         tools.ShouldContain("jira_update_issue");
+        tools.ShouldContain("jira_transition_issue");
 
-        // Commenting and logging work are their own grants, and their own issue.
+        // Commenting and logging work are their own grants.
         tools.ShouldNotContain("jira_add_comment");
         tools.ShouldNotContain("jira_add_worklog");
     }
@@ -105,6 +109,65 @@ public sealed class WritesProtocolTests : IAsyncLifetime
 
         tools.ShouldNotContain("jira_create_issue");
         tools.ShouldNotContain("jira_update_issue");
+        tools.ShouldNotContain("jira_transition_issue");
+    }
+
+    /// <summary>
+    /// Every combination of the three grants, because "independent" is a claim about all eight and
+    /// not about the three an implementation happened to be tried with.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("issues:write")]
+    [InlineData("comments:write")]
+    [InlineData("worklogs:write")]
+    [InlineData("issues:write,comments:write")]
+    [InlineData("issues:write,worklogs:write")]
+    [InlineData("comments:write,worklogs:write")]
+    [InlineData("issues:write,comments:write,worklogs:write")]
+    public async Task Each_grant_registers_exactly_its_own_tools_and_no_others(string granted)
+    {
+        string[] grants = granted.Length is 0 ? [] : [granted];
+
+        var tools = await ToolsAsync(await ClientAsync(grants));
+
+        var issues = granted.Contains("issues:write", StringComparison.Ordinal);
+        var comments = granted.Contains("comments:write", StringComparison.Ordinal);
+        var worklogs = granted.Contains("worklogs:write", StringComparison.Ordinal);
+
+        tools.Contains("jira_create_issue").ShouldBe(issues);
+        tools.Contains("jira_update_issue").ShouldBe(issues);
+        tools.Contains("jira_transition_issue").ShouldBe(issues);
+        tools.Contains("jira_add_comment").ShouldBe(comments);
+        tools.Contains("jira_add_worklog").ShouldBe(worklogs);
+    }
+
+    /// <summary>
+    /// Holding every grant there is, this is the whole surface. Nothing here deletes, and nothing
+    /// edits a comment or a worklog that already exists: a tool that did either would have to be
+    /// added to this list first, in front of whoever is reviewing the change.
+    /// </summary>
+    [Fact]
+    public async Task Nothing_in_the_server_deletes_anything_even_with_every_grant_held()
+    {
+        var tools = await ToolsAsync(
+            await ClientAsync("issues:write", "comments:write", "worklogs:write"));
+
+        tools.Order().ShouldBe(
+            [
+                "jira_add_comment",
+                "jira_add_worklog",
+                "jira_create_issue",
+                "jira_get_create_fields",
+                "jira_get_issue",
+                "jira_get_project",
+                "jira_list_projects",
+                "jira_search",
+                "jira_search_users",
+                "jira_transition_issue",
+                "jira_update_issue",
+                "jira_whoami",
+            ]);
     }
 
     [Fact]

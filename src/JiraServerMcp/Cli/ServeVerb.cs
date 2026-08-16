@@ -93,7 +93,19 @@ internal static class ServeVerb
         {
             server
                 .WithTools<CreateIssueTool>()
-                .WithTools<UpdateIssueTool>();
+                .WithTools<UpdateIssueTool>()
+                .WithTools<TransitionIssueTool>();
+        }
+
+        // Each grant stands on its own: an agent allowed to comment gets neither of the others.
+        if (grants.Allows(Grant.CommentsWrite))
+        {
+            server.WithTools<AddCommentTool>();
+        }
+
+        if (grants.Allows(Grant.WorklogsWrite))
+        {
+            server.WithTools<AddWorklogTool>();
         }
 
         await builder.Build().RunAsync(cancellationToken);
