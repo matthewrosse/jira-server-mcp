@@ -5,8 +5,9 @@ namespace JiraServerMcp.Rendering;
 
 /// <summary>
 /// One issue as text: the key, the field projection, and a section for each expansion that was
-/// asked for. A section that was not asked for is absent rather than empty, so an agent reading
-/// the response cannot mistake "not requested" for "there are none".
+/// asked for. Which sections appear is decided by what the caller asked for rather than by what
+/// came back, so an issue with no links renders an empty links section instead of looking as
+/// though links were never requested.
 /// </summary>
 internal static class IssueDetail
 {
@@ -17,7 +18,7 @@ internal static class IssueDetail
     /// </summary>
     public const int SectionCap = 20;
 
-    public static string Render(JiraIssueDetail issue)
+    public static string Render(JiraIssueDetail issue, IReadOnlyList<Expansion> expansions)
     {
         var body = new StringBuilder();
 
@@ -25,15 +26,36 @@ internal static class IssueDetail
         {
             if (FieldValue.Read(field.Value) is { Length: > 0 } value)
             {
-                body.Append(field.Key).Append(": ").AppendLine(Truncation.Body(value));
+                // Not truncated: a search result's marker sends a caller here for the full text,
+                // and cutting it here would make that promise false with nowhere else to go.
+                body.Append(field.Key).Append(": ").AppendLine(value);
             }
         }
 
-        Transitions(body, issue.Transitions);
-        Comments(body, issue.Comments);
-        History(body, issue.Changelog);
-        Links(body, issue.Links);
-        Worklogs(body, issue.Worklogs);
+        if (expansions.Contains(Expansion.Transitions))
+        {
+            Transitions(body, issue.Transitions);
+        }
+
+        if (expansions.Contains(Expansion.Comments))
+        {
+            Comments(body, issue.Comments);
+        }
+
+        if (expansions.Contains(Expansion.Changelog))
+        {
+            History(body, issue.Changelog);
+        }
+
+        if (expansions.Contains(Expansion.Links))
+        {
+            Links(body, issue.Links);
+        }
+
+        if (expansions.Contains(Expansion.Worklogs))
+        {
+            Worklogs(body, issue.Worklogs);
+        }
 
         return $"""
             {issue.Key}
@@ -44,16 +66,12 @@ internal static class IssueDetail
 
     private static void Transitions(StringBuilder body, IReadOnlyList<JiraTransition> transitions)
     {
-        if (transitions.Count is 0)
-        {
-            // Absent rather than "none": a transition list is only ever present when it was asked
-            // for, and an issue always has at least one transition available to someone.
-            return;
-        }
+        var shown = transitions.Take(SectionCap).ToArray();
 
-        body.AppendLine().AppendLine("transitions:");
+        body.AppendLine().Append("transitions ")
+            .Append(Heading(shown.Length, transitions.Count)).AppendLine(":");
 
-        foreach (var transition in transitions)
+        foreach (var transition in shown)
         {
             body.Append("  ").Append(transition.Name)
                 .Append(" (id ").Append(transition.Id).Append(')');
@@ -80,12 +98,9 @@ internal static class IssueDetail
 
     private static void Comments(StringBuilder body, JiraComments? comments)
     {
-        if (comments is null)
-        {
-            return;
-        }
-
-        var shown = Newest(comments.Comments, comments.Total, out var heading);
+        var (shown, heading) = Ordered(
+            comments?.Comments ?? [],
+            comments?.Total ?? 0);
 
         body.AppendLine().Append("comments ").Append(heading).AppendLine(":");
 
@@ -103,12 +118,9 @@ internal static class IssueDetail
 
     private static void History(StringBuilder body, JiraChangelog? changelog)
     {
-        if (changelog is null)
-        {
-            return;
-        }
-
-        var shown = Newest(changelog.Histories, changelog.Total, out var heading);
+        var (shown, heading) = Ordered(
+            changelog?.Histories ?? [],
+            changelog?.Total ?? 0);
 
         body.AppendLine().Append("history ").Append(heading).AppendLine(":");
 
@@ -119,6 +131,8 @@ internal static class IssueDetail
 
             foreach (var item in group.Items)
             {
+                // A description or environment edit carries the whole of both versions here, so
+                // these are prose like any other and are cut like it.
                 body.Append("    ").Append(item.Field).Append(": ")
                     .Append(Value(item.From)).Append(" to ").AppendLine(Value(item.To));
             }
@@ -127,14 +141,10 @@ internal static class IssueDetail
 
     private static void Links(StringBuilder body, IReadOnlyList<JiraIssueLink> links)
     {
-        if (links.Count is 0)
-        {
-            return;
-        }
-
         var shown = links.Take(SectionCap).ToArray();
 
-        body.AppendLine().Append("links ").Append(Heading(shown.Length, links.Count)).AppendLine(":");
+        body.AppendLine().Append("links ")
+            .Append(Heading(shown.Length, links.Count)).AppendLine(":");
 
         foreach (var link in shown)
         {
@@ -151,15 +161,12 @@ internal static class IssueDetail
 
     private static void Worklogs(StringBuilder body, JiraWorklogs? worklogs)
     {
-        if (worklogs is null)
-        {
-            return;
-        }
+        var entries = worklogs?.Worklogs ?? [];
 
-        var shown = worklogs.Worklogs.Take(SectionCap).ToArray();
+        var shown = entries.Take(SectionCap).ToArray();
 
         body.AppendLine().Append("worklogs ")
-            .Append(Heading(shown.Length, worklogs.Total)).AppendLine(":");
+            .Append(Heading(shown.Length, worklogs?.Total ?? 0)).AppendLine(":");
 
         foreach (var entry in shown)
         {
@@ -170,17 +177,33 @@ internal static class IssueDetail
     }
 
     /// <summary>
-    /// The most recent entries of a section Jira ordered oldest first, capped. Reversing before
-    /// capping is what makes the cap keep the newest rather than the first ones Jira happened to
-    /// send.
+    /// A section Jira orders oldest first, capped, and labelled with the order it ended up in.
     /// </summary>
-    private static T[] Newest<T>(IReadOnlyList<T> entries, int total, out string heading)
+    /// <remarks>
+    /// Jira caps some collections at its own end and sends the first page, which is the oldest
+    /// entries. Reversing that page would hand back the oldest activity under a "newest first"
+    /// label, which is worse than saying plainly that the recent entries were not returned. So the
+    /// order is only claimed to be newest-first when everything Jira counted is actually in hand.
+    /// </remarks>
+    private static (T[] Shown, string Heading) Ordered<T>(IReadOnlyList<T> entries, int total)
     {
-        var shown = entries.Reverse().Take(SectionCap).ToArray();
+        if (entries.Count < total)
+        {
+            var oldest = entries.Take(SectionCap).ToArray();
 
-        heading = Heading(shown.Length, total) + (shown.Length > 1 ? ", newest first" : "");
+            return (oldest, $"(showing {oldest.Length} of {total}, oldest first — Jira returned "
+                            + "only the first page, so the most recent are not here)");
+        }
 
-        return shown;
+        var newest = entries.Reverse().Take(SectionCap).ToArray();
+
+        return (newest, newest.Length switch
+        {
+            0 => "(none)",
+            1 => "(1)",
+            _ when newest.Length < total => $"(showing {newest.Length} of {total}, newest first)",
+            _ => $"({total}, newest first)",
+        });
     }
 
     private static string Heading(int shown, int total) =>
@@ -190,5 +213,6 @@ internal static class IssueDetail
                 ? $"(showing {shown} of {total})"
                 : $"({total})";
 
-    private static string Value(string? value) => value is { Length: > 0 } text ? text : "(none)";
+    private static string Value(string? value) =>
+        value is { Length: > 0 } text ? Truncation.Body(text) : "(none)";
 }

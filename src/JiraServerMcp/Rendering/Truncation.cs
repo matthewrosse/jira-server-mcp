@@ -26,19 +26,34 @@ internal static class Truncation
             return text;
         }
 
-        var left = text.Length - Budget;
+        var cut = Cut(text, Budget);
 
-        return text[..Budget]
-               + $"…[truncated, {left} more characters — call jira_get_issue with key "
-               + $"{issueKey} for the full text]";
+        return text[..cut]
+               + $"…[truncated, {text.Length - cut} more characters — call jira_get_issue with "
+               + $"key {issueKey} for the full text]";
     }
 
     /// <summary>
     /// Prose inside an issue read. The marker names what was left behind but no tool to get it
     /// with: the caller is already reading the issue, and there is nothing further to call.
     /// </summary>
-    public static string Body(string text) =>
-        text.Length <= BodyBudget
-            ? text
-            : text[..BodyBudget] + $"…[truncated, {text.Length - BodyBudget} more characters]";
+    public static string Body(string text)
+    {
+        if (text.Length <= BodyBudget)
+        {
+            return text;
+        }
+
+        var cut = Cut(text, BodyBudget);
+
+        return text[..cut] + $"…[truncated, {text.Length - cut} more characters]";
+    }
+
+    /// <summary>
+    /// Where to cut without splitting a character in half. A budget counts UTF-16 units, and an
+    /// emoji or anything else outside the basic plane occupies two of them; cutting between the
+    /// pair leaves a lone surrogate that serialises as a replacement character.
+    /// </summary>
+    private static int Cut(string text, int budget) =>
+        char.IsHighSurrogate(text[budget - 1]) ? budget - 1 : budget;
 }

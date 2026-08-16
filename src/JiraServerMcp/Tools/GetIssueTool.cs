@@ -47,7 +47,7 @@ internal sealed class GetIssueTool(JiraClient jira, ServedProfile profile)
                 Expansions.Expand(expansions),
                 cancellationToken);
 
-            return Text(IssueDetail.Render(issue));
+            return Text(IssueDetail.Render(issue, expansions));
         }
         catch (JiraApiException exception)
         {

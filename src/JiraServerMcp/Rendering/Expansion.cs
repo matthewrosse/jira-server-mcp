@@ -43,9 +43,10 @@ internal static class Expansions
 
         foreach (var name in include ?? [])
         {
-            if (!_byName.TryGetValue(name.Trim(), out var expansion))
+            // A JSON array is allowed to carry a null, and it arrives here as one.
+            if (name is null || !_byName.TryGetValue(name.Trim(), out var expansion))
             {
-                (expansions, unknown) = ([], name);
+                (expansions, unknown) = ([], name ?? "null");
 
                 return false;
             }
