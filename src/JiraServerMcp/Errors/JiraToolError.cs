@@ -9,11 +9,13 @@ namespace JiraServerMcp.Errors;
 /// log and cannot ask a human, so every message says which failure it was and what to do next —
 /// including, where it applies, that there is nothing to do and looping will not help.
 ///
-/// Every message ends the same way: this server's own prose first, then — only when Jira said
-/// anything at all — one <see cref="UntrustedContent"/>-framed region carrying every Jira-authored
-/// word, error messages and field errors alike. Jira's words are never spliced into this server's
-/// sentences: a validator message is admin-configurable content authored in Jira, exactly like a
-/// description or a comment, and it does not stop being that because it arrived on a failure.
+/// Every message ends the same way: this server's own prose first, then the caller's advice if it
+/// gave one, then — everywhere but a bare 404, where Jira has nothing further to say — the status
+/// line and, when Jira said anything at all, one <see cref="UntrustedContent"/>-framed region
+/// carrying every Jira-authored word, error messages and field errors alike. Jira's words are
+/// never spliced into this server's sentences: a validator message is admin-configurable content
+/// authored in Jira, exactly like a description or a comment, and it does not stop being that
+/// because it arrived on a failure.
 /// </summary>
 internal static class JiraToolError
 {
@@ -22,49 +24,66 @@ internal static class JiraToolError
         string profileName,
         string operation,
         string? advice = null) =>
-        Assembled(
-            exception.StatusCode switch
-            {
-                HttpStatusCode.Unauthorized =>
+        exception.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized =>
+                Assembled(
                     $"The personal access token for profile '{profileName}' is invalid or "
                     + $"revoked. Run 'jira-server-mcp auth login {profileName}' to store a new "
                     + "one.",
+                    advice,
+                    exception),
 
-                HttpStatusCode.Forbidden =>
+            HttpStatusCode.Forbidden =>
+                Assembled(
                     $"Jira refused {operation}: the account this server is authenticated as does "
                     + $"not have permission for it on {exception.Endpoint}. The request was not "
                     + "retried, and repeating it will not help.",
+                    advice,
+                    exception),
 
-                HttpStatusCode.NotFound when IsAnIssue(exception.Endpoint) =>
+            // Jira answers the same way whether an issue or a project does not exist and whether
+            // it exists but is not visible, so the bare 404 already says everything Jira has to
+            // say — a status line here would only repeat "404".
+            HttpStatusCode.NotFound when IsAnIssue(exception.Endpoint) =>
+                Bare(
                     $"Jira has no issue at {exception.Endpoint} that this account can see. Jira "
                     + "answers the same way whether the issue does not exist and whether it "
                     + "exists but you cannot see it, so there is nothing to retry: check the "
                     + "issue key, or ask someone with access to it.",
+                    advice),
 
-                HttpStatusCode.NotFound when IsAProject(exception.Endpoint) =>
+            HttpStatusCode.NotFound when IsAProject(exception.Endpoint) =>
+                Bare(
                     $"Jira has no project at {exception.Endpoint} that this account can see. "
                     + "Jira answers the same way whether the project does not exist and whether "
                     + "it exists but you cannot browse it, so there is nothing to retry: check "
                     + "the project key with jira_list_projects, or ask someone with access to it.",
+                    advice),
 
-                HttpStatusCode.NotFound when IsTheSoftwareApi(exception.Endpoint) =>
+            HttpStatusCode.NotFound when IsTheSoftwareApi(exception.Endpoint) =>
+                Bare(
                     $"Jira answered {exception.Endpoint} with a 404. The whole software API "
                     + "answers that way where Jira Software is not licensed, so this instance "
                     + $"may have lost the licence the capability probe recorded. Run "
                     + $"'jira-server-mcp profile refresh {profileName}'; if it is still "
                     + "licensed, check the board or sprint identifier.",
+                    advice),
 
-                HttpStatusCode.NotFound =>
+            HttpStatusCode.NotFound =>
+                Bare(
                     $"Jira has nothing at {exception.Endpoint} (404). Check the profile's base "
                     + "URL, including any context path such as /jira.",
+                    advice),
 
-                HttpStatusCode.BadRequest when exception.FieldErrors.Count > 0 =>
+            HttpStatusCode.BadRequest when exception.FieldErrors.Count > 0 =>
+                Assembled(
                     $"Jira rejected {operation}. Its own message for each field follows.",
+                    advice,
+                    exception),
 
-                _ => $"{operation} failed.",
-            },
-            advice,
-            exception);
+            _ => Assembled($"{operation} failed.", advice, exception),
+        };
 
     /// <summary>
     /// An endpoint naming one issue. The create metadata lives under the same path and names no
@@ -82,11 +101,29 @@ internal static class JiraToolError
         endpoint.Contains("/rest/api/2/project/", StringComparison.Ordinal);
 
     /// <summary>
-    /// This server's sentence, the caller's advice if it gave one, and the framed block of
-    /// Jira's own words if Jira said anything — in that order, so trusted prose always reads
-    /// before untrusted content and nothing appends past a closing marker.
+    /// This server's sentence, the caller's advice if it gave one, and the status line — framed
+    /// around Jira's own words when it said anything — in that order, so trusted prose always
+    /// reads before untrusted content and nothing appends past a closing marker.
     /// </summary>
     private static string Assembled(string sentence, string? advice, JiraApiException exception)
+    {
+        var statusLine = $"Jira returned {(int)exception.StatusCode}.";
+
+        var withStatus = Bare(
+            sentence,
+            advice,
+            JiraWords(exception) is { } words
+                ? UntrustedContent.Envelope(statusLine, Truncation.Error(words))
+                : statusLine);
+
+        return withStatus;
+    }
+
+    /// <summary>
+    /// This server's sentence and the caller's advice, with no status line and no framed block —
+    /// what a bare 404 gets, because Jira said everything it had to say already.
+    /// </summary>
+    private static string Bare(string sentence, string? advice, string? trailer = null)
     {
         var parts = new List<string> { sentence };
 
@@ -95,33 +132,12 @@ internal static class JiraToolError
             parts.Add(advice);
         }
 
-        if (FramedJiraWords(exception) is { } framed)
+        if (trailer is not null)
         {
-            parts.Add(framed);
+            parts.Add(trailer);
         }
 
         return string.Join("\n", parts);
-    }
-
-    /// <summary>
-    /// The status line and, when Jira said anything, the delimited block of its own words —
-    /// error messages and per-field errors joined whole, so a caller reading one block sees every
-    /// word Jira wrote rather than half of it split across a trusted sentence.
-    /// </summary>
-    private static string? FramedJiraWords(JiraApiException exception)
-    {
-        var statusLine = $"Jira returned {(int)exception.StatusCode}.";
-
-        if (JiraWords(exception) is not { } words)
-        {
-            return null;
-        }
-
-        return $"""
-            {statusLine}
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(Truncation.Error(words))}
-            """;
     }
 
     private static string? JiraWords(JiraApiException exception)

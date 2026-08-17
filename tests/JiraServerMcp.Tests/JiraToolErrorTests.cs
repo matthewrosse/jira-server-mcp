@@ -132,7 +132,7 @@ public sealed class JiraToolErrorTests
     }
 
     [Fact]
-    public void No_jira_text_means_no_markers_and_no_preamble()
+    public void No_jira_text_means_no_markers_and_no_preamble_but_the_status_survives()
     {
         var exception = new JiraApiException(
             HttpStatusCode.InternalServerError,
@@ -144,6 +144,15 @@ public sealed class JiraToolErrorTests
 
         message.ShouldNotContain("<jira-data");
         message.ShouldNotContain(UntrustedContent.Preamble);
+        message.ShouldContain("Jira returned 500");
+    }
+
+    [Fact]
+    public void A_bare_404_carries_no_status_line_at_all()
+    {
+        var message = Describe(HttpStatusCode.NotFound, "/rest/api/2/myself");
+
+        message.ShouldNotContain("Jira returned");
     }
 
     [Fact]
