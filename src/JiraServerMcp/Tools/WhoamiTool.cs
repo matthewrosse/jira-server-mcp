@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -25,12 +26,7 @@ internal sealed class WhoamiTool(JiraClient jira, ServedProfile profile)
             {
                 var user = await jira.GetMyselfAsync(cancellationToken);
 
-                return $"""
-                    display name: {user.DisplayName}
-                    username: {user.Name}
-                    email: {user.EmailAddress ?? "(none)"}
-                    active: {user.Active}
-                    """;
+                return AccountDetail.Render(user, profile.Name);
             },
             cancellationToken);
 }
