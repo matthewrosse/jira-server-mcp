@@ -66,11 +66,13 @@ internal static class ServeVerb
         // ADR-0002: every log line goes to standard error, whatever its level.
         builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 
+        var connected = ConnectedProfile.OptionsFor(profile, held.Value);
+
         builder.Services.Configure<JiraClientOptions>(options =>
         {
-            options.BaseUrl = profile.BaseUrl;
-            options.PersonalAccessToken = held.Value;
-            options.CaBundlePath = profile.CaBundlePath;
+            options.BaseUrl = connected.BaseUrl;
+            options.PersonalAccessToken = connected.PersonalAccessToken;
+            options.CaBundlePath = connected.CaBundlePath;
         });
 
         builder.Services.AddSingleton(new ServedProfile(profileName));
