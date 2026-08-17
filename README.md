@@ -403,9 +403,10 @@ dotnet test tests/JiraServerMcp.JiraIntegration.Tests \
   -- --filter-trait "Category=JiraIntegration"   # against a real Jira 8.20.7 — needs Docker
 ```
 
-The first three need nothing but the SDK and take seconds. The fourth provisions a Jira, which
-takes minutes. To run everything that needs no Docker, including the harness's own parser and
-readiness tests:
+The first three need nothing but the SDK: the first two take seconds, and the protocol tier a
+couple of minutes, since every case starts a server. The fourth provisions a Jira, which took 12
+minutes end to end on the slowest machine this has run on. To run everything that needs no Docker,
+including the harness's own parser and readiness tests:
 
 ```
 dotnet test tests/JiraServerMcp.JiraIntegration.Tests -- --filter-not-trait "Category=JiraIntegration"
