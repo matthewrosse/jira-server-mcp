@@ -5,6 +5,7 @@ using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace JiraServerMcp.Cli;
 
@@ -233,17 +234,7 @@ internal static class AuthVerbs
     {
         var services = new ServiceCollection();
 
-        services.Configure<JiraClientOptions>(options =>
-        {
-            options.BaseUrl = profile.BaseUrl;
-            options.PersonalAccessToken = token;
-
-            // Without this the handshake is validated against the machine's own trust store, and
-            // a Jira behind a private certificate authority fails here — leaving `auth login`
-            // unable to store a token for a profile `serve` would have connected to happily.
-            options.CaBundlePath = profile.CaBundlePath;
-        });
-
+        services.AddSingleton(Options.Create(ConnectedProfile.OptionsFor(profile, token)));
         services.AddJiraClient();
 
         await using var provider = services.BuildServiceProvider();

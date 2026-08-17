@@ -3,6 +3,7 @@ using JiraServerMcp.Jira.Capabilities;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace JiraServerMcp.Cli;
 
@@ -25,13 +26,7 @@ internal static class CapabilityProbe
     {
         var services = new ServiceCollection();
 
-        services.Configure<JiraClientOptions>(options =>
-        {
-            options.BaseUrl = profile.BaseUrl;
-            options.PersonalAccessToken = token;
-            options.CaBundlePath = profile.CaBundlePath;
-        });
-
+        services.AddSingleton(Options.Create(ConnectedProfile.OptionsFor(profile, token)));
         services.AddJiraClient();
 
         await using var provider = services.BuildServiceProvider();
