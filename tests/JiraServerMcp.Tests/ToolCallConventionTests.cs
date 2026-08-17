@@ -19,7 +19,7 @@ public sealed class ToolCallConventionTests
             where type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null
             from member in type.GetMembers(
                 BindingFlags.Public | BindingFlags.NonPublic
-                | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             where member.Name is "Text" or "Error"
             select $"{type.Name}.{member.Name}";
 

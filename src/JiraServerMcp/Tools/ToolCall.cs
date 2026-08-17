@@ -94,26 +94,20 @@ internal static class ToolCall
     /// The outcome of one <see cref="StepAsync{T}"/> call: the work's value, or a finished result
     /// carrying the failure's own wording.
     /// </summary>
-    public readonly struct Step<T>
+    public readonly record struct Step<T>
     {
-        private readonly T? value;
-        private readonly CallToolResult? error;
+        private T? RawValue { get; init; }
 
-        private Step(bool failed, T? value, CallToolResult? error)
-        {
-            Failed = failed;
-            this.value = value;
-            this.error = error;
-        }
+        private CallToolResult? RawError { get; init; }
 
-        public bool Failed { get; }
+        public bool Failed { get; private init; }
 
-        public T Value => value!;
+        public T Value => RawValue!;
 
-        public CallToolResult Error => error!;
+        public CallToolResult Error => RawError!;
 
-        public static Step<T> Ok(T value) => new(false, value, null);
+        public static Step<T> Ok(T value) => new() { RawValue = value };
 
-        public static Step<T> Fail(CallToolResult error) => new(true, default, error);
+        public static Step<T> Fail(CallToolResult error) => new() { Failed = true, RawError = error };
     }
 }
