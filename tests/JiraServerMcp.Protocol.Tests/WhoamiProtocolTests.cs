@@ -116,6 +116,7 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
         text.ShouldContain("mrosse");
         text.ShouldContain("mrosse@example.com");
         text.ShouldContain("active");
+        text.ShouldContain("<jira-data");
     }
 
     [Fact]
