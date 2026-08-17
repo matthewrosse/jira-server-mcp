@@ -57,8 +57,8 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
                 JiraToolError.Describe(
                     exception,
                     profile.Name,
-                    $"reading the transitions available on {key}")
-                + $"\nNothing was transitioned: {key} is as it was.");
+                    $"reading the transitions available on {key}",
+                    advice: $"Nothing was transitioned: {key} is as it was."));
 
         if (listed.Failed)
         {

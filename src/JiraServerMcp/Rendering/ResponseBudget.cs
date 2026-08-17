@@ -61,4 +61,11 @@ internal static class ResponseBudget
     /// marker, none of which can be dropped once the rows have been counted.
     /// </summary>
     public const int PageReserve = 600;
+
+    /// <summary>
+    /// The most characters a failed tool call's framed block of Jira's own words is worth. A 500
+    /// can carry a full stack trace in <c>errorMessages</c>, and this is a rare path by
+    /// construction, so it gets the same order as <see cref="Prose"/> rather than a search row's.
+    /// </summary>
+    public const int ErrorText = 1_000;
 }
