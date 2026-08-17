@@ -50,11 +50,7 @@ internal static class IssueDetail
             Worklogs(body, issue.Worklogs);
         }
 
-        return $"""
-            {issue.Key}
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(body.ToString().TrimEnd())}
-            """;
+        return UntrustedContent.Envelope(issue.Key, body.ToString().TrimEnd());
     }
 
     private static void Transitions(StringBuilder body, IReadOnlyList<JiraTransition> transitions)

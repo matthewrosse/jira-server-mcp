@@ -24,11 +24,9 @@ internal static class UserResults
                 .Append(" | ").AppendLine(user.Active ? "active" : "inactive");
         }
 
-        return $"""
-            {Header(users.Count, startAt, maxResults, includeInactive)}
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(lines.ToString().TrimEnd())}
-            """;
+        return UntrustedContent.Envelope(
+            Header(users.Count, startAt, maxResults, includeInactive),
+            lines.ToString().TrimEnd());
     }
 
     /// <summary>

@@ -81,6 +81,8 @@ prose, issue-read expansion entries, and default and largest page sizes. Renderi
 read these limits from one module; their cutting and paging mechanics remain where they belong.
 
 **Untrusted content** — free text authored inside Jira: descriptions, comments, custom field
-values, project names. It reaches a model, so it can carry instructions aimed at that model. The
-term marks provenance, not suspicion of any particular string.
+values, project names, transition names, and the text Jira returns when it refuses a request —
+a field validator's message is as admin-authored as a description is. It reaches a model, so it
+can carry instructions aimed at that model. The term marks provenance, not suspicion of any
+particular string, and provenance does not change because the text arrived on a failure.
 _Avoid_: user input, which suggests the tool's caller wrote it.

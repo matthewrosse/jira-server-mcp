@@ -10,12 +10,6 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class AgilePage
 {
-    /// <summary>
-    /// Room kept back from the response budget for the header and the framing, neither of which
-    /// can be dropped once the rows have been counted.
-    /// </summary>
-    private const int Reserve = 600;
-
     public static string Render<T>(JiraAgilePage<T> page, Func<T, string> line)
     {
         var lines = new List<string>();
@@ -25,7 +19,7 @@ internal static class AgilePage
         {
             var rendered = line(value);
 
-            if (used + rendered.Length + 1 > SearchResults.ResponseBudget - Reserve)
+            if (used + rendered.Length + 1 > ResponseBudget.SearchTextBudget - ResponseBudget.PageReserve)
             {
                 break;
             }
@@ -34,11 +28,7 @@ internal static class AgilePage
             used += rendered.Length + 1;
         }
 
-        return $"""
-            {Header(page, lines.Count)}
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(string.Join("\n", lines))}
-            """;
+        return UntrustedContent.Envelope(Header(page, lines.Count), string.Join("\n", lines));
     }
 
     private static string Header<T>(JiraAgilePage<T> page, int rendered)

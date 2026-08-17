@@ -198,7 +198,7 @@ public class SearchRenderingTests
 
         var rendered = Render(Page(startAt: 0, total: 4_000, [.. issues]));
 
-        rendered.Length.ShouldBeLessThanOrEqualTo(SearchResults.ResponseBudget);
+        rendered.Length.ShouldBeLessThanOrEqualTo(ResponseBudget.SearchTextBudget);
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public class SearchRenderingTests
 
         rendered.ShouldContain("response budget");
         rendered.ShouldContain("startAt");
-        rendered.Length.ShouldBeLessThanOrEqualTo(SearchResults.ResponseBudget);
+        rendered.Length.ShouldBeLessThanOrEqualTo(ResponseBudget.SearchTextBudget);
     }
 
     private static string Render(JiraSearchPage page) => SearchResults.Render(page);

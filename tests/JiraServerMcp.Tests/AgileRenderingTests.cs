@@ -55,7 +55,7 @@ public class AgileRenderingTests
 
         var text = BoardList.Render(Page(isLast: true, boards));
 
-        text.Length.ShouldBeLessThanOrEqualTo(SearchResults.ResponseBudget);
+        text.Length.ShouldBeLessThanOrEqualTo(ResponseBudget.SearchTextBudget);
         text.ShouldContain("did not fit the response budget");
         text.ShouldContain("startAt: ");
     }

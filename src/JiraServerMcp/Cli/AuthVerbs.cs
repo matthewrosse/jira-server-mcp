@@ -20,10 +20,8 @@ internal static class AuthVerbs
         CredentialStoreChoice storeChoice,
         CancellationToken cancellationToken)
     {
-        if (Find(profileName) is not { } profile)
+        if (await ProfileResolution.FindAsync(profileName) is not { } profile)
         {
-            await NoSuchProfileAsync(profileName);
-
             return 1;
         }
 
@@ -50,7 +48,7 @@ internal static class AuthVerbs
             return 1;
         }
 
-        var store = await SelectStoreAsync(storeChoice, cancellationToken);
+        var store = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
 
         await store.SetAsync(profileName, token, cancellationToken);
 
@@ -88,14 +86,12 @@ internal static class AuthVerbs
         CredentialStoreChoice storeChoice,
         CancellationToken cancellationToken)
     {
-        if (Find(profileName) is not { } profile)
+        if (await ProfileResolution.FindAsync(profileName) is not { } profile)
         {
-            await NoSuchProfileAsync(profileName);
-
             return 1;
         }
 
-        var store = await SelectStoreAsync(storeChoice, cancellationToken);
+        var store = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
         var token = await ProfileToken.ResolveAsync(profileName, store, cancellationToken);
 
         if (token is not { } held)
@@ -134,14 +130,12 @@ internal static class AuthVerbs
         CredentialStoreChoice storeChoice,
         CancellationToken cancellationToken)
     {
-        if (Find(profileName) is null)
+        if (await ProfileResolution.FindAsync(profileName) is null)
         {
-            await NoSuchProfileAsync(profileName);
-
             return 1;
         }
 
-        var store = await SelectStoreAsync(storeChoice, cancellationToken);
+        var store = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
 
         // Read only to tell "removed it" from "there was nothing to remove". The token itself
         // goes no further than this variable.
@@ -182,20 +176,6 @@ internal static class AuthVerbs
 
         return 1;
     }
-
-    private static Profile? Find(string profileName) =>
-        ProfileStore.InConfigurationDirectory().Find(profileName);
-
-    private static Task NoSuchProfileAsync(string profileName) =>
-        Console.Error.WriteLineAsync(
-            $"There is no profile named '{profileName}'. Add it with "
-            + $"'jira-server-mcp profile add {profileName} --url <url>'.");
-
-    private static Task<ICredentialStore> SelectStoreAsync(
-        CredentialStoreChoice storeChoice,
-        CancellationToken cancellationToken) =>
-        CredentialStoreSelector.ForThisMachine()
-            .SelectAsync(storeChoice, Console.Error, cancellationToken);
 
     /// <summary>
     /// A terminal is prompted with echo off; anything else — a pipe, a here-string, a CI job —

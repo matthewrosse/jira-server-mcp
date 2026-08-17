@@ -108,19 +108,12 @@ internal static class ProfileVerbs
         CredentialStoreChoice storeChoice,
         CancellationToken cancellationToken)
     {
-        var profile = ProfileStore.InConfigurationDirectory().Find(name);
-
-        if (profile is null)
+        if (await ProfileResolution.FindAsync(name) is not { } profile)
         {
-            await Console.Error.WriteLineAsync(
-                $"There is no profile named '{name}'. Add it with "
-                + $"'jira-server-mcp profile add {name} --url <url>'.");
-
             return 1;
         }
 
-        var credentials = await CredentialStoreSelector.ForThisMachine()
-            .SelectAsync(storeChoice, Console.Error, cancellationToken);
+        var credentials = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
 
         var token = await ProfileToken.ResolveAsync(name, credentials, cancellationToken);
 
@@ -162,23 +155,18 @@ internal static class ProfileVerbs
         CredentialStoreChoice storeChoice,
         CancellationToken cancellationToken)
     {
-        var store = ProfileStore.InConfigurationDirectory();
-
-        if (store.Find(name) is null)
+        if (await ProfileResolution.FindAsync(name) is null)
         {
-            await Console.Error.WriteLineAsync($"There is no profile named '{name}'.");
-
             return 1;
         }
 
         // The credential goes first: a failure here leaves a profile that still names the token
         // it owns, rather than a secret on disk that no verb can reach any more.
-        var credentials = await CredentialStoreSelector.ForThisMachine()
-            .SelectAsync(storeChoice, Console.Error, cancellationToken);
+        var credentials = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
 
         await credentials.DeleteAsync(name, cancellationToken);
 
-        store.Remove(name);
+        ProfileStore.InConfigurationDirectory().Remove(name);
 
         await Console.Out.WriteLineAsync($"Removed profile '{name}' and its credential.");
 

@@ -24,4 +24,14 @@ internal static class UntrustedContent
 
         return $"<jira-data {marker}>\n{content}\n</jira-data {marker}>";
     }
+
+    /// <summary>
+    /// A response's header followed by the framed body: the shape every renderer ends on.
+    /// </summary>
+    public static string Envelope(string header, string body) =>
+        $"""
+        {header}
+        {Preamble}
+        {Delimit(body)}
+        """;
 }

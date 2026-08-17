@@ -9,15 +9,9 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class ProjectList
 {
-    /// <summary>
-    /// The most projects one response is worth. Jira's project endpoint has no page of its own —
-    /// it answers with every project at once — so a large instance is cut here or not at all.
-    /// </summary>
-    public const int Cap = 100;
-
     public static string Render(IReadOnlyList<JiraProject> projects)
     {
-        var shown = projects.Take(Cap).ToArray();
+        var shown = projects.Take(ResponseBudget.ProjectListCap).ToArray();
         var lines = new StringBuilder();
 
         foreach (var project in shown)
@@ -33,11 +27,9 @@ internal static class ProjectList
             lines.AppendLine();
         }
 
-        return $"""
-            {Header(shown.Length, projects.Count)}
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(lines.ToString().TrimEnd())}
-            """;
+        return UntrustedContent.Envelope(
+            Header(shown.Length, projects.Count),
+            lines.ToString().TrimEnd());
     }
 
     private static string Header(int shown, int total) =>

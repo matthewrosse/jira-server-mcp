@@ -24,14 +24,8 @@ internal static class ServeVerb
         var grants = GrantSet.Parse(allowed);
 
         // ADR-0005: the profile is chosen here, once, and is invisible to every tool.
-        var profile = ProfileStore.InConfigurationDirectory().Find(profileName);
-
-        if (profile is null)
+        if (await ProfileResolution.FindAsync(profileName) is not { } profile)
         {
-            await Console.Error.WriteLineAsync(
-                $"There is no profile named '{profileName}'. Add it with "
-                + $"'jira-server-mcp profile add {profileName} --url <url>'.");
-
             return 2;
         }
 
@@ -47,8 +41,7 @@ internal static class ServeVerb
             return 2;
         }
 
-        var store = await CredentialStoreSelector.ForThisMachine()
-            .SelectAsync(storeChoice, Console.Error, cancellationToken);
+        var store = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
 
         var token = await ProfileToken.ResolveAsync(profileName, store, cancellationToken);
 

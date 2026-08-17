@@ -10,13 +10,6 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class ProjectDetail
 {
-    /// <summary>
-    /// The most entries any one section is worth. A project that has been running for years has
-    /// hundreds of versions, and listing all of them would cost an agent its context to learn
-    /// nothing it could not get from the ones it can see.
-    /// </summary>
-    public const int SectionCap = 50;
-
     public static string Render(JiraProjectDetail project)
     {
         var body = new StringBuilder();
@@ -44,16 +37,12 @@ internal static class ProjectDetail
         Components(body, project.Components);
         Versions(body, project.Versions);
 
-        return $"""
-            {project.Project.Key}
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(body.ToString().TrimEnd())}
-            """;
+        return UntrustedContent.Envelope(project.Project.Key, body.ToString().TrimEnd());
     }
 
     private static void IssueTypes(StringBuilder body, IReadOnlyList<JiraIssueTypeStatuses> types)
     {
-        var shown = types.Take(SectionCap).ToArray();
+        var shown = types.Take(ResponseBudget.ProjectSectionCap).ToArray();
 
         body.AppendLine().Append("issue types ")
             .Append(Heading(shown.Length, types.Count)).AppendLine(":");
@@ -76,7 +65,7 @@ internal static class ProjectDetail
 
     private static void Components(StringBuilder body, IReadOnlyList<JiraProjectComponent> components)
     {
-        var shown = components.Take(SectionCap).ToArray();
+        var shown = components.Take(ResponseBudget.ProjectSectionCap).ToArray();
 
         body.AppendLine().Append("components ")
             .Append(Heading(shown.Length, components.Count)).AppendLine(":");
@@ -99,8 +88,8 @@ internal static class ProjectDetail
         // Jira orders versions oldest first, so a project with a long release history would be cut
         // down to versions released years ago — and the unreleased ones at the end are the only
         // ones a create call would sensibly name.
-        IReadOnlyList<JiraProjectVersion> shown = versions.Count > SectionCap
-            ? [.. versions.TakeLast(SectionCap)]
+        IReadOnlyList<JiraProjectVersion> shown = versions.Count > ResponseBudget.ProjectSectionCap
+            ? [.. versions.TakeLast(ResponseBudget.ProjectSectionCap)]
             : versions;
 
         body.AppendLine().Append("versions ")

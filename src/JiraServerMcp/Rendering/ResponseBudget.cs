@@ -34,4 +34,31 @@ internal static class ResponseBudget
     /// that can page deliberately.
     /// </summary>
     public const int LargestPageSize = 100;
+
+    /// <summary>
+    /// The most entries any one project-detail section is worth. A project that has been running
+    /// for years has hundreds of versions, and listing all of them would cost an agent its context
+    /// to learn nothing it could not get from the ones it can see.
+    /// </summary>
+    public const int ProjectSectionCap = 50;
+
+    /// <summary>
+    /// The most projects one response is worth. Jira's project endpoint has no page of its own —
+    /// it answers with every project at once — so a large instance is cut here or not at all.
+    /// </summary>
+    public const int ProjectListCap = 100;
+
+    /// <summary>
+    /// The most characters one search or agile-page response is worth, about eight thousand
+    /// tokens. A hundred issues of ordinary size sit well inside it; a hundred unusually verbose
+    /// ones do not, and those are cut off with the position to resume from rather than flooding
+    /// the context.
+    /// </summary>
+    public const int SearchTextBudget = 32_000;
+
+    /// <summary>
+    /// Room kept back from the search text budget for the header, the framing, and the closing
+    /// marker, none of which can be dropped once the rows have been counted.
+    /// </summary>
+    public const int PageReserve = 600;
 }

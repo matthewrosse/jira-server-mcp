@@ -11,19 +11,6 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class SearchResults
 {
-    /// <summary>
-    /// The most characters one search response is worth, about eight thousand tokens. A hundred
-    /// issues of ordinary size sit well inside it; a hundred unusually verbose ones do not, and
-    /// those are cut off with the position to resume from rather than flooding the context.
-    /// </summary>
-    public const int ResponseBudget = 32_000;
-
-    /// <summary>
-    /// Room kept back from the budget for the header, the framing, and the closing marker, none
-    /// of which can be dropped once the issue lines have been counted.
-    /// </summary>
-    private const int Reserve = 600;
-
     public static string Render(JiraSearchPage page)
     {
         var lines = new List<string>();
@@ -33,7 +20,7 @@ internal static class SearchResults
         {
             var line = Line(issue);
 
-            if (used + line.Length + 1 > ResponseBudget - Reserve)
+            if (used + line.Length + 1 > ResponseBudget.SearchTextBudget - ResponseBudget.PageReserve)
             {
                 break;
             }
@@ -44,11 +31,9 @@ internal static class SearchResults
 
         var cutByBudget = lines.Count < page.Issues.Count;
 
-        return $"""
-            {Header(page, lines.Count, cutByBudget)}
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(string.Join("\n", lines))}
-            """;
+        return UntrustedContent.Envelope(
+            Header(page, lines.Count, cutByBudget),
+            string.Join("\n", lines));
     }
 
     private static string Header(JiraSearchPage page, int rendered, bool cutByBudget)
