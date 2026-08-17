@@ -6,6 +6,36 @@
     <RootNamespace>JiraServerMcp</RootNamespace>
   </PropertyGroup>
 
+  <!-- ADR-0004: the primary artefact. The version is not written here — the release workflow
+       derives it from the tag and passes it to both the pack and the six publishes, which is
+       what keeps the tool package and the binaries agreeing. -->
+  <PropertyGroup>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>jira-server-mcp</ToolCommandName>
+    <PackageId>jira-server-mcp</PackageId>
+    <Authors>matthewrosse</Authors>
+    <Description>An MCP server for self-hosted Jira Server 8.14+, over stdio. Personal access tokens kept in the operating system's credential store, one profile per process, and write tools that exist only where the operator granted them.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/matthewrosse/jira-server-mcp</PackageProjectUrl>
+    <PackageTags>mcp;model-context-protocol;jira;jira-server;jira-data-center;agent</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <!-- Self-contained single-file binaries for the six runtime identifiers, for users with no
+       .NET SDK. Untrimmed on purpose: the MCP SDK discovers tools by reflection and
+       System.Text.Json binds by reflection, and a trimmed binary that fails on one platform is
+       worse than a large one that works on all six. -->
+  <PropertyGroup>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="ModelContextProtocol" />
