@@ -53,8 +53,9 @@ dotnet tool install --global jira-server-mcp
 ```
 
 The install needs no source flag once the feed is configured — the package id exists on no other
-feed — and `--source jira-server-mcp` restricts it to that feed if you would rather be explicit.
-Upgrade with `dotnet tool update --global jira-server-mcp`, and check what you have with
+feed — and `--source https://nuget.pkg.github.com/matthewrosse/index.json` restricts it to that feed
+if you would rather be explicit. `--source` takes the URL, not the name you gave the source. Upgrade
+with `dotnet tool update --global jira-server-mcp`, and check what you have with
 `jira-server-mcp --version`.
 
 **Until the first release is tagged this feed is empty.** Build from source in the meantime; see
@@ -72,6 +73,9 @@ curl -fLO https://github.com/matthewrosse/jira-server-mcp/releases/download/v<ve
 shasum -a 256 -c jira-server-mcp-<version>-<platform>.sha256
 chmod +x jira-server-mcp-<version>-<platform>
 ```
+
+The two Windows assets carry a `.exe` suffix — `jira-server-mcp-<version>-win-x64.exe`, and
+`.exe.sha256` for its checksum. The other four have no suffix.
 
 An MCP client then names the binary by absolute path instead of by command name. On macOS,
 Gatekeeper quarantines a downloaded binary; clear it with
