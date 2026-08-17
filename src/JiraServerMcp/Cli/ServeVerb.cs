@@ -1,12 +1,12 @@
 using System.Reflection;
 using JiraServerMcp.Credentials;
 using JiraServerMcp.Grants;
-using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 
 namespace JiraServerMcp.Cli;
@@ -68,12 +68,7 @@ internal static class ServeVerb
 
         var connected = ConnectedProfile.OptionsFor(profile, held.Value);
 
-        builder.Services.Configure<JiraClientOptions>(options =>
-        {
-            options.BaseUrl = connected.BaseUrl;
-            options.PersonalAccessToken = connected.PersonalAccessToken;
-            options.CaBundlePath = connected.CaBundlePath;
-        });
+        builder.Services.AddSingleton(Options.Create(connected));
 
         builder.Services.AddSingleton(new ServedProfile(profileName));
         builder.Services.AddJiraClient();
