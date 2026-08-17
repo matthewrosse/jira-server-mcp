@@ -49,7 +49,7 @@ to someone who did not write it, then restore.
 
 ## Verify, then commit
 
-Run `dotnet test` and get it green. Then re-read the issue's acceptance criteria one at a time
+Run `dotnet test` and get it green. Do not run integration tests because they're slow. Then re-read the issue's acceptance criteria one at a time
 and say for each whether it is met. Report anything you skipped and why rather than quietly
 narrowing scope.
 
@@ -67,3 +67,7 @@ Then commit, without asking for approval:
 - No `Co-Authored-By` line and no `Claude-Session` line.
 
 Do not push and do not open a PR. Report the branch name and the commit subject when done.
+
+At the end of work do a code review using /code-review medium skill, then fix found issues.
+
+If everything is fine, then create a PR.
