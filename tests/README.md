@@ -25,6 +25,11 @@ seeds the fixtures and mints the personal access token. Tear it down, volumes in
 **The licence expires three hours after it is applied.** Far longer than any run, and much shorter
 than a working day: an instance left up overnight will not still work in the morning.
 
+From a cold `docker compose` to sixteen green tests took **12m 01s** on an Apple Silicon host
+running the amd64 image under emulation — the whole tier, provisioning included. That is a local
+number on the slowest configuration this project has; it is not a CI budget. See
+[Limitations](#limitations).
+
 ### The two provisioning paths
 
 Setup, seeding and token minting are written once, in
@@ -257,7 +262,43 @@ a nicety.
 The seeded issue descriptions deliberately contain wiki markup and a line reading like an
 instruction, so the untrusted-content framing has something real to wrap.
 
+## Refreshing the testing licence
+
+`tests/fixtures/jira-dc-timebomb-3h.license` is a key Atlassian publishes for exactly this
+purpose, and it is committed because it needs no account, no purchase and no repository secret.
+Two different clocks matter, and only one of them is the three hours:
+
+- **The three hours** are the licence's life *once applied to an instance*. Every run applies it
+  afresh, so this never needs refreshing — it only means an instance left up overnight is dead in
+  the morning. Tear it down and bring it up again.
+- **The published key itself is rotated by Atlassian**, and the old one then stops activating.
+  That is what needs refreshing, and it looks like the harness failing at the licence step with
+  the page reporting an invalid or expired licence key.
+
+To refresh it:
+
+1. Open the
+   [timebomb licences page](https://developer.atlassian.com/platform/marketplace/timebomb-licenses-for-testing-server-apps/)
+   and take the **10 user Jira Software Data Center, 3 hours** key.
+2. Replace the whole contents of `tests/fixtures/jira-dc-timebomb-3h.license` with it. Line
+   wrapping does not matter: the harness strips every whitespace character before posting, because
+   the published key is wrapped for display and Jira wants it unwrapped.
+3. Verify it end to end with `./scripts/jira-up.sh`. A licence that does not activate fails at the
+   wizard's licence step, so a green run is proof.
+
+`tests/fixtures/jira-starter-timebomb-3h.license` is the *10 user starter non-eval host product*
+key from the same page. Nothing in the durable harness reads it — it licensed the Jira Core
+instance in finding 4 — and it refreshes the same way.
+
+Do not replace either with a licence tied to an account. A repository secret would put the
+Jira-backed suite out of reach of a fork and of anyone reproducing a failure locally.
+
 ## When the wizard changes shape
+
+Two drivers exist, and they behave the same way for the same reason. `JiraSetupWizard` in
+`tests/JiraServerMcp.JiraIntegration.Tests/Harness/` is the durable one, ported from the spike's
+`scripts/phase0/02-setup.py`; what follows describes both, and the C# specifics are noted where
+they differ.
 
 `scripts/phase0/02-setup.py` does not hard-code the sequence. It fetches whatever page Jira is
 showing, parses the form off it, fills the fields it recognises from `FIELD_VALUES`, and posts —
@@ -275,6 +316,21 @@ When it breaks:
    `atl_token` handling and the `Referer` header before suspecting the field values.
 4. If the page has several forms with the same action, confirm the driver is picking the one with
    the most fields — the licence step depends on this.
+
+`JiraSetupWizard` works the same way, with the answers in its `Fill` method rather than in
+`FIELD_VALUES`, and it does not write the page to disk — it throws instead, carrying whatever the
+page reported in its own error markup, so the message names the rejected field rather than a step
+number. Two of its behaviours exist because the alternatives failed:
+
+- A page that is neither a wizard step nor a configured instance is a failure **on the first
+  fetch** and a finished wizard on any later one. Jira does not always terminate on
+  `WelcomeToJIRA.jspa`; it can land on an ordinary page, and a driver that keeps hunting for "some
+  form" finds the site's quick search and posts that to itself until it runs out of steps.
+- Fields the answers do not name are carried back exactly as Jira sent them. The mail step ships
+  nineteen fields, and one posted without them re-renders itself rather than advancing.
+
+Re-running against an instance somebody has already set up is not an error: the first fetch lands
+on a terminal page and the wizard returns.
 
 ## Limitations
 
