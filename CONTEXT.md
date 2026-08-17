@@ -18,6 +18,11 @@ recorded capability probe. The unit of configuration, of credential isolation, a
 radius.
 _Avoid_: instance, connection, account, environment.
 
+**Connected profile** — the mapping from a profile and its personal access token to the
+configuration a Jira client needs: base URL, token, certificate authority bundle path. The shape
+that must not differ between callers, kept in one place rather than assembled by hand at each one.
+_Avoid_: client options, connection settings.
+
 **Personal access token** — the bearer credential a Jira user issues to themselves and can
 revoke at any time. The only credential this project accepts.
 _Avoid_: API token (that is Cloud's), API key, password.
