@@ -40,4 +40,22 @@ public sealed class ConnectedProfileTests
 
         options.CaBundlePath.ShouldBeNull();
     }
+
+    /// <summary>
+    /// Two call sites drifted once, building `JiraClientOptions` by hand instead of asking this
+    /// module. Pinned so a third caller cannot quietly reintroduce that shape.
+    /// </summary>
+    [Fact]
+    public void No_caller_outside_this_module_mentions_JiraClientOptions()
+    {
+        var hostSource = Path.Combine(RepositoryRoot.Find().FullName, "src", "JiraServerMcp");
+        var connectedProfileFile = Path.Combine(hostSource, "Profiles", "ConnectedProfile.cs");
+
+        var offenders = Directory.GetFiles(hostSource, "*.cs", SearchOption.AllDirectories)
+            .Where(file => file != connectedProfileFile)
+            .Where(file => File.ReadAllText(file).Contains("JiraClientOptions"))
+            .Select(file => Path.GetRelativePath(hostSource, file));
+
+        offenders.ShouldBeEmpty();
+    }
 }
