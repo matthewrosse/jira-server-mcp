@@ -48,6 +48,11 @@ _Avoid_: Agile API when precision matters — the term names a licence, not a me
 
 ## Tool surface
 
+**Tool surface** — the value produced by pairing an operator's grant set with a profile's
+capability probe: exactly the tools a server registers. Named once, as a table pairing each tool
+with what it requires, rather than as control flow scattered through the serve verb.
+_Avoid_: registration logic, the if-chain.
+
 **Tool** — one MCP operation an agent can call. The unit an agent sees, chooses between, and
 pays context for. Not a REST endpoint: a tool may combine several, and a REST endpoint may
 surface as no tool at all.
