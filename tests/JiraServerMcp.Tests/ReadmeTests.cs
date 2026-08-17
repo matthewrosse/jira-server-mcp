@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
+using JiraServerMcp.Grants;
 using JiraServerMcp.Tools;
 using ModelContextProtocol.Server;
 
@@ -7,17 +8,14 @@ namespace JiraServerMcp.Tests;
 
 /// <summary>
 /// The README's tool catalogue is the only description of the tool surface a reader gets before
-/// installing anything, so it is held to the serve verb rather than to the design document. A tool
-/// added, renamed, moved to another grant, or left unregistered fails here instead of quietly
-/// outliving its row.
+/// installing anything, so it is held to <see cref="ToolSurface"/> rather than to the design
+/// document. A tool added, renamed, moved to another grant, or left unregistered fails here
+/// instead of quietly outliving its row.
 /// </summary>
 public class ReadmeTests
 {
     private static readonly string _readme =
         File.ReadAllText(Path.Combine(RepositoryRoot.Find().FullName, "README.md"));
-
-    private static readonly string _serveVerb = File.ReadAllText(Path.Combine(
-        RepositoryRoot.Find().FullName, "src", "JiraServerMcp", "Cli", "ServeVerb.cs"));
 
     /// <summary>
     /// A catalogue row: the tool in the first cell, the grant it needs in the second, and what it
@@ -26,16 +24,6 @@ public class ReadmeTests
     private static readonly Regex _row = new(
         @"^\|\s*`(?<tool>jira_[a-z_]+)`\s*\|\s*(?<grant>[^|]*?)\s*\|(?<what>[^|]*)\|",
         RegexOptions.Multiline);
-
-    /// <summary>A grant-conditional registration block, and the tools inside it.</summary>
-    private static readonly Regex _grantBlock = new(
-        @"grants\.Allows\(Grant\.(?<grant>\w+)\)\)\s*\{(?<body>[^}]*)\}");
-
-    /// <summary>The block that registers the Jira Software tools where the probe found a licence.</summary>
-    private static readonly Regex _softwareBlock = new(
-        @"SoftwareLicensed: true \}\)\s*\{(?<body>[^}]*)\}");
-
-    private static readonly Regex _registration = new(@"WithTools<(?<type>\w+)>");
 
     /// <summary>No grant needed, written as an em dash so a blank cell cannot pass for one.</summary>
     private const string NoGrant = "—";
@@ -108,58 +96,44 @@ public class ReadmeTests
     }
 
     /// <summary>
-    /// Every tool the serve verb registers, and the grant it registers it under — read from the
-    /// registration itself, because a second copy of the mapping in this file would agree with
+    /// Every tool <see cref="ToolSurface"/> registers, and the grant it registers it under — read
+    /// from the table itself, because a second copy of the mapping in this file would agree with
     /// itself and prove nothing.
     /// </summary>
     private static IReadOnlyDictionary<string, string> Registered()
     {
-        var granted = _grantBlock.Matches(_serveVerb).SelectMany(block => ToolsIn(block)
-            .Select(tool => (Tool: tool, Grant: GrantName(block.Groups["grant"].Value))));
+        var declared = Declared();
 
-        var registered = ToolsIn(_serveVerb).ToDictionary(tool => tool, _ => NoGrant);
-
-        foreach (var (tool, grant) in granted)
-        {
-            registered[tool] = grant;
-        }
-
-        return registered;
+        return ToolSurface.Entries.ToDictionary(
+            entry => declared.SingleOrDefault(tool => tool.Value == entry.ToolType.Name).Key
+                ?? throw new InvalidOperationException(
+                    $"The tool surface registers {entry.ToolType.Name}, which declares no method "
+                    + "carrying an [McpServerTool] name. Every registered class must declare "
+                    + "exactly one."),
+            entry => entry.RequiredGrant is { } grant ? GrantName(grant) : NoGrant);
     }
 
-    private static IReadOnlyList<string> SoftwareTools() =>
-        [.. _softwareBlock.Matches(_serveVerb).SelectMany(ToolsIn)];
-
-    /// <summary>
-    /// The tool names registered in one stretch of the serve verb. A registered class that carries
-    /// no tool method is a failure with a sentence rather than a <c>KeyNotFoundException</c>.
-    /// </summary>
-    private static IReadOnlyList<string> ToolsIn(Match block) => ToolsIn(block.Groups["body"].Value);
-
-    private static IReadOnlyList<string> ToolsIn(string source)
+    private static IReadOnlyList<string> SoftwareTools()
     {
         var declared = Declared();
 
         return
         [
-            .. _registration.Matches(source)
-                .Select(registration => registration.Groups["type"].Value)
-                .Select(type => declared.SingleOrDefault(tool => tool.Value == type).Key
-                    ?? throw new InvalidOperationException(
-                        $"The serve verb registers {type}, which declares no method carrying an "
-                        + "[McpServerTool] name. Every registered class must declare exactly one.")),
+            .. ToolSurface.Entries
+                .Where(entry => entry.RequiresSoftwareLicence)
+                .Select(entry => declared.Single(tool => tool.Value == entry.ToolType.Name).Key),
         ];
     }
 
-    /// <summary>The name the operator writes, from the name the enum member carries.</summary>
-    private static string GrantName(string member) => member switch
+    /// <summary>The name the operator writes, from the grant a table row names.</summary>
+    private static string GrantName(Grant grant) => grant switch
     {
-        "IssuesWrite" => "issues:write",
-        "CommentsWrite" => "comments:write",
-        "WorklogsWrite" => "worklogs:write",
+        Grant.IssuesWrite => "issues:write",
+        Grant.CommentsWrite => "comments:write",
+        Grant.WorklogsWrite => "worklogs:write",
         _ => throw new InvalidOperationException(
-            $"The serve verb registers tools under Grant.{member}, which this test does not know. "
-            + "A new grant needs a row in the README's catalogue and a name here."),
+            $"The tool surface registers a tool under Grant.{grant}, which this test does not "
+            + "know. A new grant needs a row in the README's catalogue and a name here."),
     };
 
     /// <summary>
