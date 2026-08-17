@@ -42,6 +42,14 @@ public class ReleaseWorkflowTests
     }
 
     [Fact]
+    public void A_tag_that_is_not_a_version_stops_the_release()
+    {
+        // 'v1.0' would name the binaries 1.0 while NuGet normalises the package to 1.0.0, and
+        // the release would carry artefacts disagreeing about their own version.
+        _workflow.ShouldContain(@"^[0-9]+\.[0-9]+\.[0-9]+");
+    }
+
+    [Fact]
     public void Every_artefact_is_published_with_a_checksum()
     {
         _workflow.ShouldContain("sha256sum");
@@ -63,6 +71,11 @@ public class ReleaseWorkflowTests
         _workflow.ShouldContain("dotnet tool install");
         _workflow.ShouldContain("profile list");
 
+        // '--source' replaces the configured feeds; '--add-source' appends to them, which would
+        // let the smoke check install and run a package of the same name from somewhere else.
+        _workflow.ShouldContain("--source ./package");
+        WithoutComments.ShouldNotContain("--add-source");
+
         var publish = Job("publish");
         publish.ShouldContain("package");
         publish.ShouldContain("binaries");
@@ -76,6 +89,15 @@ public class ReleaseWorkflowTests
         _workflow.ShouldNotContain("api.nuget.org");
         _workflow.ShouldNotContain("nuget.org/v3");
     }
+
+    /// <summary>
+    /// The workflow with its comments taken out, for assertions about what it runs rather than
+    /// about what it says.
+    /// </summary>
+    private static string WithoutComments =>
+        string.Concat(_workflow.Split('\n')
+            .Where(line => !line.TrimStart().StartsWith('#'))
+            .Select(line => line + "\n"));
 
     /// <summary>
     /// The <c>needs:</c> line of a job, which is where the ordering between building, smoke

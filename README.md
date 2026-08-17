@@ -12,8 +12,13 @@ scope.
 
 ## Install
 
+Releases are published to **GitHub Packages**, not to nuget.org — the public gallery waits
+until the tool surface stops moving. Installing from it needs that source and a GitHub token
+with `read:packages`:
+
 ```
-dotnet tool install --global jira-server-mcp
+dotnet tool install --global jira-server-mcp \
+  --source https://nuget.pkg.github.com/matthewrosse/index.json
 ```
 
 Self-contained binaries for `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64` and

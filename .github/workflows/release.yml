@@ -12,11 +12,36 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  # The tag is the only place a version is written, and it is read once here: the pack and the
+  # six publishes all take this output, which is what makes the artefacts agree without anyone
+  # editing a file.
+  version:
+    name: The version this tag names
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      # 'v1.0' would name the binaries 1.0 while NuGet normalises the package to 1.0.0, leaving
+      # a release whose artefacts disagree about their own version. Refused before anything is
+      # built rather than noticed on the release page.
+      - name: Read and check the tag
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "The tag '$GITHUB_REF_NAME' does not name a version: expected vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   # ADR-0004: the primary artefact. Packed and started here; published only once the binaries
   # have been built and started too, so a half-releasable tag leaves the feed untouched.
   package:
     name: Pack and smoke-test the tool
+    needs: version
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
 
@@ -24,18 +49,12 @@ jobs:
         with:
           global-json-file: global.json
 
-      # The tag is the only place a version is written. Both this pack and the six publishes
-      # below take it, which is what makes the artefacts agree without anyone editing a file.
-      - name: The version this tag names
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
       # The version reaches the build as well as the pack: packed from an assembly built at the
       # default 1.0.0, the tool would report a version its package does not carry.
       - name: Build
         run: |
           dotnet build -c Release -p:ContinuousIntegrationBuild=true \
-            -p:Version=${{ steps.version.outputs.version }}
+            -p:Version=$VERSION
 
       - name: Test
         run: |
@@ -46,7 +65,7 @@ jobs:
             tests/JiraServerMcp.JiraIntegration.Tests
           do
             dotnet test "$project" --no-build -c Release \
-              -p:Version=${{ steps.version.outputs.version }} \
+              -p:Version=$VERSION \
               -- --filter-not-trait "Category=JiraIntegration"
           done
 
@@ -54,19 +73,23 @@ jobs:
         run: |
           dotnet pack src/JiraServerMcp --no-build -c Release \
             -p:ContinuousIntegrationBuild=true \
-            -p:Version=${{ steps.version.outputs.version }} \
+            -p:Version=$VERSION \
             -o package
 
       # A release that ships a package which cannot start is worse than no release. Both verbs
       # need no Jira, and both print to standard error: standard output belongs to the protocol
       # (ADR-0002).
+      #
+      # '--source' rather than '--add-source': the latter appends to the configured feeds, so a
+      # package of this name published anywhere else could be installed and executed here while
+      # the release reported itself smoke-tested.
       - name: The packed tool installs and runs
         run: |
           dotnet tool install jira-server-mcp \
-            --version ${{ steps.version.outputs.version }} \
-            --add-source ./package --tool-path ./tool
+            --version $VERSION \
+            --source ./package --tool-path ./tool
           ./tool/jira-server-mcp --version 2>&1 \
-            | grep -q "^${{ steps.version.outputs.version }}"
+            | grep -q "^$VERSION"
           ./tool/jira-server-mcp profile list 2>&1 | grep -q "No profiles yet"
 
       - uses: actions/upload-artifact@v4
@@ -78,7 +101,10 @@ jobs:
   # six runners would buy nothing but six cold caches.
   binaries:
     name: ${{ matrix.runtime }}
+    needs: version
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -90,10 +116,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: The version this tag names
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
       # Untrimmed on purpose: the MCP SDK discovers tools by reflection and System.Text.Json
       # binds by reflection, so a trimmed binary trades disk space for a runtime failure on
       # whichever platform nobody smoke-tested.
@@ -102,14 +124,14 @@ jobs:
           dotnet publish src/JiraServerMcp -c Release \
             -r ${{ matrix.runtime }} --self-contained true \
             -p:ContinuousIntegrationBuild=true \
-            -p:Version=${{ steps.version.outputs.version }} \
+            -p:Version=$VERSION \
             -o publish/${{ matrix.runtime }}
 
       - name: The Linux binary starts
         if: matrix.runtime == 'linux-x64'
         run: |
           ./publish/linux-x64/jira-server-mcp --version 2>&1 \
-            | grep -q "^${{ steps.version.outputs.version }}"
+            | grep -q "^$VERSION"
           ./publish/linux-x64/jira-server-mcp profile list 2>&1 | grep -q "No profiles yet"
 
       # One file per runtime identifier, named for the version and the platform it runs on, with
@@ -117,7 +139,7 @@ jobs:
       - name: Name and checksum the artefact
         run: |
           mkdir -p dist/bin dist/sums
-          name="jira-server-mcp-${{ steps.version.outputs.version }}-${{ matrix.runtime }}"
+          name="jira-server-mcp-$VERSION-${{ matrix.runtime }}"
           case "${{ matrix.runtime }}" in
             win-*) cp "publish/${{ matrix.runtime }}/jira-server-mcp.exe" "dist/bin/$name.exe" ;;
             *)     cp "publish/${{ matrix.runtime }}/jira-server-mcp" "dist/bin/$name" ;;
