@@ -86,6 +86,10 @@ _Avoid_: filter, field selection.
 prose, issue-read expansion entries, and default and largest page sizes. Rendering and paging
 read these limits from one module; their cutting and paging mechanics remain where they belong.
 
+**Canned query** — a fixed JQL the server owns, exposed as a named tool, so an agent spends no
+context authoring the query. The name is the contract; a parameter that changes what the query
+means belongs in `jira_search` instead.
+
 **Untrusted content** — free text authored inside Jira: descriptions, comments, custom field
 values, project names, transition names, and the text Jira returns when it refuses a request —
 a field validator's message is as admin-authored as a description is. It reaches a model, so it

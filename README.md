@@ -282,6 +282,7 @@ context learning that it is forbidden.
 |---|---|---|
 | `jira_whoami` | — | The Jira account this server is authenticated as. The first thing to check when something is forbidden. |
 | `jira_search` | — | JQL search. 25 results by default, 100 at most, projected fields, and the total. |
+| `jira_my_open_issues` | — | The caller's own unresolved issues, most recently updated first — the start-of-session work queue, with no JQL to author. |
 | `jira_get_issue` | — | One issue, with `include` opting into `comments`, `transitions`, `changelog`, `links` and `worklogs` — five would-be tools in one call, and the transition list arrives with the issue the agent is about to transition. |
 | `jira_list_projects` | — | Key, name, id and type for every project the account can see. |
 | `jira_get_project` | — | One project with its issue types, statuses, components and versions — everything a create needs, in one response. |

@@ -162,6 +162,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
                 "jira_get_issue",
                 "jira_get_project",
                 "jira_list_projects",
+                "jira_my_open_issues",
                 "jira_search",
                 "jira_search_users",
                 "jira_transition_issue",
