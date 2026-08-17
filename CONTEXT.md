@@ -80,6 +80,21 @@ the caller that key and no other. What distinguishes it from a search that happe
 keys is the failure model, not the number of issues.
 _Avoid_: batch, multi-get, bulk operation — the last already names a write this project does not do.
 
+**Issue link** — a typed, directional relation from one Jira issue to another. It is a field on
+the issue, it is visible to JQL, and its type is named twice — once from each end.
+_Avoid_: link used bare, which collapses this with the remote link below.
+
+**Remote link** — a relation from an issue to a URL outside Jira: a pull request, a build, a
+document. Untyped, not a field on the issue, and identified by a `globalId` this server derives
+from the URL, so attaching the same URL twice updates one link rather than making two.
+_Avoid_: web link, external link, attachment — the last is a file Jira stores itself.
+
+**Relation phrase** — the direction-specific wording Jira publishes for a link type: "blocks" and
+"is blocked by" for the one type `Blocks`. The unit this server's tools take, in place of a type
+name paired with a direction, so that which end is which can never be got wrong. A phrase may be
+symmetric, and two types may share one.
+_Avoid_: inward, outward, link type name.
+
 **Field projection** — the set of issue fields a response carries. Defaulted to a small
 whitelist, widened explicitly by the caller. The main lever against a raw Jira issue's
 hundred-kilobyte payload.
