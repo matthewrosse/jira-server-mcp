@@ -11,13 +11,6 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class IssueDetail
 {
-    /// <summary>
-    /// The most entries any one section is worth. An issue that has been open for a year carries
-    /// hundreds of history groups, and the recent ones are the ones being asked about; the rest
-    /// would cost the agent its context to learn nothing.
-    /// </summary>
-    public const int SectionCap = 20;
-
     public static string Render(JiraIssueDetail issue, IReadOnlyList<Expansion> expansions)
     {
         var body = new StringBuilder();
@@ -66,7 +59,7 @@ internal static class IssueDetail
 
     private static void Transitions(StringBuilder body, IReadOnlyList<JiraTransition> transitions)
     {
-        var shown = transitions.Take(SectionCap).ToArray();
+        var shown = transitions.Take(ResponseBudget.IssueSection).ToArray();
 
         body.AppendLine().Append("transitions ")
             .Append(Heading(shown.Length, transitions.Count)).AppendLine(":");
@@ -141,7 +134,7 @@ internal static class IssueDetail
 
     private static void Links(StringBuilder body, IReadOnlyList<JiraIssueLink> links)
     {
-        var shown = links.Take(SectionCap).ToArray();
+        var shown = links.Take(ResponseBudget.IssueSection).ToArray();
 
         body.AppendLine().Append("links ")
             .Append(Heading(shown.Length, links.Count)).AppendLine(":");
@@ -163,7 +156,7 @@ internal static class IssueDetail
     {
         var entries = worklogs?.Worklogs ?? [];
 
-        var shown = entries.Take(SectionCap).ToArray();
+        var shown = entries.Take(ResponseBudget.IssueSection).ToArray();
 
         body.AppendLine().Append("worklogs ")
             .Append(Heading(shown.Length, worklogs?.Total ?? 0)).AppendLine(":");
@@ -189,13 +182,13 @@ internal static class IssueDetail
     {
         if (entries.Count < total)
         {
-            var oldest = entries.Take(SectionCap).ToArray();
+            var oldest = entries.Take(ResponseBudget.IssueSection).ToArray();
 
             return (oldest, $"(showing {oldest.Length} of {total}, oldest first — Jira returned "
                             + "only the first page, so the most recent are not here)");
         }
 
-        var newest = entries.Reverse().Take(SectionCap).ToArray();
+        var newest = entries.Reverse().Take(ResponseBudget.IssueSection).ToArray();
 
         return (newest, newest.Length switch
         {

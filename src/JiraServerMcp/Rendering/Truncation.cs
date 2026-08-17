@@ -6,27 +6,20 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class Truncation
 {
-    /// <summary>
-    /// The most characters one field's text is worth in a list of issues. A summary is well
-    /// inside it; a description pulled in by a widened projection is not, and that is the point.
-    /// </summary>
-    public const int Budget = 200;
+    // Kept as the established rendering-test seam; the response budget owns the value.
+    public const int Budget = ResponseBudget.LineText;
 
-    /// <summary>
-    /// The most characters one piece of prose is worth when it is the thing being read rather than
-    /// a line in a list. A comment is why a caller asked for the comments, so it gets room a
-    /// summary in a search result does not.
-    /// </summary>
-    public const int BodyBudget = 1_000;
+    // Kept as the established rendering-test seam; the response budget owns the value.
+    public const int BodyBudget = ResponseBudget.Prose;
 
     public static string Apply(string text, string issueKey)
     {
-        if (text.Length <= Budget)
+        if (text.Length <= ResponseBudget.LineText)
         {
             return text;
         }
 
-        var cut = Cut(text, Budget);
+        var cut = Cut(text, ResponseBudget.LineText);
 
         return text[..cut]
                + $"…[truncated, {text.Length - cut} more characters — call jira_get_issue with "
@@ -39,12 +32,12 @@ internal static class Truncation
     /// </summary>
     public static string Body(string text)
     {
-        if (text.Length <= BodyBudget)
+        if (text.Length <= ResponseBudget.Prose)
         {
             return text;
         }
 
-        var cut = Cut(text, BodyBudget);
+        var cut = Cut(text, ResponseBudget.Prose);
 
         return text[..cut] + $"…[truncated, {text.Length - cut} more characters]";
     }

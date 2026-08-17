@@ -71,6 +71,10 @@ whitelist, widened explicitly by the caller. The main lever against a raw Jira i
 hundred-kilobyte payload.
 _Avoid_: filter, field selection.
 
+**Response budget** — the limits on what a response is allowed to cost an agent: text per line,
+prose, issue-read expansion entries, and default and largest page sizes. Rendering and paging
+read these limits from one module; their cutting and paging mechanics remain where they belong.
+
 **Untrusted content** — free text authored inside Jira: descriptions, comments, custom field
 values, project names. It reaches a model, so it can carry instructions aimed at that model. The
 term marks provenance, not suspicion of any particular string.

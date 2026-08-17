@@ -14,14 +14,6 @@ internal sealed class SearchTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_search";
 
-    private const int DefaultPageSize = 25;
-
-    /// <summary>
-    /// Jira will answer with more, and every one of them costs the agent context it did not ask
-    /// for. A caller wanting the rest pages through them.
-    /// </summary>
-    private const int LargestPageSize = 100;
-
     [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
     [Description(
         "Search Jira Server with JQL. Returns one line per issue, the issue key first, with the "
@@ -33,7 +25,7 @@ internal sealed class SearchTool(JiraClient jira, ServedProfile profile)
         [Description("Zero-based index of the first result to return. Defaults to 0.")]
         int startAt = 0,
         [Description("How many issues to return. Defaults to 25; more than 100 is clamped to 100.")]
-        int maxResults = DefaultPageSize,
+        int maxResults = ResponseBudget.DefaultPageSize,
         [Description("Extra field ids to add to the default projection, such as \"description\" or \"customfield_10010\".")]
         string[]? fields = null,
         CancellationToken cancellationToken = default)
@@ -43,7 +35,7 @@ internal sealed class SearchTool(JiraClient jira, ServedProfile profile)
             var page = await jira.SearchAsync(
                 jql,
                 Math.Max(startAt, 0),
-                Math.Clamp(maxResults, 1, LargestPageSize),
+                Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize),
                 FieldProjection.Widen(fields),
                 cancellationToken);
 

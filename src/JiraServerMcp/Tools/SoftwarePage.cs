@@ -1,3 +1,5 @@
+using JiraServerMcp.Rendering;
+
 namespace JiraServerMcp.Tools;
 
 /// <summary>
@@ -7,9 +9,7 @@ namespace JiraServerMcp.Tools;
 /// </summary>
 internal static class SoftwarePage
 {
-    public const int DefaultSize = 25;
+    public const int DefaultSize = ResponseBudget.DefaultPageSize;
 
-    private const int LargestSize = 100;
-
-    public static int Clamp(int maxResults) => Math.Clamp(maxResults, 1, LargestSize);
+    public static int Clamp(int maxResults) => Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize);
 }
