@@ -266,6 +266,27 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_create_rejected_for_permissions_carries_no_create_fields_advice()
+    {
+        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(Response.Create().WithStatusCode(403));
+
+        var text = await FailedCallAsync(
+            await ClientAsync("issues:write"),
+            "jira_create_issue",
+            new Dictionary<string, object?>
+            {
+                ["projectKey"] = "PROJ",
+                ["issueType"] = "Bug",
+                ["summary"] = "The login page returns 500",
+            });
+
+        // Pointing a permissions failure at create-fields sends the agent round a loop it
+        // cannot exit: the fields were never the problem.
+        text.ShouldNotContain("jira_get_create_fields");
+    }
+
+    [Fact]
     public async Task Updating_changes_fields_and_the_assignee_in_a_single_call()
     {
         StubUpdate(204);
