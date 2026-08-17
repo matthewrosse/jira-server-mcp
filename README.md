@@ -9,7 +9,7 @@ this is the right one.
 It speaks the Model Context Protocol over stdio, authenticates with a **personal access token**
 kept in your operating system's **credential store**, serves exactly one **profile** — one named
 Jira Server — per process, and registers a write tool only where you handed that client the
-matching **grant**. Sixteen tools, sized for an agent's context rather than mapped one-to-one onto
+matching **grant**. Seventeen tools, sized for an agent's context rather than mapped one-to-one onto
 REST endpoints.
 
 ## Supported Jira versions
@@ -300,6 +300,212 @@ context learning that it is forbidden.
 
 Deliberately absent: issue deletion, comment editing and deletion, attachments, issue linking,
 sprint mutation, watchers, and votes. See [Known limitations](#known-limitations).
+
+## Example prompts
+
+These are prompts you type at the agent, not commands you run — the server exposes no prompt of its
+own, and every one of them is an ordinary sentence that happens to be answerable with the tools
+above. Each example names the tool chain it tends to drive, so you can tell a prompt that costs one
+call from one that costs several. The chains are the typical path, not a guarantee: which tools a
+model reaches for is the model's decision, and a different model may take a different route to the
+same answer.
+
+Two things decide whether a prompt works at all. **Writes need the matching grant** — a prompt that
+asks for a comment against a server launched without `--allow comments:write` fails by the tool not
+existing, and the agent will say so rather than half-doing it. **The Jira Software prompts need a
+Jira Software licence**, because the board, sprint and backlog tools are registered only where the
+capability probe found one.
+
+### Orientation
+
+Cheap prompts, worth making the first ones of a session — they establish which account the server
+is acting as and what it can see, which is the context every later answer depends on.
+
+- *"Which Jira account am I connected as, and what is the server URL?"* — `jira_whoami`.
+- *"List every Jira project I can see, and tell me which ones are software projects."* —
+  `jira_list_projects`, whose response carries the project type per row.
+- *"Is there a project whose name mentions payments? Give me its key."* — `jira_list_projects`, then
+  the agent filters locally rather than guessing a key.
+- *"What are the issue types and workflow statuses in PROJ?"* — `jira_get_project`, which returns
+  issue types, statuses, components and versions in one response.
+- *"Find the Jira username for Jane Bloggs — I need it for an assignee field."* —
+  `jira_search_users`. On Jira Server the answer is a username, not a Cloud account identifier, and
+  that is the value the write tools want.
+
+### The work queue
+
+- *"What am I working on? List my open issues, most recently touched first."* —
+  `jira_my_open_issues`, one call, no JQL to author.
+- *"Of my open issues, which have had no update in more than two weeks?"* — `jira_my_open_issues`,
+  then the agent compares the update timestamps it already has rather than searching again.
+- *"Give me a standup summary: what I have in progress, what is blocked, and what I closed
+  yesterday."* — `jira_my_open_issues` for the first two, plus a `jira_search` with a
+  `resolutiondate` clause for the third.
+- *"Which of my issues are assigned to me but sitting in a status someone else owns?"* —
+  `jira_my_open_issues`, then `jira_get_issues` with `include: ["transitions"]` to see which moves
+  are actually available to this account.
+
+### Searching
+
+`jira_search` takes JQL, but you rarely write it — describing the query in English and letting the
+agent author the JQL is the point, and asking it to show you the JQL it used is a good habit.
+
+- *"Find every open bug in PROJ with priority Highest, newest first."* — `jira_search` with
+  `project = PROJ AND type = Bug AND priority = Highest AND resolution = EMPTY ORDER BY created DESC`.
+- *"How many unresolved issues does PROJ have? I only want the number."* — `jira_search` returns the
+  total alongside the page, so a count needs no paging.
+- *"Show me everything in PROJ that changed in the last 48 hours, and who changed it."* —
+  `jira_search` with `updated >= -48h`, then `jira_get_issues` with `include: ["changelog"]` for the
+  ones worth explaining.
+- *"Which issues in PROJ are unassigned and have been open longer than 30 days?"* — `jira_search`
+  with `assignee IS EMPTY AND created <= -30d`.
+- *"List issues in PROJ with the label `tech-debt` across every status, and group them by
+  component."* — `jira_search`, with the grouping done by the agent over the projected fields.
+- *"Search PROJ for anything mentioning the phrase 'rate limit' in the summary or description."* —
+  `jira_search` with a `text ~` clause.
+- *"Show me the JQL you would use for 'issues I reported that someone else resolved this
+  quarter' — don't run it yet."* — no call at all. Useful for checking a query before it touches a
+  large instance.
+
+### Reading issues in depth
+
+`jira_get_issues` takes up to 20 keys at once and each `include` key succeeds or fails on its own,
+which is what makes "and their comments" cost one call instead of twenty.
+
+- *"Summarise PROJ-123: what is it, who owns it, and where is it stuck?"* — `jira_get_issues` for
+  the one key.
+- *"Read PROJ-123, PROJ-124 and PROJ-131 and tell me whether they are describing the same bug."* —
+  one `jira_get_issues` call with all three keys.
+- *"What did the last comment on each of my open issues say?"* — `jira_my_open_issues`, then
+  `jira_get_issues` with `include: ["comments"]` in a single batched call.
+- *"Show me PROJ-123's full history — who changed the status, and when."* — `jira_get_issues` with
+  `include: ["changelog"]`.
+- *"What can PROJ-123 transition to right now?"* — `jira_get_issues` with `include:
+  ["transitions"]`, which resolves against this account's permissions rather than the workflow
+  diagram.
+- *"What is PROJ-123 blocked by, and are those blockers still open?"* — `jira_get_issues` with
+  `include: ["links"]`, then a second `jira_get_issues` for the linked keys.
+- *"How much time has been logged against PROJ-123, and by whom?"* — `jira_get_issues` with
+  `include: ["worklogs"]`.
+- *"For PROJ-123, PROJ-124 and PROJ-125, give me a table of summary, assignee, status and last
+  comment date."* — one `jira_get_issues` call with `include: ["comments"]`.
+
+### Boards, sprints and the backlog
+
+**Jira Software only.** On a Jira Core instance these four tools are not registered, and the agent
+will tell you the capability is absent rather than failing four calls.
+
+- *"Which Jira boards can I see?"* — `jira_list_boards`.
+- *"What sprint is the PROJ board in right now, and when does it end?"* — `jira_list_boards`, then
+  `jira_list_sprints`.
+- *"List everything in the active sprint on the PROJ board, grouped by assignee."* —
+  `jira_list_boards`, `jira_list_sprints`, `jira_get_sprint_issues`.
+- *"How is the current sprint doing? Give me a count by status and flag anything still in To Do."* —
+  the same chain, with the arithmetic done over the returned issues.
+- *"Which issues in the active sprint are unassigned or have no story point estimate?"* —
+  `jira_get_sprint_issues`, then the agent reads the projected fields.
+- *"What is at the top of the PROJ backlog, and is any of it ready to pull in?"* —
+  `jira_get_backlog`, then `jira_get_issues` for the top few.
+- *"Compare the last two closed sprints on the PROJ board: how many issues did each finish?"* —
+  `jira_list_sprints`, then `jira_get_sprint_issues` per sprint.
+
+### Preparing a create
+
+Worth its own prompts, because a create that skips this step is the create most likely to be
+rejected by a required custom field the agent never saw.
+
+- *"What fields does a Bug in PROJ require? I want to know before you create anything."* —
+  `jira_get_create_fields`, which returns every field with its identifier, type, whether it is
+  required, and its allowed values.
+- *"Does PROJ have any mandatory custom fields on Story creation? Show me their allowed values."* —
+  `jira_get_create_fields` for that project and issue type.
+- *"Draft the issue you would create for this bug report, show me the exact field map, and wait for
+  my approval before creating it."* — `jira_get_create_fields` and nothing else until you say go.
+
+### Writing — `issues:write`
+
+Launch with `--allow issues:write`. Without it these tools are not registered at all, so the prompt
+fails by absence rather than by a permission error.
+
+- *"Create a Bug in PROJ: summary 'Checkout fails on expired card', with the reproduction steps from
+  my last message in the description."* — `jira_get_create_fields`, then `jira_create_issue`.
+- *"File this failing test as a Task in PROJ, set priority High, and assign it to me."* —
+  `jira_get_create_fields`, `jira_whoami` for the username, `jira_create_issue`.
+- *"Assign PROJ-123 to Jane Bloggs."* — `jira_search_users` for the username, then
+  `jira_update_issue`. There is no separate assign tool; the assignee is a field.
+- *"Update PROJ-123: set the fix version to 2.4.0 and add the label `regression`."* —
+  `jira_get_project` to confirm the version exists, then `jira_update_issue`.
+- *"Rewrite PROJ-123's description to include the stack trace I just pasted, keeping what is already
+  there."* — `jira_get_issues` to read the current description, then `jira_update_issue`.
+- *"Move PROJ-123 to In Review."* — `jira_get_issues` with `include: ["transitions"]`, then
+  `jira_transition_issue` by transition name.
+- *"Close PROJ-123 as Won't Do with a comment explaining why."* — `jira_transition_issue`, which
+  takes an optional comment and any screen fields the transition demands, in the one call.
+- *"Take everything I have in To Do on the current sprint and move it to In Progress."* —
+  `jira_get_sprint_issues`, then one `jira_transition_issue` per issue. There is no bulk write, so
+  ask the agent to list what it will change before it changes it.
+
+### Writing — `comments:write`
+
+Launch with `--allow comments:write`. Comments are Jira wiki markup and are stored exactly as
+written.
+
+- *"Comment on PROJ-123 that the fix is merged and name the commit."* — `jira_add_comment`.
+- *"Read PROJ-123, then post a comment summarising what we decided in this conversation."* —
+  `jira_get_issues`, then `jira_add_comment`.
+- *"Draft a comment for PROJ-123 asking the reporter for their browser version — show it to me
+  first."* — nothing until you approve, then `jira_add_comment`.
+- *"Post the same status note on PROJ-123, PROJ-124 and PROJ-131."* — three `jira_add_comment`
+  calls, one per issue.
+
+### Writing — `worklogs:write`
+
+Launch with `--allow worklogs:write`. Time is Jira's own duration syntax, so how long a working day
+is stays Jira's decision, not this server's.
+
+- *"Log 3h 30m against PROJ-123 for today, with the comment 'pairing on the retry logic'."* —
+  `jira_add_worklog`.
+- *"I spent yesterday afternoon on PROJ-124 — log 4h against it, dated yesterday."* —
+  `jira_add_worklog` with an explicit start date.
+- *"How much have I logged against PROJ-123 so far, and add another 45m?"* — `jira_get_issues` with
+  `include: ["worklogs"]`, then `jira_add_worklog`.
+
+### Multi-step workflows
+
+Where the batching actually pays: each of these is one prompt that would otherwise be a dozen
+browser tabs.
+
+- *"Give me a morning briefing: my open issues, which changed since yesterday, and the last comment
+  on each of those."* — `jira_my_open_issues`, then one `jira_get_issues` with
+  `include: ["comments"]` for the subset that moved.
+- *"Prepare me for sprint review on the PROJ board: what finished, what did not, and for each
+  unfinished issue the last comment explaining why."* — `jira_list_boards`, `jira_list_sprints`,
+  `jira_get_sprint_issues`, then `jira_get_issues` with `include: ["comments"]`.
+- *"Triage PROJ: find unassigned bugs opened in the last week, read each one, and suggest an
+  assignee and priority — propose, don't apply."* — `jira_search`, then `jira_get_issues`, and no
+  write tool until you say so.
+- *"This stack trace matches PROJ-123. Confirm it against the issue, then comment with the analysis
+  and move it to In Progress."* — `jira_get_issues`, `jira_add_comment`, `jira_transition_issue`,
+  which needs both `comments:write` and `issues:write`.
+- *"Audit the PROJ backlog: which items have no description, no component, or no estimate?"* —
+  `jira_get_backlog`, then `jira_get_issues` for the details the backlog view omits.
+- *"I am picking up PROJ-123. Assign it to me, move it to In Progress, and comment that I have
+  started."* — `jira_whoami`, `jira_update_issue`, `jira_transition_issue`, `jira_add_comment`.
+
+### Prompts that will not work
+
+Named here so the failure is expected rather than surprising. Each is a
+[known limitation](#known-limitations), not a bug.
+
+- *"Delete PROJ-123."* — no delete tool exists at any grant.
+- *"Attach this log file to PROJ-123."* — no attachment upload or download.
+- *"Link PROJ-123 as blocking PROJ-124."* — no link tools. Existing links are readable through
+  `jira_get_issues`' `links` expansion.
+- *"Move PROJ-123 into the next sprint"* or *"create a sprint."* — sprints and boards are read-only
+  here.
+- *"Edit my last comment on PROJ-123."* — comments cannot be edited or removed through this server.
+- *"Do the same in our other Jira."* — a process serves exactly one profile, and no tool takes an
+  instance argument. Run a second server against the second profile instead.
 
 ## Security model
 
