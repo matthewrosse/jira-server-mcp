@@ -229,15 +229,21 @@ boundary is the process, which is the strongest one available without a sandbox.
 ### CLI surface
 
 ```
-jira-server-mcp serve   --profile <name> [--allow <grants>] [--log-level <level>]
+jira-server-mcp serve   --profile <name> [--allow <grants>] [--credential-store <choice>]
 jira-server-mcp profile add <name> --url <url> [--ca-bundle <path>]
-jira-server-mcp profile list                       # names, URLs, versions — never secrets
+jira-server-mcp profile list                       # names and URLs — never secrets
 jira-server-mcp profile refresh <name>             # re-run the capability probe
 jira-server-mcp profile remove <name>              # also deletes the credential
 jira-server-mcp auth login <name>                  # prompt, validate, store
 jira-server-mcp auth status <name>                 # validate, print the resolved Jira user
 jira-server-mcp auth logout <name>                 # delete the credential, keep the profile
 ```
+
+Corrected against the implementation: `serve` takes no `--log-level` — logging is configured
+through the host's own environment, and one more option earned nothing — and every verb that
+touches a credential takes `--credential-store auto|native|file`. `profile list` prints names and
+URLs; the version it would print lives on the capability probe, which `auth status` reports and
+which a list of every profile would have to read for each one.
 
 `--token` as an argument does not exist, and passing it is an error rather than a warning:
 arguments are visible to every process on the machine and land in shell history. The escape hatch
