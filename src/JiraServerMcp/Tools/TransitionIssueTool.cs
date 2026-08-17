@@ -26,7 +26,7 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
         + "\"Done\", not \"31\". Matching ignores casing and surrounding spaces, and a name this "
         + "issue does not offer comes back with the ones it does. A transition whose screen "
         + "demands a field, a resolution most often, takes it in the field map here and succeeds "
-        + "in one call; jira_get_issue with the transitions expansion says which fields a "
+        + "in one call; jira_get_issues with the transitions expansion says which fields a "
         + "transition will ask for.")]
     public async Task<CallToolResult> TransitionIssueAsync(
         [Description("The issue key, such as \"PROJ-42\".")]
@@ -89,7 +89,7 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
             whenUnreachable: $", and {key} was not transitioned",
             whenTimedOut:
                 $". The transition was sent once and was not repeated, so read {key} with "
-                + "jira_get_issue to see whether it landed.",
+                + "jira_get_issues to see whether it landed.",
             async () =>
             {
                 await jira.TransitionIssueAsync(

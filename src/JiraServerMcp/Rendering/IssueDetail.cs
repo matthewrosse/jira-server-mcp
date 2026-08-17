@@ -9,11 +9,17 @@ namespace JiraServerMcp.Rendering;
 /// came back, so an issue with no links renders an empty links section instead of looking as
 /// though links were never requested.
 /// </summary>
+/// <remarks>
+/// Returns the bare body, key first, with no envelope: <see cref="BulkIssueDetail"/> is this
+/// module's only caller, and it envelopes several issues' bodies together rather than once each.
+/// </remarks>
 internal static class IssueDetail
 {
     public static string Render(JiraIssueDetail issue, IReadOnlyList<Expansion> expansions)
     {
         var body = new StringBuilder();
+
+        body.AppendLine(issue.Key);
 
         foreach (var field in issue.Fields)
         {
@@ -50,7 +56,7 @@ internal static class IssueDetail
             Worklogs(body, issue.Worklogs);
         }
 
-        return UntrustedContent.Envelope(issue.Key, body.ToString().TrimEnd());
+        return body.ToString().TrimEnd();
     }
 
     private static void Transitions(StringBuilder body, IReadOnlyList<JiraTransition> transitions)

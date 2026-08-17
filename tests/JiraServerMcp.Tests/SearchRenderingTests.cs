@@ -116,7 +116,7 @@ public class SearchRenderingTests
 
         rendered.ShouldContain("truncated");
         rendered.ShouldContain("400 more");
-        rendered.ShouldContain("jira_get_issue");
+        rendered.ShouldContain("jira_get_issues");
         rendered.ShouldContain("PROJ-12");
         rendered.ShouldNotContain(summary);
     }

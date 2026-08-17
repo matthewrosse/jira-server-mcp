@@ -140,6 +140,62 @@ public sealed class JiraClient(HttpClient httpClient)
     }
 
     /// <summary>
+    /// The most GETs this client will have in flight for one bulk read. Twenty keys finish in four
+    /// waves; an ageing Jira behind a reverse proxy is not the thing that breaks, and a wider burst
+    /// would only provoke the retries <see cref="JiraRetryHandler"/> already performs.
+    /// </summary>
+    private const int BulkConcurrency = 5;
+
+    /// <summary>
+    /// Several issues, fetched as concurrent single-issue GETs rather than one JQL search: each
+    /// key succeeds or fails on its own, and expansion behaviour cannot drift between a one-key
+    /// call and a twenty-key one because both run the same code path. The key cap lives with the
+    /// caller — this client fans out whatever list it is given.
+    /// </summary>
+    /// <remarks>
+    /// A profile-level auth failure (401/403) is not a per-key outcome: if the token is dead,
+    /// every key is doomed, and returning it as the failure of whichever key happened to hit it
+    /// first would hide that fact behind an arbitrary key. It propagates instead, the same way a
+    /// single-issue read's does.
+    /// </remarks>
+    public async Task<IReadOnlyList<BulkIssueResult>> GetIssuesAsync(
+        IReadOnlyList<string> keys,
+        IReadOnlyList<string> fields,
+        IReadOnlyList<string> expand,
+        CancellationToken cancellationToken)
+    {
+        using var gate = new SemaphoreSlim(BulkConcurrency);
+
+        return await Task.WhenAll(keys.Select(async key =>
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            try
+            {
+                var issue = await GetIssueAsync(key, fields, expand, cancellationToken)
+                    .ConfigureAwait(false);
+
+                return new BulkIssueResult(key, issue, null);
+            }
+            catch (JiraApiException exception) when (exception.StatusCode is not (
+                HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
+            {
+                return new BulkIssueResult(key, null, exception);
+            }
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // This key's own 30s HttpClient.Timeout, not the caller hanging up: a slow key
+                // degrades into a per-key timeout line while the rest still render.
+                return new BulkIssueResult(key, null, exception);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        })).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Every project this account can see. Jira answers with all of them at once — the platform API
     /// offers no page here — so the caller decides what to do with a very large instance.
     /// </summary>

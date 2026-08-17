@@ -40,7 +40,7 @@ internal sealed class AddCommentTool(JiraClient jira, ServedProfile profile)
             whenUnreachable: $", and {key} was not commented on",
             whenTimedOut:
                 $". The comment was sent once and was not repeated, so read {key} with "
-                + "jira_get_issue and the comments expansion before sending it again.",
+                + "jira_get_issues and the comments expansion before sending it again.",
             async () =>
             {
                 var added = await jira.AddCommentAsync(key, body, cancellationToken);

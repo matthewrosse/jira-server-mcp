@@ -23,7 +23,7 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
         + "take Jira's own shape: a string for a text field, {\"id\": \"10300\"} for a select, a "
         + "list for labels. A field given the value null is cleared; a field not named is left "
         + "alone. Whatever is written replaces what was there, so read the issue with "
-        + "jira_get_issue first when appending rather than overwriting is meant.")]
+        + "jira_get_issues first when appending rather than overwriting is meant.")]
     public async Task<CallToolResult> UpdateIssueAsync(
         [Description("The issue key, such as \"PROJ-42\".")]
         string key,
@@ -50,7 +50,7 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
             whenUnreachable: $", and {key} was not changed",
             whenTimedOut:
                 $". The update was sent once and was not repeated, so read {key} with "
-                + "jira_get_issue to see whether it landed.",
+                + "jira_get_issues to see whether it landed.",
             async () =>
             {
                 await jira.UpdateIssueAsync(

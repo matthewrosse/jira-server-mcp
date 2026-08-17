@@ -50,9 +50,9 @@ public sealed class JiraReadTests(JiraHarness harness) : IAsyncLifetime
     [Fact]
     public async Task An_issue_returns_every_expansion_that_was_asked_for()
     {
-        var text = await CallAsync("jira_get_issue", new Dictionary<string, object?>
+        var text = await CallAsync("jira_get_issues", new Dictionary<string, object?>
         {
-            ["key"] = _jira.Seeded.ExpandedIssueKey,
+            ["keys"] = new[] { _jira.Seeded.ExpandedIssueKey },
             ["include"] = new[] { "comments", "transitions", "changelog", "links", "worklogs" },
         });
 
@@ -71,11 +71,32 @@ public sealed class JiraReadTests(JiraHarness harness) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Several_keys_with_expansions_render_in_one_call_and_a_key_that_does_not_exist_fails_alone()
+    {
+        var text = await CallAsync("jira_get_issues", new Dictionary<string, object?>
+        {
+            ["keys"] = _jira.Seeded.IssueKeys.Take(2).Append("PROJ-999999").ToArray(),
+            ["include"] = new[] { "comments" },
+        });
+
+        foreach (var key in _jira.Seeded.IssueKeys.Take(2))
+        {
+            text.ShouldContain(key);
+        }
+
+        // The seeder put a comment on the expanded issue, so its absence would be a real failure.
+        text.ShouldContain("comments expansion has something to return");
+
+        text.ShouldContain("PROJ-999999: not found or not visible");
+        text.ShouldContain("3 issues asked for, 2 returned");
+    }
+
+    [Fact]
     public async Task Untrusted_content_reaches_the_client_framed_as_data()
     {
-        var text = await CallAsync("jira_get_issue", new Dictionary<string, object?>
+        var text = await CallAsync("jira_get_issues", new Dictionary<string, object?>
         {
-            ["key"] = _jira.Seeded.ExpandedIssueKey,
+            ["keys"] = new[] { _jira.Seeded.ExpandedIssueKey },
             ["fields"] = new[] { "description" },
         });
 

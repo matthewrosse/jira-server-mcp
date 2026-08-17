@@ -25,8 +25,8 @@ internal static class Truncation
         var cut = Cut(text, ResponseBudget.LineText);
 
         return text[..cut]
-               + $"…[truncated, {text.Length - cut} more characters — call jira_get_issue with "
-               + $"key {issueKey} for the full text]";
+               + $"…[truncated, {text.Length - cut} more characters — call jira_get_issues with "
+               + $"keys: [\"{issueKey}\"] for the full text]";
     }
 
     /// <summary>
