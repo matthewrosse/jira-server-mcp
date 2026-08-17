@@ -67,14 +67,14 @@ internal sealed class CreateIssueTool(JiraClient jira, ServedProfile profile)
     /// A rejected create is the one failure an agent can fix by itself, so the message says which
     /// fields Jira refused and where the project's real requirements are listed.
     /// </summary>
-    private string Describe(JiraApiException exception, string projectKey, string issueType)
-    {
-        var described = JiraToolError.Describe(exception, profile.Name, "creating an issue");
-
-        return exception.StatusCode is HttpStatusCode.BadRequest
-            ? described
-              + $"\nCall jira_get_create_fields with projectKey '{projectKey}' and issueType "
-              + $"'{issueType}' for the fields this project requires and the values they accept."
-            : described;
-    }
+    private string Describe(JiraApiException exception, string projectKey, string issueType) =>
+        JiraToolError.Describe(
+            exception,
+            profile.Name,
+            "creating an issue",
+            advice: exception.StatusCode is HttpStatusCode.BadRequest
+                ? $"Call jira_get_create_fields with projectKey '{projectKey}' and issueType "
+                  + $"'{issueType}' for the fields this project requires and the values they "
+                  + "accept."
+                : null);
 }
