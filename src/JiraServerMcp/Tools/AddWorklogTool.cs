@@ -60,7 +60,7 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
             whenUnreachable: $", and no work was logged against {key}",
             whenTimedOut:
                 $". The worklog was sent once and was not repeated, so read {key} with "
-                + "jira_get_issue and the worklogs expansion before sending it again.",
+                + "jira_get_issues and the worklogs expansion before sending it again.",
             async () =>
             {
                 var logged = await jira.AddWorklogAsync(

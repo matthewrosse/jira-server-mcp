@@ -140,7 +140,12 @@ internal static class JiraToolError
         return string.Join("\n", parts);
     }
 
-    private static string? JiraWords(JiraApiException exception)
+    /// <summary>
+    /// Jira's own error messages and field errors, joined as lines, or null if it said nothing.
+    /// Shared with <see cref="Rendering.BulkIssueDetail"/>, which attributes the same words to a
+    /// failed key rather than to a whole failed call.
+    /// </summary>
+    internal static string? JiraWords(JiraApiException exception)
     {
         var lines = new List<string>();
 

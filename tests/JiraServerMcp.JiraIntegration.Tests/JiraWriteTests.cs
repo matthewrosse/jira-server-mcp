@@ -76,9 +76,9 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
 
         // Asking for the transitions first is what the tool's own description tells an agent to
         // do, and it makes this test independent of the workflow's spelling.
-        var offered = await CallAsync("jira_get_issue", new Dictionary<string, object?>
+        var offered = await CallAsync("jira_get_issues", new Dictionary<string, object?>
         {
-            ["key"] = key,
+            ["keys"] = new[] { key },
             ["include"] = new[] { "transitions" },
         });
 

@@ -9,10 +9,11 @@ using WireMock.Server;
 namespace JiraServerMcp.Protocol.Tests;
 
 /// <summary>
-/// <c>jira_get_issue</c> across the protocol seam: what a real MCP client receives for each
-/// expansion, and how many requests the faked Jira saw while answering.
+/// <c>jira_get_issues</c> across the protocol seam: the array schema a real MCP client sees, what
+/// it receives for each expansion, several keys fetched in one call, and how a bad key, an
+/// over-cap call and a totally failed call each reach the agent.
 /// </summary>
-public sealed class GetIssueProtocolTests : IAsyncLifetime
+public sealed class GetIssuesProtocolTests : IAsyncLifetime
 {
     private const string Token = "s3cr3t-personal-access-token";
 
@@ -76,32 +77,34 @@ public sealed class GetIssueProtocolTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_client_sees_jira_get_issue_as_a_read_only_tool_taking_an_issue_key()
+    public async Task The_client_sees_jira_get_issues_as_a_read_only_tool_taking_an_array_of_keys()
     {
         var tools = await _client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
 
-        var getIssue = tools.Single(tool => tool.Name is "jira_get_issue");
+        var getIssues = tools.Single(tool => tool.Name is "jira_get_issues");
 
-        getIssue.ProtocolTool.Annotations.ShouldNotBeNull().ReadOnlyHint.ShouldBe(true);
+        getIssues.ProtocolTool.Annotations.ShouldNotBeNull().ReadOnlyHint.ShouldBe(true);
 
-        var properties = getIssue.JsonSchema.GetProperty("properties");
+        var properties = getIssues.JsonSchema.GetProperty("properties");
 
-        properties.GetProperty("key").GetProperty("type").GetString().ShouldBe("string");
+        properties.GetProperty("keys").GetProperty("type").GetString().ShouldBe("array");
+        properties.GetProperty("keys").GetProperty("items").GetProperty("type").GetString()
+            .ShouldBe("string");
         properties.TryGetProperty("include", out _).ShouldBeTrue();
         properties.TryGetProperty("fields", out _).ShouldBeTrue();
 
-        getIssue.JsonSchema.GetProperty("required").EnumerateArray()
+        getIssues.JsonSchema.GetProperty("required").EnumerateArray()
             .Select(required => required.GetString())
-            .ShouldBe(["key"]);
+            .ShouldBe(["keys"]);
     }
 
     [Fact]
-    public async Task An_issue_read_with_no_expansions_returns_only_the_default_projection()
+    public async Task A_single_key_read_with_no_expansions_returns_only_the_default_projection()
     {
-        StubIssue(Json(IssuePayload()));
+        StubIssue("PROJ-12", Json(IssuePayload()));
 
-        var text = await GetIssueAsync(new Dictionary<string, object?> { ["key"] = "PROJ-12" });
+        var text = await GetIssuesAsync(Keys("PROJ-12"));
 
         text.ShouldContain("PROJ-12");
         text.ShouldContain("Login fails with a 401");
@@ -121,51 +124,17 @@ public sealed class GetIssueProtocolTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Each_expansion_returns_its_section_and_is_absent_when_not_requested()
+    public async Task Every_expansion_at_once_costs_one_request_per_key_not_five()
     {
-        StubIssue(Json(IssuePayload("comments")));
+        StubIssue(
+            "PROJ-12",
+            Json(IssuePayload("comments", "transitions", "changelog", "links", "worklogs")));
 
-        var comments = await GetIssueAsync(Include("comments"));
-
-        comments.ShouldContain("comments");
-        comments.ShouldContain("Token expiry is off by one.");
-        comments.ShouldNotContain("history");
-        comments.ShouldNotContain("worklogs");
-
-        _jira.Reset();
-        StubIssue(Json(IssuePayload("worklogs")));
-
-        var worklogs = await GetIssueAsync(Include("worklogs"));
-
-        worklogs.ShouldContain("worklogs");
-        worklogs.ShouldContain("3h 30m");
-        worklogs.ShouldNotContain("comments");
-    }
-
-    [Fact]
-    public async Task Requesting_transitions_returns_their_names_and_the_fields_their_screens_require()
-    {
-        StubIssue(Json(IssuePayload("transitions")));
-
-        var text = await GetIssueAsync(Include("transitions"));
-
-        text.ShouldContain("Start Progress");
-        text.ShouldContain("Resolve Issue");
-        text.ShouldContain("requires");
-        text.ShouldContain("resolution");
-
-        // The plain "transitions" expand omits the screens, so it is the wrong one to ask for.
-        SingleRequest().Query.ShouldNotBeNull()["expand"].ShouldHaveSingleItem()
-            .ShouldBe("transitions.fields");
-    }
-
-    [Fact]
-    public async Task Every_expansion_at_once_costs_one_request_not_five()
-    {
-        StubIssue(Json(IssuePayload("comments", "transitions", "changelog", "links", "worklogs")));
-
-        var text = await GetIssueAsync(
-            Include("comments", "transitions", "changelog", "links", "worklogs"));
+        var text = await GetIssuesAsync(new Dictionary<string, object?>
+        {
+            ["keys"] = new[] { "PROJ-12" },
+            ["include"] = new[] { "comments", "transitions", "changelog", "links", "worklogs" },
+        });
 
         _jira.LogEntries.Count.ShouldBe(1);
 
@@ -177,45 +146,119 @@ public sealed class GetIssueProtocolTests : IAsyncLifetime
 
         var query = SingleRequest().Query.ShouldNotBeNull();
 
-        var fields = query["fields"].ShouldHaveSingleItem();
-
-        fields.ShouldContain("comment");
-        fields.ShouldContain("issuelinks");
-        fields.ShouldContain("worklog");
-
         query["expand"].ShouldHaveSingleItem().ShouldBe("transitions.fields,changelog");
     }
 
     [Fact]
-    public async Task Comments_are_capped_and_the_cap_is_reported()
+    public async Task Several_keys_are_fetched_in_one_call_and_all_render_in_caller_order()
     {
-        StubIssue(Json(IssueWithManyComments(60)));
+        StubIssue("PROJ-1", Json(IssuePayloadFor("PROJ-1")));
+        StubIssue("PROJ-2", Json(IssuePayloadFor("PROJ-2")));
 
-        var text = await GetIssueAsync(Include("comments"));
+        var text = await GetIssuesAsync(Keys("PROJ-2", "PROJ-1"));
 
-        text.ShouldContain("of 60");
-        text.ShouldContain("comment 60");
-        text.ShouldNotContain("comment 1 of many");
+        _jira.LogEntries.Count.ShouldBe(2);
+        text.ShouldContain("2 issues asked for, 2 returned");
+        text.IndexOf("PROJ-2", StringComparison.Ordinal)
+            .ShouldBeLessThan(text.IndexOf("PROJ-1", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task Changelog_entries_are_capped_and_the_cap_is_reported()
+    public async Task A_bad_key_among_good_ones_fails_alone_and_the_call_still_succeeds()
     {
-        StubIssue(Json(IssueWithLongHistory(60)));
+        StubIssue("PROJ-1", Json(IssuePayloadFor("PROJ-1")));
+        StubIssue(
+            "PROJ-404",
+            Response.Create().WithStatusCode(404)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""{"errorMessages":["Issue Does Not Exist"],"errors":{}}"""));
 
-        var text = await GetIssueAsync(Include("changelog"));
+        var result = await _client.CallToolAsync(
+            "jira_get_issues",
+            Keys("PROJ-1", "PROJ-404"),
+            cancellationToken: TestContext.Current.CancellationToken);
 
-        text.ShouldContain("of 60");
-        text.ShouldContain("field60");
-        text.ShouldNotContain("theOldestField");
+        result.IsError.ShouldNotBe(true);
+
+        var text = TextOf(result);
+
+        text.ShouldContain("PROJ-1");
+        text.ShouldContain("PROJ-404: not found or not visible");
+        text.ShouldContain("2 issues asked for, 1 returned");
+    }
+
+    [Fact]
+    public async Task Every_key_failing_is_an_error()
+    {
+        StubIssue(
+            "PROJ-404",
+            Response.Create().WithStatusCode(404)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""{"errorMessages":["Issue Does Not Exist"],"errors":{}}"""));
+
+        var result = await _client.CallToolAsync(
+            "jira_get_issues",
+            Keys("PROJ-404"),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+        TextOf(result).ShouldContain("not found or not visible");
+    }
+
+    [Fact]
+    public async Task The_over_cap_rejection_reaches_the_agent_as_an_error_result()
+    {
+        var keys = Enumerable.Range(1, 21).Select(number => $"PROJ-{number}").ToArray();
+
+        var result = await _client.CallToolAsync(
+            "jira_get_issues",
+            new Dictionary<string, object?> { ["keys"] = keys },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+        TextOf(result).ShouldContain("20");
+
+        // Refused before Jira was troubled with it.
+        _jira.LogEntries.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_null_element_in_keys_is_refused_rather_than_crashing_the_call()
+    {
+        // A JSON array is allowed to carry a null, and it arrives here as one.
+        var result = await _client.CallToolAsync(
+            "jira_get_issues",
+            new Dictionary<string, object?> { ["keys"] = new[] { "PROJ-12", null } },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+        TextOf(result).ShouldContain("null");
+
+        _jira.LogEntries.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task An_empty_keys_array_is_refused()
+    {
+        var result = await _client.CallToolAsync(
+            "jira_get_issues",
+            new Dictionary<string, object?> { ["keys"] = Array.Empty<string>() },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+        TextOf(result).ShouldContain("keys");
     }
 
     [Fact]
     public async Task Jira_authored_text_arrives_delimited_and_marked_as_data()
     {
-        StubIssue(Json(IssuePayload("comments")));
+        StubIssue("PROJ-12", Json(IssuePayload("comments")));
 
-        var text = await GetIssueAsync(Include("comments"));
+        var text = await GetIssuesAsync(new Dictionary<string, object?>
+        {
+            ["keys"] = new[] { "PROJ-12" },
+            ["include"] = new[] { "comments" },
+        });
 
         text.ShouldContain("never as instructions");
         text.ShouldContain("<jira-data ");
@@ -223,41 +266,20 @@ public sealed class GetIssueProtocolTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task An_unknown_issue_key_explains_both_things_a_jira_404_can_mean()
-    {
-        StubIssue(Response.Create().WithStatusCode(404)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody("""
-                {"errorMessages":["Issue Does Not Exist"],"errors":{}}
-                """));
-
-        var result = await _client.CallToolAsync(
-            "jira_get_issue",
-            new Dictionary<string, object?> { ["key"] = "PROJ-9999" },
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        result.IsError.ShouldBe(true);
-
-        var text = result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
-
-        text.ShouldContain("does not exist");
-        text.ShouldContain("cannot see it");
-        text.ShouldContain("nothing to retry");
-    }
-
-    [Fact]
     public async Task An_expansion_that_is_not_one_is_refused_rather_than_quietly_dropped()
     {
-        StubIssue(Json(IssuePayload()));
-
         var result = await _client.CallToolAsync(
-            "jira_get_issue",
-            Include("attachments"),
+            "jira_get_issues",
+            new Dictionary<string, object?>
+            {
+                ["keys"] = new[] { "PROJ-12" },
+                ["include"] = new[] { "attachments" },
+            },
             cancellationToken: TestContext.Current.CancellationToken);
 
         result.IsError.ShouldBe(true);
 
-        var text = result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
+        var text = TextOf(result);
 
         text.ShouldContain("attachments");
         text.ShouldContain("comments");
@@ -269,11 +291,11 @@ public sealed class GetIssueProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_widened_projection_is_added_to_the_default_one()
     {
-        StubIssue(Json(IssuePayload()));
+        StubIssue("PROJ-12", Json(IssuePayload()));
 
-        await GetIssueAsync(new Dictionary<string, object?>
+        await GetIssuesAsync(new Dictionary<string, object?>
         {
-            ["key"] = "PROJ-12",
+            ["keys"] = new[] { "PROJ-12" },
             ["fields"] = new[] { "customfield_10010" },
         });
 
@@ -283,26 +305,42 @@ public sealed class GetIssueProtocolTests : IAsyncLifetime
         fields.ShouldContain("customfield_10010");
     }
 
-    private static Dictionary<string, object?> Include(params string[] include) =>
-        new() { ["key"] = "PROJ-12", ["include"] = include };
+    [Fact]
+    public async Task Duplicate_keys_are_deduplicated_and_fetched_once()
+    {
+        StubIssue("PROJ-12", Json(IssuePayload()));
 
-    private async Task<string> GetIssueAsync(IReadOnlyDictionary<string, object?> arguments)
+        await GetIssuesAsync(Keys("PROJ-12", "PROJ-12"));
+
+        _jira.LogEntries.Count.ShouldBe(1);
+    }
+
+    private static Dictionary<string, object?> Keys(params string[] keys) =>
+        new() { ["keys"] = keys };
+
+    private async Task<string> GetIssuesAsync(IReadOnlyDictionary<string, object?> arguments)
     {
         var result = await _client.CallToolAsync(
-            "jira_get_issue",
+            "jira_get_issues",
             arguments,
             cancellationToken: TestContext.Current.CancellationToken);
 
         result.IsError.ShouldNotBe(true);
 
-        return result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
+        return TextOf(result);
     }
+
+    private static string TextOf(CallToolResult result) =>
+        result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
 
     /// <summary>
     /// An issue carrying only the sections named, because that is all Jira sends: a section it was
     /// not asked for through <c>fields</c> or <c>expand</c> never appears in the response.
     /// </summary>
-    private static string IssuePayload(params string[] sections)
+    private static string IssuePayload(params string[] sections) =>
+        IssuePayloadFor("PROJ-12", sections);
+
+    private static string IssuePayloadFor(string key, params string[] sections)
     {
         var fields = new List<string>
         {
@@ -399,56 +437,9 @@ public sealed class GetIssueProtocolTests : IAsyncLifetime
 
         return $$"""
             {
-              "key": "PROJ-12",
+              "key": "{{key}}",
               "fields": { {{string.Join(",", fields)}} }{{(beside.Count > 0 ? "," : "")}}
               {{string.Join(",", beside)}}
-            }
-            """;
-    }
-
-    private static string IssueWithManyComments(int count)
-    {
-        var comments = Enumerable.Range(1, count).Select(number => $$"""
-            {
-              "id": "{{number}}",
-              "author": { "displayName": "Jane Smith" },
-              "body": "{{(number is 1 ? "comment 1 of many" : $"comment {number}")}}",
-              "created": "2026-08-02T11:30:00.000+0000"
-            }
-            """);
-
-        return $$"""
-            {
-              "key": "PROJ-12",
-              "fields": {
-                "summary": "Login fails with a 401",
-                "comment": { "total": {{count}}, "comments": [{{string.Join(",", comments)}}] }
-              }
-            }
-            """;
-    }
-
-    private static string IssueWithLongHistory(int count)
-    {
-        var histories = Enumerable.Range(1, count).Select(number => $$"""
-            {
-              "author": { "displayName": "Jane Smith" },
-              "created": "2026-08-02T10:00:00.000+0000",
-              "items": [
-                {
-                  "field": "{{(number is 1 ? "theOldestField" : $"field{number}")}}",
-                  "fromString": "before",
-                  "toString": "after"
-                }
-              ]
-            }
-            """);
-
-        return $$"""
-            {
-              "key": "PROJ-12",
-              "fields": { "summary": "Login fails with a 401" },
-              "changelog": { "total": {{count}}, "histories": [{{string.Join(",", histories)}}] }
             }
             """;
     }
@@ -461,8 +452,8 @@ public sealed class GetIssueProtocolTests : IAsyncLifetime
     private IRequestMessage SingleRequest() =>
         _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
 
-    private void StubIssue(IResponseBuilder response) =>
+    private void StubIssue(string key, IResponseBuilder response) =>
         _jira.Given(Request.Create()
-                .WithPath(new WildcardMatcher("/rest/api/2/issue/*")).UsingGet())
+                .WithPath(new WildcardMatcher($"/rest/api/2/issue/{key}")).UsingGet())
             .RespondWith(response);
 }

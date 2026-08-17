@@ -57,6 +57,13 @@ internal static class ResponseBudget
     public const int SearchTextBudget = 32_000;
 
     /// <summary>
+    /// The most characters a bulk issue read is worth, matching <see cref="SearchTextBudget"/>: an
+    /// issue is not shrunk for company, so what caps the response is how many whole issues fit
+    /// rather than a per-issue allowance.
+    /// </summary>
+    public const int BulkTextBudget = 32_000;
+
+    /// <summary>
     /// Room kept back from the search text budget for the header, the framing, and the closing
     /// marker, none of which can be dropped once the rows have been counted.
     /// </summary>

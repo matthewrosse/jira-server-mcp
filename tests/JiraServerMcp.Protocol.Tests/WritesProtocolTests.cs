@@ -85,7 +85,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         tools.ShouldNotContain("jira_add_worklog");
 
         tools.ShouldContain("jira_search");
-        tools.ShouldContain("jira_get_issue");
+        tools.ShouldContain("jira_get_issues");
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
                 "jira_add_worklog",
                 "jira_create_issue",
                 "jira_get_create_fields",
-                "jira_get_issue",
+                "jira_get_issues",
                 "jira_get_project",
                 "jira_list_projects",
                 "jira_my_open_issues",
@@ -188,7 +188,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
                 $"{tool.Name} does not say whether it destroys");
         }
 
-        Annotations(tools, "jira_get_issue").ReadOnlyHint.ShouldBe(true);
+        Annotations(tools, "jira_get_issues").ReadOnlyHint.ShouldBe(true);
 
         // A create adds an issue and overwrites nothing; an update writes over values that were
         // already there, and a client offering a confirmation prompt should say so.

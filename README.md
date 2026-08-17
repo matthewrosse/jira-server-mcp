@@ -131,8 +131,8 @@ VS Code form.
 > Which of my open issues in PROJ changed this week, and what did the last comment on each say?
 ```
 
-The agent calls `jira_whoami`, then `jira_search` with the JQL it derives, then `jira_get_issue`
-with `include: ["comments"]` for the ones that matter.
+The agent calls `jira_whoami`, then `jira_search` with the JQL it derives, then `jira_get_issues`
+with `include: ["comments"]` for the ones that matter, in one call rather than one per issue.
 
 ## Creating a personal access token in Jira 8
 
@@ -283,7 +283,7 @@ context learning that it is forbidden.
 | `jira_whoami` | — | The Jira account this server is authenticated as. The first thing to check when something is forbidden. |
 | `jira_search` | — | JQL search. 25 results by default, 100 at most, projected fields, and the total. |
 | `jira_my_open_issues` | — | The caller's own unresolved issues, most recently updated first — the start-of-session work queue, with no JQL to author. |
-| `jira_get_issue` | — | One issue, with `include` opting into `comments`, `transitions`, `changelog`, `links` and `worklogs` — five would-be tools in one call, and the transition list arrives with the issue the agent is about to transition. |
+| `jira_get_issues` | — | Up to 20 issues in one call, with `include` opting into `comments`, `transitions`, `changelog`, `links` and `worklogs` for each. Each key succeeds or fails on its own, and the transition list arrives with the issue the agent is about to transition. |
 | `jira_list_projects` | — | Key, name, id and type for every project the account can see. |
 | `jira_get_project` | — | One project with its issue types, statuses, components and versions — everything a create needs, in one response. |
 | `jira_get_create_fields` | — | What Jira will accept for a create: every field with its identifier, its type, whether it is required, and its allowed values. Read this before creating, or a required custom field rejects the create by identifier alone. |
@@ -299,8 +299,7 @@ context learning that it is forbidden.
 | `jira_add_worklog` | `worklogs:write` | Log work, with the time spent in Jira's own duration syntax (`"3h 30m"`), so how long a working day is stays Jira's decision. |
 
 Deliberately absent: issue deletion, comment editing and deletion, attachments, issue linking,
-sprint mutation, watchers, votes, and bulk operations. See
-[Known limitations](#known-limitations).
+sprint mutation, watchers, and votes. See [Known limitations](#known-limitations).
 
 ## Security model
 
@@ -492,10 +491,11 @@ What is **not** in this server, so you find out here rather than by asking an ag
 - **Comment and worklog editing.** A comment or worklog this server adds cannot be edited or
   removed through it.
 - **Issue linking.** No link, unlink, or link-type tools. Links are readable through
-  `jira_get_issue`'s `links` expansion.
+  `jira_get_issues`' `links` expansion.
 - **Sprint mutation.** Sprints and boards are read-only here: no creating a sprint, no moving an
   issue into one.
-- **Watchers, votes, and bulk operations.** None of them.
+- **Watchers, votes, and bulk operations.** None of them — "bulk operations" here means bulk
+  *write*. Bulk read exists: `jira_get_issues`.
 - **OAuth 1.0a.** Personal access tokens are the only credential (ADR-0001), which sets the floor
   at Jira 8.14 and needs no administrator. OAuth 1.0a on Jira Server requires an administrator to
   provision an application link, and the question of who holds the private key has no acceptable
