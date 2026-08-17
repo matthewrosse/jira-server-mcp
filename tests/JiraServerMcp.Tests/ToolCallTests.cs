@@ -77,6 +77,78 @@ public sealed class ToolCallTests
                 abandoned.Token));
     }
 
+    [Fact]
+    public async Task A_describe_api_failure_clause_overrides_the_default_wording()
+    {
+        var result = await ToolCall.RunAsync(
+            new ServedProfile("work"),
+            "jira_whoami",
+            whenUnreachable: string.Empty,
+            whenTimedOut: string.Empty,
+            work: () => throw new JiraApiException(
+                HttpStatusCode.BadRequest,
+                "/rest/api/2/issue",
+                [],
+                new Dictionary<string, string>()),
+            CancellationToken.None,
+            describeApiFailure: _ => "the field map was rejected");
+
+        result.IsError.ShouldBe(true);
+        Text(result).ShouldBe("the field map was rejected");
+    }
+
+    [Fact]
+    public async Task A_step_that_succeeds_hands_back_its_value()
+    {
+        var step = await ToolCall.StepAsync(
+            new ServedProfile("work"),
+            "reading the transitions available on PROJ-1",
+            whenUnreachable: string.Empty,
+            whenTimedOut: string.Empty,
+            work: () => Task.FromResult(3),
+            CancellationToken.None);
+
+        step.Failed.ShouldBeFalse();
+        step.Value.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task A_step_that_fails_hands_back_a_finished_error_result_instead_of_a_value()
+    {
+        var step = await ToolCall.StepAsync<int>(
+            new ServedProfile("work"),
+            "reading the transitions available on PROJ-1",
+            whenUnreachable: ", and PROJ-1 was not transitioned",
+            whenTimedOut: string.Empty,
+            work: () => throw new HttpRequestException("no such host"),
+            CancellationToken.None);
+
+        step.Failed.ShouldBeTrue();
+        step.Error.IsError.ShouldBe(true);
+        Text(step.Error).ShouldBe(
+            "Could not reach Jira, and PROJ-1 was not transitioned: no such host");
+    }
+
+    [Fact]
+    public async Task A_step_honours_its_own_describe_api_failure_clause()
+    {
+        var step = await ToolCall.StepAsync<int>(
+            new ServedProfile("work"),
+            "reading the transitions available on PROJ-1",
+            whenUnreachable: string.Empty,
+            whenTimedOut: string.Empty,
+            work: () => throw new JiraApiException(
+                HttpStatusCode.BadRequest,
+                "/rest/api/2/issue/PROJ-1/transitions",
+                [],
+                new Dictionary<string, string>()),
+            CancellationToken.None,
+            describeApiFailure: _ => "Nothing was transitioned: PROJ-1 is as it was.");
+
+        step.Failed.ShouldBeTrue();
+        Text(step.Error).ShouldBe("Nothing was transitioned: PROJ-1 is as it was.");
+    }
+
     private static Task<CallToolResult> Run(
         Func<Task<string>> work,
         string whenUnreachable = "",

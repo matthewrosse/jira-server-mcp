@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
@@ -25,32 +23,14 @@ internal sealed class GetProjectTool(JiraClient jira, ServedProfile profile)
         string key,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var project = await jira.GetProjectAsync(key, cancellationToken);
-
-            return Text(ProjectDetail.Render(project));
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(JiraToolError.Describe(exception, profile.Name, Name));
-        }
-        catch (HttpRequestException exception)
-        {
-            return Error($"Could not reach Jira: {exception.Message}");
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time, and the request was "
-                + "given up. A project with a long release history is slow to read; asking again "
-                + "usually helps.");
-        }
+        return await ToolCall.RunAsync(
+            profile,
+            Name,
+            whenUnreachable: string.Empty,
+            whenTimedOut:
+                ", and the request was given up. A project with a long release history is slow "
+                + "to read; asking again usually helps.",
+            async () => ProjectDetail.Render(await jira.GetProjectAsync(key, cancellationToken)),
+            cancellationToken);
     }
-
-    private static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
-
-    private static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
 }

@@ -1,8 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
-using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
 using ModelContextProtocol.Protocol;
@@ -41,38 +39,31 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
     {
         if (fields is not { Count: > 0 } && assignee is null)
         {
-            return Error(
+            return ToolCall.Error(
                 $"Nothing was named to change on {key}, so nothing was sent to Jira. Name at "
                 + "least one field, or an assignee.");
         }
 
-        try
-        {
-            await jira.UpdateIssueAsync(
-                key,
-                fields ?? new Dictionary<string, JsonElement>(),
-                assignee is null
-                    ? null
-                    : new JiraAssignee(assignee.Length is 0 ? null : assignee),
-                cancellationToken);
+        return await ToolCall.RunAsync(
+            profile,
+            $"updating {key}",
+            whenUnreachable: $", and {key} was not changed",
+            whenTimedOut:
+                $". The update was sent once and was not repeated, so read {key} with "
+                + "jira_get_issue to see whether it landed.",
+            async () =>
+            {
+                await jira.UpdateIssueAsync(
+                    key,
+                    fields ?? new Dictionary<string, JsonElement>(),
+                    assignee is null
+                        ? null
+                        : new JiraAssignee(assignee.Length is 0 ? null : assignee),
+                    cancellationToken);
 
-            return Text(Confirm(key, fields, assignee));
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(JiraToolError.Describe(exception, profile.Name, $"updating {key}"));
-        }
-        catch (HttpRequestException exception)
-        {
-            return Error($"Could not reach Jira, and {key} was not changed: {exception.Message}");
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time. The update was sent "
-                + $"once and was not repeated, so read {key} with jira_get_issue to see whether "
-                + "it landed.");
-        }
+                return Confirm(key, fields, assignee);
+            },
+            cancellationToken);
     }
 
     private static string Confirm(
@@ -89,10 +80,4 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
 
         return $"Updated {key}: {string.Join(", ", changed)}.";
     }
-
-    private static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
-
-    private static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
 }

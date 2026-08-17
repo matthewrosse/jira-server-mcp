@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
@@ -29,35 +27,22 @@ internal sealed class ListSprintsTool(JiraClient jira, ServedProfile profile)
         int maxResults = SoftwarePage.DefaultSize,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var page = await jira.ListSprintsAsync(
-                boardId,
-                Math.Max(startAt, 0),
-                SoftwarePage.Clamp(maxResults),
-                cancellationToken);
+        return await ToolCall.RunAsync(
+            profile,
+            Name,
+            whenUnreachable: string.Empty,
+            whenTimedOut:
+                ", and the request was given up. Asking for a smaller page usually helps.",
+            async () =>
+            {
+                var page = await jira.ListSprintsAsync(
+                    boardId,
+                    Math.Max(startAt, 0),
+                    SoftwarePage.Clamp(maxResults),
+                    cancellationToken);
 
-            return Text(SprintList.Render(page));
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(JiraToolError.Describe(exception, profile.Name, Name));
-        }
-        catch (HttpRequestException exception)
-        {
-            return Error($"Could not reach Jira: {exception.Message}");
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time, and the request was "
-                + "given up. Asking for a smaller page usually helps.");
-        }
+                return SprintList.Render(page);
+            },
+            cancellationToken);
     }
-
-    private static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
-
-    private static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
 }

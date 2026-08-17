@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Text.Json;
 using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
@@ -42,42 +41,36 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
         string? comment = null,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<JiraTransition> available;
-
         // Resolved now rather than from whatever an earlier read handed over: the issue may have
         // moved since, and a stale identifier transitions nothing. This is a read, and it is kept
         // apart from the write below so that a failure here is never described as a write that
         // may have landed.
-        try
-        {
-            available = await jira.ListTransitionsAsync(key, cancellationToken);
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(
+        var listed = await ToolCall.StepAsync(
+            profile,
+            $"reading the transitions available on {key}",
+            whenUnreachable: $", and {key} was not transitioned",
+            whenTimedOut:
+                $", and it was asked only which transitions {key} has. Nothing was transitioned.",
+            () => jira.ListTransitionsAsync(key, cancellationToken),
+            cancellationToken,
+            describeApiFailure: exception =>
                 JiraToolError.Describe(
                     exception,
                     profile.Name,
                     $"reading the transitions available on {key}")
                 + $"\nNothing was transitioned: {key} is as it was.");
-        }
-        catch (HttpRequestException exception)
+
+        if (listed.Failed)
         {
-            return Error(
-                $"Could not reach Jira, and {key} was not transitioned: {exception.Message}");
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time, and it was asked only "
-                + $"which transitions {key} has. Nothing was transitioned.");
+            return listed.Error;
         }
 
+        var available = listed.Value;
         var matching = Matching(available, transition);
 
         if (matching.Count is 0)
         {
-            return Error(Unmatched(key, transition, available));
+            return ToolCall.Error(Unmatched(key, transition, available));
         }
 
         // Jira lets one status offer two transitions of the same name — a global one and a local
@@ -85,38 +78,30 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
         // agent did not ask for and report it as success.
         if (matching.Count > 1)
         {
-            return Error(Ambiguous(key, transition, matching));
+            return ToolCall.Error(Ambiguous(key, transition, matching));
         }
 
         var matched = matching[0];
 
-        try
-        {
-            await jira.TransitionIssueAsync(
-                key,
-                matched.Id,
-                fields ?? new Dictionary<string, JsonElement>(),
-                comment,
-                cancellationToken);
+        return await ToolCall.RunAsync(
+            profile,
+            $"transitioning {key}",
+            whenUnreachable: $", and {key} was not transitioned",
+            whenTimedOut:
+                $". The transition was sent once and was not repeated, so read {key} with "
+                + "jira_get_issue to see whether it landed.",
+            async () =>
+            {
+                await jira.TransitionIssueAsync(
+                    key,
+                    matched.Id,
+                    fields ?? new Dictionary<string, JsonElement>(),
+                    comment,
+                    cancellationToken);
 
-            return Text(Transitioned(key, matched));
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(JiraToolError.Describe(exception, profile.Name, $"transitioning {key}"));
-        }
-        catch (HttpRequestException exception)
-        {
-            return Error(
-                $"Could not reach Jira, and {key} was not transitioned: {exception.Message}");
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time. The transition was "
-                + $"sent once and was not repeated, so read {key} with jira_get_issue to see "
-                + "whether it landed.");
-        }
+                return Transitioned(key, matched);
+            },
+            cancellationToken);
     }
 
     private static IReadOnlyList<JiraTransition> Matching(
@@ -186,10 +171,4 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
                 candidate => candidate.ToStatus is { } status
                     ? $"{candidate.Name} (to {status})"
                     : candidate.Name));
-
-    private static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
-
-    private static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
 }

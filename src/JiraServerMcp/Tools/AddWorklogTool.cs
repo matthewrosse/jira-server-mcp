@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -40,7 +38,7 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
         // 400 several hundred milliseconds later and no syntax to correct against.
         if (!WorklogInput.IsDuration(timeSpent))
         {
-            return Error(
+            return ToolCall.Error(
                 $"'{timeSpent}' is not a duration Jira can read, so nothing was logged against "
                 + $"{key}. Write it in Jira's own syntax, as \"3h 30m\" or \"1w 2d\", with each "
                 + "amount naming its unit: w, d, h or m.");
@@ -50,45 +48,30 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
 
         if (started is not null && !WorklogInput.TryStartTime(started, out startedAt))
         {
-            return Error(
+            return ToolCall.Error(
                 $"'{started}' is not a start time Jira can read, so nothing was logged against "
                 + $"{key}. Write it as an ISO-8601 timestamp carrying its offset, such as "
                 + "\"2026-08-16T09:00:00+02:00\".");
         }
 
-        try
-        {
-            var logged = await jira.AddWorklogAsync(
-                key,
-                timeSpent.Trim(),
-                startedAt,
-                comment,
-                cancellationToken);
+        return await ToolCall.RunAsync(
+            profile,
+            $"logging work against {key}",
+            whenUnreachable: $", and no work was logged against {key}",
+            whenTimedOut:
+                $". The worklog was sent once and was not repeated, so read {key} with "
+                + "jira_get_issue and the worklogs expansion before sending it again.",
+            async () =>
+            {
+                var logged = await jira.AddWorklogAsync(
+                    key,
+                    timeSpent.Trim(),
+                    startedAt,
+                    comment,
+                    cancellationToken);
 
-            return Text($"Logged {logged.TimeSpent} against {key} as worklog {logged.Id}.");
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(
-                JiraToolError.Describe(exception, profile.Name, $"logging work against {key}"));
-        }
-        catch (HttpRequestException exception)
-        {
-            return Error(
-                $"Could not reach Jira, and no work was logged against {key}: {exception.Message}");
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time. The worklog was sent "
-                + $"once and was not repeated, so read {key} with jira_get_issue and the worklogs "
-                + "expansion before sending it again.");
-        }
+                return $"Logged {logged.TimeSpent} against {key} as worklog {logged.Id}.";
+            },
+            cancellationToken);
     }
-
-    private static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
-
-    private static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
 }
