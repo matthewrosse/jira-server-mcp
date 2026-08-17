@@ -414,7 +414,8 @@ unbounded.
 server instance over the protocol, with `JiraServerMcp.Jira`'s `HttpClient` pointed at WireMock.
 This exercises client → server → tool → application → Jira client end to end without a Jira, and
 covers what direct method invocation cannot: tool registration under different grants, schema
-shape, `isError` results, annotations, and cancellation.
+shape, `isError` results, annotations, and cancellation. See ADR-0008 for which seam a new test
+belongs at.
 
 **Real Jira tests** — `JiraServerMcp.JiraIntegration.Tests`, trait-gated, against Jira 8.20.7:
 

@@ -67,6 +67,9 @@ _Avoid_: handler, invocation, request.
 tools are not registered, so an agent cannot attempt them.
 _Avoid_: scope, permission, role — all three already mean something inside Jira.
 
+**Protocol seam** — the boundary at which an agent observes a tool: a real MCP client and server,
+with Jira replaced by an HTTP double. Where tool-specific branching is proven. See ADR-0008.
+
 **Expansion** — an optional extra section of an issue read: comments, transitions, changelog,
 links, worklogs. Opt-in, because each one costs the agent context it may not need.
 _Avoid_: Jira's own "expand", which names a different and overlapping mechanism.
