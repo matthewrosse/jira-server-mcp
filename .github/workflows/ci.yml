@@ -41,17 +41,21 @@ jobs:
       - name: Audit dependencies
         run: dotnet restore --force-evaluate -warnaserror
 
-      # Jira-backed tests are excluded here by project: they need a real Jira 8.20.7 and belong
-      # to the nightly workflow. This job must stay under about three minutes.
+      # Jira-backed tests are excluded here by trait, not by project: the harness project also
+      # holds the setup-wizard parser and the readiness poller, which need neither Docker nor a
+      # Jira and would otherwise run in no pull-request workflow at all. This job must stay under
+      # about three minutes. The nightly workflow runs the other side of that trait.
       - name: Test
         run: |
           for project in \
             tests/JiraServerMcp.Jira.Tests \
             tests/JiraServerMcp.Tests \
-            tests/JiraServerMcp.Protocol.Tests
+            tests/JiraServerMcp.Protocol.Tests \
+            tests/JiraServerMcp.JiraIntegration.Tests
           do
             dotnet test "$project" --no-build -c Release \
-              -- --coverage --coverage-output-format cobertura \
+              -- --filter-not-trait "Category=JiraIntegration" \
+                 --coverage --coverage-output-format cobertura \
                  --coverage-output "$(basename "$project").cobertura.xml"
           done
 

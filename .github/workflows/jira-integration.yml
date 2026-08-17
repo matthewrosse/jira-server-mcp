@@ -1,0 +1,84 @@
+name: Jira integration
+
+# Never on an ordinary push. Several minutes of Jira startup on every commit would be paid many
+# times a day for a signal that changes rarely, so this runs on a schedule, on demand, and on a
+# pull request somebody has deliberately labelled.
+on:
+  schedule:
+    # Nightly, off the hour so it does not queue behind everything else scheduled at 00:00.
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jira-integration-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  jira:
+    name: Real Jira 8.20.7
+    # A labelled pull request only. `synchronize` and `reopened` are listened for so that pushing
+    # to an already-labelled pull request re-runs this, but an unlabelled one does nothing.
+    if: >-
+      github.event_name != 'pull_request'
+      || contains(github.event.pull_request.labels.*.name, 'run-jira-tests')
+    runs-on: ubuntu-latest
+    # The Phase 0 spike measured 378s end to end on an emulated Apple Silicon host and took no
+    # hosted-runner measurement at all, so this is set from neither: it is a ceiling that stops a
+    # wedged Jira burning an hour, not a budget tuned to a number nobody has.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build tests/JiraServerMcp.JiraIntegration.Tests -c Release -p:ContinuousIntegrationBuild=true
+
+      # No secret and no purchased licence: the ten-user, three-hour testing licence Atlassian
+      # publishes is committed under tests/fixtures/. Containers come up through Testcontainers,
+      # which runs the same setup, seeding and token minting as the local Compose path.
+      - name: Run the Jira-backed suite
+        run: |
+          dotnet test tests/JiraServerMcp.JiraIntegration.Tests --no-build -c Release \
+            -- --filter-trait "Category=JiraIntegration"
+
+      # Jira's own logs are the only thing that explains a boot that never finished, and they are
+      # gone with the container.
+      - name: Collect Jira logs
+        if: failure()
+        run: |
+          mkdir -p jira-logs
+          for container in $(docker ps -aq --filter "ancestor=atlassian/jira-software:8.20.7-jdk11"); do
+            docker logs "$container" > "jira-logs/$container.log" 2>&1 || true
+          done
+          docker ps -a > jira-logs/containers.txt 2>&1 || true
+
+      - name: Upload Jira logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jira-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: jira-logs/
+          if-no-files-found: warn
+
+      # Testcontainers' resource reaper removes what it started, but a run cancelled at the wrong
+      # moment can leave containers and volumes behind. Scoped to the label Testcontainers stamps
+      # on its own resources: a hosted runner is discarded anyway, and on a self-hosted one an
+      # unscoped `docker rm -f` would take everything else running there with it.
+      - name: Tear down containers and volumes
+        if: always()
+        run: |
+          docker ps -aq --filter "label=org.testcontainers=true" | xargs -r docker rm -f
+          docker volume ls -q --filter "label=org.testcontainers=true" | xargs -r docker volume rm -f
+          docker network ls -q --filter "label=org.testcontainers=true" | xargs -r docker network rm

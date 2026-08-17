@@ -5,22 +5,57 @@ how it is configured over HTTP without a human touching a browser, and how a per
 token is minted so the suite authenticates exactly the way the product does.
 
 Everything below was executed, not designed. The scripts under `scripts/phase0/` are the spike
-that produced it — throwaway code, kept only because the durable harness in Phase 5 is built from
-what it proved. Where a claim here is unverified, it says so.
+that produced it — throwaway code, kept only because the durable harness is built from what it
+proved. Where a claim here is unverified, it says so.
 
 ## Running it
 
 ```
-./scripts/phase0/run-all.sh
+./scripts/jira-up.sh
 ```
 
-Takes an empty Docker host to an authenticated `200` from the current-user endpoint. It leaves
-the Jira up; tear it down with `docker compose -f scripts/phase0/docker-compose.yml down -v`.
-
-The `secret-tool` contract needs no Jira and runs separately:
+One command. It starts Jira 8.20.7 and Postgres from `tests/harness/docker-compose.yml`, then runs
+the integration suite against them — which is what drives first-run setup, applies the licence,
+seeds the fixtures and mints the personal access token. Tear it down, volumes included, with:
 
 ```
-./scripts/phase0/07-secret-tool.sh
+./scripts/jira-down.sh
+```
+
+**The licence expires three hours after it is applied.** Far longer than any run, and much shorter
+than a working day: an instance left up overnight will not still work in the morning.
+
+### The two provisioning paths
+
+Setup, seeding and token minting are written once, in
+`tests/JiraServerMcp.JiraIntegration.Tests/Harness/`, and only the way the containers start
+differs:
+
+| | Containers | Selected by |
+|---|---|---|
+| A developer | Compose, on a fixed port | `JIRA_HARNESS_BASE_URL` pointing at the running instance |
+| CI | Testcontainers, on a random port | the variable being unset |
+
+### What runs where
+
+The Jira-backed tests carry `[Trait("Category", "JiraIntegration")]` and the workflows select on
+it, not on the project:
+
+- `ci.yml` runs every test project with `--filter-not-trait Category=JiraIntegration`. The harness
+  project's own parser and readiness tests need no Docker and run there.
+- `jira-integration.yml` runs `--filter-trait Category=JiraIntegration`, nightly, on
+  `workflow_dispatch`, and on a pull request labelled `run-jira-tests`. Never on a push.
+
+The assembly fixture that owns the Jira provisions lazily, so a run that selects only the
+Docker-free tests starts no container.
+
+### The spike's own scripts
+
+Kept for reference; they are not the harness.
+
+```
+./scripts/phase0/run-all.sh          # empty Docker host to an authenticated 200
+./scripts/phase0/07-secret-tool.sh   # the secret-tool contract, needs no Jira
 ```
 
 ## The sequence that worked
