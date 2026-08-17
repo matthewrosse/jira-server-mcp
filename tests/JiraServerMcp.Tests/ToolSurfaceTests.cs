@@ -14,8 +14,8 @@ public sealed class ToolSurfaceTests
 {
     private static readonly string[] _readTools =
     [
-        "WhoamiTool", "SearchTool", "GetIssueTool", "ListProjectsTool", "GetProjectTool",
-        "GetCreateFieldsTool", "SearchUsersTool",
+        "WhoamiTool", "SearchTool", "MyOpenIssuesTool", "GetIssueTool", "ListProjectsTool",
+        "GetProjectTool", "GetCreateFieldsTool", "SearchUsersTool",
     ];
 
     private static readonly string[] _softwareTools =
