@@ -71,6 +71,12 @@ _Avoid_: scope, permission, role — all three already mean something inside Jir
 links, worklogs. Opt-in, because each one costs the agent context it may not need.
 _Avoid_: Jira's own "expand", which names a different and overlapping mechanism.
 
+**Bulk read** — one call resolving several issue keys at once. Each issue is rendered whole rather
+than abridged for company, and each key succeeds or fails alone: one key that names nothing costs
+the caller that key and no other. What distinguishes it from a search that happens to match those
+keys is the failure model, not the number of issues.
+_Avoid_: batch, multi-get, bulk operation — the last already names a write this project does not do.
+
 **Field projection** — the set of issue fields a response carries. Defaulted to a small
 whitelist, widened explicitly by the caller. The main lever against a raw Jira issue's
 hundred-kilobyte payload.
