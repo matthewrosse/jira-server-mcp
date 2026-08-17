@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
@@ -29,41 +27,27 @@ internal sealed class GetCreateFieldsTool(JiraClient jira, ServedProfile profile
         string issueType,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var fields = await jira.GetCreateFieldsAsync(projectKey, issueType, cancellationToken);
+        var read = await ToolCall.StepAsync(
+            profile,
+            Name,
+            whenUnreachable: string.Empty,
+            whenTimedOut:
+                ", and the request was given up. Create metadata for a project with many issue "
+                + "types is slow; asking again usually helps.",
+            () => jira.GetCreateFieldsAsync(projectKey, issueType, cancellationToken),
+            cancellationToken);
 
-            if (fields is null)
-            {
-                return Error(
-                    $"Jira has no create screen for issue type '{issueType}' in project "
-                    + $"'{projectKey}'. Either the project key or the type name is not one this "
-                    + "account can create with: list the projects with jira_list_projects, and "
-                    + "read the type names with jira_get_project.");
-            }
+        if (read.Failed)
+        {
+            return read.Error;
+        }
 
-            return Text(CreateFields.Render(fields));
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(JiraToolError.Describe(exception, profile.Name, Name));
-        }
-        catch (HttpRequestException exception)
-        {
-            return Error($"Could not reach Jira: {exception.Message}");
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time, and the request was "
-                + "given up. Create metadata for a project with many issue types is slow; asking "
-                + "again usually helps.");
-        }
+        return read.Value is null
+            ? ToolCall.Error(
+                $"Jira has no create screen for issue type '{issueType}' in project "
+                + $"'{projectKey}'. Either the project key or the type name is not one this "
+                + "account can create with: list the projects with jira_list_projects, and read "
+                + "the type names with jira_get_project.")
+            : ToolCall.Text(CreateFields.Render(read.Value));
     }
-
-    private static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
-
-    private static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
 }

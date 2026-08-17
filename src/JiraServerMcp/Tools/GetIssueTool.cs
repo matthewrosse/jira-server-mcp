@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
@@ -34,41 +32,28 @@ internal sealed class GetIssueTool(JiraClient jira, ServedProfile profile)
     {
         if (!Expansions.TryParse(include, out var expansions, out var unknown))
         {
-            return Error(
+            return ToolCall.Error(
                 $"'{unknown}' is not something {Name} can include. The expansions are: "
                 + $"{Expansions.Names}.");
         }
 
-        try
-        {
-            var issue = await jira.GetIssueAsync(
-                key,
-                Expansions.Fields(expansions, fields),
-                Expansions.Expand(expansions),
-                cancellationToken);
+        return await ToolCall.RunAsync(
+            profile,
+            Name,
+            whenUnreachable: string.Empty,
+            whenTimedOut:
+                ", and the request was given up. An issue with a long history is slow to expand; "
+                + "asking for fewer sections usually helps.",
+            async () =>
+            {
+                var issue = await jira.GetIssueAsync(
+                    key,
+                    Expansions.Fields(expansions, fields),
+                    Expansions.Expand(expansions),
+                    cancellationToken);
 
-            return Text(IssueDetail.Render(issue, expansions));
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(JiraToolError.Describe(exception, profile.Name, Name));
-        }
-        catch (HttpRequestException exception)
-        {
-            return Error($"Could not reach Jira: {exception.Message}");
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time, and the request was "
-                + "given up. An issue with a long history is slow to expand; asking for fewer "
-                + "sections usually helps.");
-        }
+                return IssueDetail.Render(issue, expansions);
+            },
+            cancellationToken);
     }
-
-    private static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
-
-    private static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
 }
