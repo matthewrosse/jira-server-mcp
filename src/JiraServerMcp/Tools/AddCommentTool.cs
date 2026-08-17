@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -31,39 +29,25 @@ internal sealed class AddCommentTool(JiraClient jira, ServedProfile profile)
     {
         if (string.IsNullOrWhiteSpace(body))
         {
-            return Error(
+            return ToolCall.Error(
                 $"An empty comment was not added to {key}. Jira refuses one, and there would be "
                 + "nothing in it for anyone reading the issue.");
         }
 
-        try
-        {
-            var added = await jira.AddCommentAsync(key, body, cancellationToken);
+        return await ToolCall.RunAsync(
+            profile,
+            $"commenting on {key}",
+            whenUnreachable: $", and {key} was not commented on",
+            whenTimedOut:
+                $". The comment was sent once and was not repeated, so read {key} with "
+                + "jira_get_issue and the comments expansion before sending it again.",
+            async () =>
+            {
+                var added = await jira.AddCommentAsync(key, body, cancellationToken);
 
-            // The caller wrote the body; handing it back would be context spent on nothing.
-            return Text($"Added comment {added.Id} to {key} at {added.Created}.");
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(JiraToolError.Describe(exception, profile.Name, $"commenting on {key}"));
-        }
-        catch (HttpRequestException exception)
-        {
-            return Error($"Could not reach Jira, and {key} was not commented on: "
-                         + exception.Message);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time. The comment was sent "
-                + $"once and was not repeated, so read {key} with jira_get_issue and the comments "
-                + "expansion before sending it again.");
-        }
+                // The caller wrote the body; handing it back would be context spent on nothing.
+                return $"Added comment {added.Id} to {key} at {added.Created}.";
+            },
+            cancellationToken);
     }
-
-    private static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
-
-    private static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
 }

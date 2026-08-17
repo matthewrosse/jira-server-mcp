@@ -39,35 +39,28 @@ internal sealed class CreateIssueTool(JiraClient jira, ServedProfile profile)
         IReadOnlyDictionary<string, JsonElement>? fields = null,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var created = await jira.CreateIssueAsync(
-                projectKey,
-                issueType,
-                summary,
-                fields ?? new Dictionary<string, JsonElement>(),
-                cancellationToken);
+        return await ToolCall.RunAsync(
+            profile,
+            "creating an issue",
+            whenUnreachable: ", and the issue was not created",
+            whenTimedOut:
+                // Whether Jira created it before the wait ran out is not knowable from here, and
+                // creating a second one to find out is the failure this server refuses to risk.
+                ". The create was sent once and was not repeated, so the issue may or may not "
+                + "exist: search for the summary with jira_search before sending it again.",
+            async () =>
+            {
+                var created = await jira.CreateIssueAsync(
+                    projectKey,
+                    issueType,
+                    summary,
+                    fields ?? new Dictionary<string, JsonElement>(),
+                    cancellationToken);
 
-            return Text($"Created {created.Key} (id {created.Id}) in {projectKey}.");
-        }
-        catch (JiraApiException exception)
-        {
-            return Error(Describe(exception, projectKey, issueType));
-        }
-        catch (HttpRequestException exception)
-        {
-            return Error(
-                $"Could not reach Jira, and the issue was not created: {exception.Message}");
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // Whether Jira created it before the wait ran out is not knowable from here, and
-            // creating a second one to find out is the failure this server refuses to risk.
-            return Error(
-                $"Jira did not answer for profile '{profile.Name}' in time. The create was sent "
-                + "once and was not repeated, so the issue may or may not exist: search for the "
-                + "summary with jira_search before sending it again.");
-        }
+                return $"Created {created.Key} (id {created.Id}) in {projectKey}.";
+            },
+            cancellationToken,
+            describeApiFailure: exception => Describe(exception, projectKey, issueType));
     }
 
     /// <summary>
@@ -84,10 +77,4 @@ internal sealed class CreateIssueTool(JiraClient jira, ServedProfile profile)
               + $"'{issueType}' for the fields this project requires and the values they accept."
             : described;
     }
-
-    private static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
-
-    private static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
 }
