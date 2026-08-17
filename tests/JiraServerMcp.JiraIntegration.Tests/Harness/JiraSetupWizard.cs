@@ -22,7 +22,7 @@ internal sealed class JiraSetupWizard(Uri baseUrl, JiraAdministrator administrat
     /// </summary>
     private const int MostSteps = 15;
 
-    public async Task<bool> RunAsync(CancellationToken cancellationToken)
+    public async Task RunAsync(CancellationToken cancellationToken)
     {
         var cookies = new CookieContainer();
 
@@ -46,7 +46,7 @@ internal sealed class JiraSetupWizard(Uri baseUrl, JiraAdministrator administrat
             {
                 // A re-run against an instance somebody already set up lands here on the first
                 // fetch, which is not a failure: the instance is simply already configured.
-                return step > 1;
+                return;
             }
 
             // A page that is not a wizard step means the wizard is behind us. Jira does not
@@ -55,7 +55,18 @@ internal sealed class JiraSetupWizard(Uri baseUrl, JiraAdministrator administrat
             // posts that to itself until it runs out of steps.
             if (!SetupWizardForm.TrySelectStep(page, out var form))
             {
-                return step > 1;
+                // Not on the first fetch, though: nothing has been configured yet, so a page that
+                // is neither a wizard step nor a terminal is Jira serving something else — an
+                // error page, or a wizard that changed shape. Reported here rather than left to
+                // surface as the platform API gate timing out fifteen minutes later.
+                if (step is 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Jira served neither a setup wizard step nor a configured instance at "
+                        + $"{landedOn}. See \"When the wizard changes shape\" in tests/README.md.");
+                }
+
+                return;
             }
 
             var target = new Uri(landedOn, form.Action);

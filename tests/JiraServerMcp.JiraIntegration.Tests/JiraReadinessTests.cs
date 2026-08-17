@@ -136,6 +136,33 @@ public class JiraReadinessTests
         thrown.Message.ShouldContain("503");
     }
 
+    /// <summary>
+    /// A booting Jira accepts the connection and then does not answer. Left to the HttpClient's own
+    /// timeout, one such request blocks the whole poll loop for minutes at a time and the budget is
+    /// spent on a handful of attempts — which is how a Jira that came up fine is reported as never
+    /// having come up. Each attempt gets its own short deadline instead.
+    /// </summary>
+    [Fact]
+    public async Task A_request_that_hangs_is_abandoned_and_retried_rather_than_blocking_the_budget()
+    {
+        var jira = new StubJira
+        {
+            Status = """{"state":"FIRST_RUN"}""",
+            RootStatusCodes = [HttpStatusCode.OK],
+            // Longer than the per-attempt deadline below, and longer than the whole budget.
+            HangFor = TimeSpan.FromSeconds(30),
+            HangingRequests = 2,
+        };
+
+        var readiness = new JiraReadiness(
+            jira.Client, _noWait, attemptTimeout: TimeSpan.FromMilliseconds(200));
+
+        await readiness.WaitForSetupWizardAsync(
+            TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+
+        jira.HungRequestsServed.ShouldBe(2);
+    }
+
     [Fact]
     public async Task Cancellation_stops_the_polling()
     {
@@ -171,6 +198,16 @@ public class JiraReadinessTests
 
         public int RefusalsBeforeAnswering { get; init; }
 
+        /// <summary>
+        /// How long the first <see cref="HangingRequests"/> requests take to answer — a booting
+        /// Jira accepting the connection and then going quiet.
+        /// </summary>
+        public TimeSpan HangFor { get; init; }
+
+        public int HangingRequests { get; init; }
+
+        public int HungRequestsServed { get; private set; }
+
         public int StatusRequests { get; private set; }
 
         public int RootRequests { get; private set; }
@@ -181,7 +218,7 @@ public class JiraReadinessTests
 
         public HttpClient Client => new(this) { BaseAddress = new Uri("http://jira.invalid") };
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -190,6 +227,15 @@ public class JiraReadinessTests
             {
                 RefusalsServed++;
                 throw new HttpRequestException("Connection refused");
+            }
+
+            if (HungRequestsServed < HangingRequests)
+            {
+                HungRequestsServed++;
+
+                // Connection accepted, no answer coming. The caller's per-attempt deadline is what
+                // has to end this.
+                await Task.Delay(HangFor, cancellationToken);
             }
 
             var path = request.RequestUri!.AbsolutePath;
@@ -203,10 +249,10 @@ public class JiraReadinessTests
                 var code = At(StatusStatusCodes, StatusRequests);
                 StatusRequests++;
 
-                return Task.FromResult(new HttpResponseMessage(code)
+                return new HttpResponseMessage(code)
                 {
                     Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
-                });
+                };
             }
 
             if (path.StartsWith("/rest/api/2/serverInfo", StringComparison.Ordinal))
@@ -214,13 +260,13 @@ public class JiraReadinessTests
                 var code = At(ServerInfoStatusCodes, ServerInfoRequests);
                 ServerInfoRequests++;
 
-                return Task.FromResult(new HttpResponseMessage(code));
+                return new HttpResponseMessage(code);
             }
 
             var rootCode = At(RootStatusCodes, RootRequests);
             RootRequests++;
 
-            return Task.FromResult(new HttpResponseMessage(rootCode));
+            return new HttpResponseMessage(rootCode);
         }
 
         private static HttpStatusCode At(IReadOnlyList<HttpStatusCode> codes, int index) =>

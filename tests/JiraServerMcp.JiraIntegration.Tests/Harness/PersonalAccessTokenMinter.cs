@@ -17,10 +17,14 @@ internal static class PersonalAccessTokenMinter
     public static async Task<string> MintAsync(
         HttpClient client, JiraAdministrator administrator, CancellationToken cancellationToken)
     {
+        // Jira rejects a second token with a name the user already has, so the name carries a
+        // suffix: provisioning against an instance that is already up is otherwise a 400.
+        var name = "jira-server-mcp-harness-" + Guid.NewGuid().ToString("n")[..8];
+
         using var request = new HttpRequestMessage(HttpMethod.Post, "/rest/pat/latest/tokens")
         {
             // expirationDuration is in days, and one is far longer than the licence lives.
-            Content = JsonContent.Create(new { name = "jira-server-mcp-harness", expirationDuration = 1 }),
+            Content = JsonContent.Create(new { name, expirationDuration = 1 }),
         };
 
         request.Headers.Authorization = administrator.AuthenticationHeader;

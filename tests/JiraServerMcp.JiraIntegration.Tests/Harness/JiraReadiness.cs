@@ -13,8 +13,17 @@ namespace JiraServerMcp.JiraIntegration.Tests.Harness;
 /// answering a redirect to a 503 page in between. Both gates poll <c>/status</c> first and then
 /// the thing that is actually about to be used.
 /// </remarks>
-internal sealed class JiraReadiness(HttpClient client, TimeSpan pollInterval)
+internal sealed class JiraReadiness(
+    HttpClient client, TimeSpan pollInterval, TimeSpan? attemptTimeout = null)
 {
+    /// <summary>
+    /// A booting Jira accepts the connection and then does not answer, so every probe needs its
+    /// own deadline. Without one the HttpClient's timeout governs, a single hung request eats
+    /// minutes of the budget, and a Jira that came up perfectly well is reported as never having
+    /// come up.
+    /// </summary>
+    private readonly TimeSpan _attemptTimeout = attemptTimeout ?? TimeSpan.FromSeconds(15);
+
     public Task WaitForSetupWizardAsync(TimeSpan budget, CancellationToken cancellationToken) =>
         WaitAsync(
             "setup wizard",
@@ -76,9 +85,11 @@ internal sealed class JiraReadiness(HttpClient client, TimeSpan pollInterval)
 
     private async Task<string?> StateAsync(CancellationToken cancellationToken)
     {
+        using var attempt = Attempt(cancellationToken);
+
         try
         {
-            using var response = await client.GetAsync("/status", cancellationToken);
+            using var response = await client.GetAsync("/status", attempt.Token);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -86,26 +97,42 @@ internal sealed class JiraReadiness(HttpClient client, TimeSpan pollInterval)
             }
 
             using var body = JsonDocument.Parse(
-                await response.Content.ReadAsStringAsync(cancellationToken));
+                await response.Content.ReadAsStringAsync(attempt.Token));
 
             return body.RootElement.TryGetProperty("state", out var state)
                 ? state.GetString()
                 : null;
         }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException)
+        catch (Exception exception) when (
+            exception is HttpRequestException or JsonException
+            || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            // The port not listening, or an HTML error page where JSON was expected. Both mean
-            // the instance is still starting.
+            // The port not listening, an HTML error page where JSON was expected, or a request
+            // that never came back. All three mean the instance is still starting.
             return null;
         }
+    }
+
+    /// <summary>
+    /// One probe's deadline, linked to the caller's token so a real cancellation still propagates.
+    /// </summary>
+    private CancellationTokenSource Attempt(CancellationToken cancellationToken)
+    {
+        var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        attempt.CancelAfter(_attemptTimeout);
+
+        return attempt;
     }
 
     private async Task<(bool Reached, string Description)> ProbeAsync(
         string path, CancellationToken cancellationToken)
     {
+        using var attempt = Attempt(cancellationToken);
+
         try
         {
-            using var response = await client.GetAsync(path, cancellationToken);
+            using var response = await client.GetAsync(path, attempt.Token);
 
             return ((int)response.StatusCode is 200,
                 $"{path} answered {(int)response.StatusCode}");
@@ -113,6 +140,10 @@ internal sealed class JiraReadiness(HttpClient client, TimeSpan pollInterval)
         catch (HttpRequestException exception)
         {
             return (false, $"{path} could not be reached: {exception.Message}");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return (false, $"{path} did not answer within {_attemptTimeout.TotalSeconds:F0}s");
         }
     }
 }

@@ -73,10 +73,12 @@ jobs:
           if-no-files-found: warn
 
       # Testcontainers' resource reaper removes what it started, but a run cancelled at the wrong
-      # moment can leave containers and volumes behind, and a hosted runner is discarded anyway —
-      # this is what makes the same guarantee true for a self-hosted one.
+      # moment can leave containers and volumes behind. Scoped to the label Testcontainers stamps
+      # on its own resources: a hosted runner is discarded anyway, and on a self-hosted one an
+      # unscoped `docker rm -f` would take everything else running there with it.
       - name: Tear down containers and volumes
         if: always()
         run: |
-          docker ps -aq | xargs -r docker rm -f
-          docker volume ls -q | xargs -r docker volume rm -f
+          docker ps -aq --filter "label=org.testcontainers=true" | xargs -r docker rm -f
+          docker volume ls -q --filter "label=org.testcontainers=true" | xargs -r docker volume rm -f
+          docker network ls -q --filter "label=org.testcontainers=true" | xargs -r docker network rm
