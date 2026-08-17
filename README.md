@@ -26,7 +26,8 @@ version, an issue saying what worked and what did not is welcome.
 
 ## Requirements
 
-- A Jira Server 8.14+ reachable over HTTPS. Plain `http://` is accepted only for `localhost`.
+- A Jira Server 8.14+ reachable over HTTPS. Plain `http://` is accepted only for a loopback
+  address — `http://localhost`, `http://127.0.0.1`.
 - A Jira account that can create a personal access token, and the Jira permissions you want the
   agent to have — this server has exactly the permissions of the token's user and no more.
 - **For the .NET tool:** the .NET 10 SDK, which is what provides `dotnet tool`.
@@ -83,8 +84,9 @@ credential store, and the credential store is the whole point.
 
 Three commands and a configuration snippet. No Jira administrator is involved at any point.
 
-**1. Register the Jira Server as a profile.** The URL is checked, and it includes any context path
-your instance is served under:
+**1. Register the Jira Server as a profile.** The URL is validated here — HTTPS, or a loopback
+address — and it includes any context path your instance is served under. Nothing is called over
+the network until you authenticate:
 
 ```
 jira-server-mcp profile add work --url https://jira.example.com
@@ -312,7 +314,7 @@ granted at launch.
   casual read and a backup from containing a plaintext token. It does not stop anything running as
   you. Nothing local can — but the OS store's protection is stronger, so the file store is opt-in
   (`--credential-store file`) or automatic only where no OS store answers.
-- **Transport.** HTTPS is required; only an explicit `http://localhost` is exempt. There is no
+- **Transport.** HTTPS is required; only an explicit loopback address is exempt. There is no
   `--insecure` switch, because it would be pasted into every teammate's configuration within a
   week. A private certificate authority is trusted explicitly, per profile, with
   `--ca-bundle <path>`. Redirects are disabled: a redirect is an error, not a hop to another host.

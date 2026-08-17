@@ -168,7 +168,7 @@ not the transport.
 
 ```
 jira-server-mcp profile add work --url https://jira.example.com
-        │   URL validated: https (or explicit http://localhost), reachable, /rest/api/2/serverInfo answers
+        │   URL validated: https, or a loopback address. No network call — see the correction below
         ▼
 jira-server-mcp auth login work
         │   user creates a PAT in Jira: Profile → Personal Access Tokens → Create token
@@ -243,7 +243,10 @@ Corrected against the implementation: `serve` takes no `--log-level` — logging
 through the host's own environment, and one more option earned nothing — and every verb that
 touches a credential takes `--credential-store auto|native|file`. `profile list` prints names and
 URLs; the version it would print lives on the capability probe, which `auth status` reports and
-which a list of every profile would have to read for each one.
+which a list of every profile would have to read for each one. And `profile add` validates the URL
+without calling Jira: reachability is a different question from correctness, a laptop off the VPN
+would fail to register a perfectly good instance, and `auth login` calls
+`/rest/api/2/serverInfo` a moment later anyway.
 
 `--token` as an argument does not exist, and passing it is an error rather than a warning:
 arguments are visible to every process on the machine and land in shell history. The escape hatch
