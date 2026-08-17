@@ -47,6 +47,11 @@ _Avoid_: Agile API when precision matters — the term names a licence, not a me
 pays context for. Not a REST endpoint: a tool may combine several, and a REST endpoint may
 surface as no tool at all.
 
+**Tool call** — one invocation of a tool, and the module that owns what an agent sees when it
+fails: a Jira that refused, a Jira that could not be reached, and a Jira that did not answer in
+time. The per-tool advice is data handed to it; the sentences around that advice are not.
+_Avoid_: handler, invocation, request.
+
 **Grant** — a named category of write permission (`issues:write`, `comments:write`,
 `worklogs:write`) that the operator hands to one MCP client. Without a grant, the corresponding
 tools are not registered, so an agent cannot attempt them.
