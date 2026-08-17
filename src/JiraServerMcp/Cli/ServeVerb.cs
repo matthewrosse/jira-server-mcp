@@ -73,84 +73,26 @@ internal static class ServeVerb
         builder.Services.AddSingleton(new ServedProfile(profileName));
         builder.Services.AddJiraClient();
 
+        // ADR-0005: grants come only from launch arguments. The capability probe is read from the
+        // profile: startup does no network input or output, so a client that times out a slow
+        // start does not drop the server, and a laptop off the VPN fails one call rather than
+        // failing to start.
         var server = builder.Services
             .AddMcpServer(options => options.ServerInfo = ServerInfo())
-            .WithStdioServerTransport()
-            .WithTools<WhoamiTool>()
-            .WithTools<SearchTool>()
-            .WithTools<GetIssueTool>()
-            .WithTools<ListProjectsTool>()
-            .WithTools<GetProjectTool>()
-            .WithTools<GetCreateFieldsTool>()
-            .WithTools<SearchUsersTool>();
+            .WithStdioServerTransport();
 
-        // The capability probe decides this, and it is read from the profile: startup does no
-        // network input or output, so a client that times out a slow start does not drop the
-        // server, and a laptop off the VPN fails one call rather than failing to start.
-        if (profile.Capabilities is { SoftwareLicensed: true })
+        // One call per type: the MCP SDK's WithTools(IEnumerable<Type>) mis-registers the tool
+        // list when handed more than one type in a single call.
+        foreach (var toolType in ToolSurface.ToolsToRegister(grants, profile.Capabilities))
         {
-            server
-                .WithTools<ListBoardsTool>()
-                .WithTools<ListSprintsTool>()
-                .WithTools<GetSprintIssuesTool>()
-                .WithTools<GetBacklogTool>();
+            server.WithTools([toolType]);
         }
 
-        await SayWhatTheProbeLeavesUnansweredAsync(profileName, profile);
-
-        // Without its grant a write tool is not registered, so the model never discovers it,
-        // attempts it, and burns context learning that it is forbidden.
-        if (grants.Allows(Grant.IssuesWrite))
-        {
-            server
-                .WithTools<CreateIssueTool>()
-                .WithTools<UpdateIssueTool>()
-                .WithTools<TransitionIssueTool>();
-        }
-
-        // Each grant stands on its own: an agent allowed to comment gets neither of the others.
-        if (grants.Allows(Grant.CommentsWrite))
-        {
-            server.WithTools<AddCommentTool>();
-        }
-
-        if (grants.Allows(Grant.WorklogsWrite))
-        {
-            server.WithTools<AddWorklogTool>();
-        }
+        await ToolSurface.WarnAboutTheProbeAsync(profileName, profile);
 
         await builder.Build().RunAsync(cancellationToken);
 
         return 0;
-    }
-
-    /// <summary>
-    /// A missing or stale capability probe is not an error — the tools registered are the ones the
-    /// profile knows about — but the operator is told, because a Jira that has since been licensed
-    /// for Jira Software will otherwise look as though this server cannot see its boards.
-    /// </summary>
-    private static async Task SayWhatTheProbeLeavesUnansweredAsync(
-        string profileName,
-        Profile profile)
-    {
-        var refresh = $"Run 'jira-server-mcp profile refresh {profileName}'.";
-
-        if (profile.Capabilities is not { } capabilities)
-        {
-            await Console.Error.WriteLineAsync(
-                $"Profile '{profileName}' has no capability probe, so the Jira Software tools are "
-                + $"not registered. {refresh}");
-
-            return;
-        }
-
-        if (capabilities.IsStale(DateTimeOffset.UtcNow))
-        {
-            await Console.Error.WriteLineAsync(
-                $"The capability probe for profile '{profileName}' was taken on "
-                + $"{capabilities.ProbedAt:yyyy-MM-dd} and has expired. The tools registered are "
-                + $"the ones it recorded. {refresh}");
-        }
     }
 
     private static Implementation ServerInfo()
