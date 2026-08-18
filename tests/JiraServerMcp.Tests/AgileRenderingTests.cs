@@ -13,7 +13,7 @@ public class AgileRenderingTests
     [Fact]
     public void A_page_that_is_not_the_last_says_where_to_resume()
     {
-        var text = BoardList.Render(Page(isLast: false, Board(1, "Platform"), Board(2, "Ops")));
+        var text = Boards(Page(isLast: false, Board(1, "Platform"), Board(2, "Ops")));
 
         text.ShouldContain("startAt: 2");
     }
@@ -21,7 +21,7 @@ public class AgileRenderingTests
     [Fact]
     public void The_last_page_says_there_is_no_more()
     {
-        var text = BoardList.Render(Page(isLast: true, Board(1, "Platform")));
+        var text = Boards(Page(isLast: true, Board(1, "Platform")));
 
         text.ShouldContain("no more pages");
     }
@@ -31,7 +31,7 @@ public class AgileRenderingTests
     {
         // Jira filters a page by permission after it has paged, so an empty page in the middle of
         // a listing is ordinary. Stopping there would hide every board after it.
-        var text = BoardList.Render(new JiraAgilePage<JiraBoard>(20, 10, IsLast: false, []));
+        var text = Boards(new JiraAgilePage<JiraBoard>(20, 10, IsLast: false, []));
 
         // Past this page, not at it: asking for startAt 20 again would return the same nothing.
         text.ShouldContain("startAt: 30");
@@ -40,7 +40,7 @@ public class AgileRenderingTests
     [Fact]
     public void An_empty_last_page_offers_nothing_to_resume_from()
     {
-        var text = BoardList.Render(new JiraAgilePage<JiraBoard>(0, 50, IsLast: true, []));
+        var text = Boards(new JiraAgilePage<JiraBoard>(0, 50, IsLast: true, []));
 
         text.ShouldContain("nothing");
         text.ShouldNotContain("startAt:");
@@ -53,7 +53,7 @@ public class AgileRenderingTests
             .Select(number => Board(number, new string('n', Truncation.BodyBudget)))
             .ToArray();
 
-        var text = BoardList.Render(Page(isLast: true, boards));
+        var text = Boards(Page(isLast: true, boards));
 
         text.Length.ShouldBeLessThanOrEqualTo(ResponseBudget.SearchTextBudget);
         text.ShouldContain("did not fit the response budget");
@@ -63,7 +63,7 @@ public class AgileRenderingTests
     [Fact]
     public void A_sprint_carries_its_state_and_only_the_dates_it_has()
     {
-        var text = SprintList.Render(new JiraAgilePage<JiraSprint>(0, 50, IsLast: true, [
+        var text = Sprints(new JiraAgilePage<JiraSprint>(0, 50, IsLast: true, [
             new JiraSprint(12, "Sprint 4", "active", "2026-08-03T09:00:00.000+02:00", "2026-08-17T09:00:00.000+02:00"),
             new JiraSprint(13, "Sprint 5", "future", null, null),
         ]));
@@ -74,6 +74,11 @@ public class AgileRenderingTests
     }
 
     private static JiraBoard Board(int id, string name) => new(id, name, "scrum");
+
+    /// <summary>The prose half, which is what these tests are about.</summary>
+    private static string Boards(JiraAgilePage<JiraBoard> page) => BoardList.Render(page).Text;
+
+    private static string Sprints(JiraAgilePage<JiraSprint> page) => SprintList.Render(page).Text;
 
     private static JiraAgilePage<JiraBoard> Page(bool isLast, params JiraBoard[] boards) =>
         new(0, boards.Length, isLast, boards);

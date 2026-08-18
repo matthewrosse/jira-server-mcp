@@ -470,6 +470,64 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
         project.TryGetProperty("lead", out _).ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task A_board_listing_and_a_sprint_listing_carry_their_rows_and_no_total()
+    {
+        _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+                    {
+                      "startAt": 0,
+                      "maxResults": 25,
+                      "isLast": true,
+                      "values": [{ "id": 42, "name": "PROJ board", "type": "scrum" }]
+                    }
+                    """));
+
+        var boards = await CallAsync("jira_list_boards");
+
+        boards.GetProperty("outcome").GetString().ShouldBe("ok");
+
+        var board = boards.GetProperty("boards").EnumerateArray().ShouldHaveSingleItem();
+
+        board.GetProperty("id").GetInt32().ShouldBe(42);
+        board.GetProperty("name").GetString().ShouldBe("PROJ board");
+
+        // The software API never says how many rows exist, so no field claims to.
+        boards.TryGetProperty("total", out _).ShouldBeFalse();
+        boards.TryGetProperty("nextStartAt", out _).ShouldBeFalse();
+
+        _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board/1/sprint").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+                    {
+                      "startAt": 0,
+                      "maxResults": 25,
+                      "isLast": false,
+                      "values": [
+                        {
+                          "id": 118,
+                          "name": "Sprint 14",
+                          "state": "active",
+                          "startDate": "2026-08-01T09:00:00.000+02:00"
+                        }
+                      ]
+                    }
+                    """));
+
+        var sprints = await CallAsync("jira_list_sprints");
+
+        var sprint = sprints.GetProperty("sprints").EnumerateArray().ShouldHaveSingleItem();
+
+        sprint.GetProperty("state").GetString().ShouldBe("active");
+        sprint.TryGetProperty("startDate", out _).ShouldBeFalse();
+
+        // Not the last page, so there is somewhere to resume — past the page, not at its rows.
+        sprints.GetProperty("nextStartAt").GetInt32().ShouldBe(25);
+    }
+
     /// <summary>
     /// The structured half of a call, whether or not the call reported an error. Its presence is
     /// the promise; a result carrying only prose fails here.

@@ -394,6 +394,115 @@ public class StructuredContentTests
             + "that a description or another piece of prose has not been added.");
     }
 
+    [Fact]
+    public void A_page_of_boards_carries_its_rows_and_where_to_resume_but_no_total()
+    {
+        var structure = Structure(BoardList.Render(new JiraAgilePage<JiraBoard>(
+            0,
+            2,
+            IsLast: false,
+            [new JiraBoard(42, "PROJ board", "scrum"), new JiraBoard(43, "Ops board", null)])));
+
+        // The software API does not report how many boards exist, so no total is carried — not a
+        // null one either. Absence means unknown; zero would mean none.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","startAt":0,"count":2,"nextStartAt":2,"boards":[{"id":42,"name":"PROJ board","type":"scrum"},{"id":43,"name":"Ops board"}]}
+            """);
+
+        structure.ShouldNotContain("total");
+    }
+
+    [Fact]
+    public void A_last_page_of_boards_offers_nowhere_to_resume()
+    {
+        var structure = Structure(BoardList.Render(new JiraAgilePage<JiraBoard>(
+            10,
+            50,
+            IsLast: true,
+            [new JiraBoard(42, "PROJ board", "scrum")])));
+
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","startAt":10,"count":1,"boards":[{"id":42,"name":"PROJ board","type":"scrum"}]}
+            """);
+    }
+
+    [Fact]
+    public void A_page_of_sprints_carries_the_state_and_not_the_dates()
+    {
+        var structure = Structure(SprintList.Render(new JiraAgilePage<JiraSprint>(
+            0,
+            50,
+            IsLast: true,
+            [new JiraSprint(118, "Sprint 14", "active", "2026-08-01", "2026-08-15")])));
+
+        // state answers "which sprint is current", which is the known use. The dates would make a
+        // format this server neither controls nor normalises into a permanent contract.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","startAt":0,"count":1,"sprints":[{"id":118,"name":"Sprint 14","state":"active"}]}
+            """);
+    }
+
+    [Fact]
+    public void An_empty_agile_page_that_is_not_the_last_resumes_past_it_not_at_it()
+    {
+        var structure = Deserialize<BoardListOutput>(BoardList.Render(
+            new JiraAgilePage<JiraBoard>(20, 10, IsLast: false, [])));
+
+        // Jira filters a page by permission after paging it, so an empty page mid-listing is
+        // ordinary — and resuming at 20 would ask for the same nothing for ever.
+        structure.Count.ShouldBe(0);
+        structure.NextStartAt.ShouldBe(30);
+    }
+
+    [Fact]
+    public void An_agile_page_cut_by_the_budget_agrees_with_its_prose_on_the_row_count()
+    {
+        var name = new string('x', ResponseBudget.LineText);
+
+        var boards = Enumerable.Range(1, 400)
+            .Select(number => new JiraBoard(number, $"{name} {number}", "scrum"))
+            .ToArray();
+
+        var rendered = BoardList.Render(new JiraAgilePage<JiraBoard>(0, 400, IsLast: true, boards));
+        var page = Deserialize<BoardListOutput>(rendered);
+
+        var count = page.Count.ShouldNotBeNull();
+
+        page.Boards.ShouldNotBeNull().Count.ShouldBe(count);
+        count.ShouldBeLessThan(boards.Length);
+
+        // A budget cut resumes at the row it stopped on, and the prose says the same number.
+        page.NextStartAt.ShouldBe(count);
+        rendered.Text.ShouldContain($"startAt: {count}");
+    }
+
+    /// <summary>
+    /// A full page of boards with long administrative names, which is the largest a software-API
+    /// listing's structured half can be.
+    /// </summary>
+    [Fact]
+    public void The_worst_case_structured_half_of_an_agile_page_stays_small()
+    {
+        var boards = Enumerable.Range(1, ResponseBudget.LargestPageSize)
+            .Select(number => new JiraBoard(
+                100_000 + number,
+                $"A board named for the team and the programme it belongs to {number}",
+                "scrum"))
+            .ToArray();
+
+        var structure = Structure(BoardList.Render(
+            new JiraAgilePage<JiraBoard>(0, boards.Length, IsLast: false, boards)));
+
+        structure.Length.ShouldBeLessThan(
+            16_000,
+            "A software-API page's structured half has grown past what a page of rows should "
+            + "cost. Rule 2 admits identifiers and selection labels — check that nothing longer "
+            + "has been added.");
+    }
+
     /// <summary>
     /// Rule 2 admits only short values, and rule 4 makes the structured half inherit the prose's
     /// budget cut, so the structure is bounded by construction. Rule 1 guarantees fields will be

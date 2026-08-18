@@ -14,7 +14,7 @@ internal sealed class ListBoardsTool(JiraClient jira, ServedProfile profile)
 
     [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
         UseStructuredContent = true,
-        OutputSchemaType = typeof(OutcomeOutput))]
+        OutputSchemaType = typeof(BoardListOutput))]
     [Description(
         "List the Jira Software boards this account can see: identifier, name, and type, one line "
         + "each. The identifier is what jira_list_sprints and jira_get_backlog take. Jira reports "

@@ -10,7 +10,23 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class SprintList
 {
-    public static string Render(JiraAgilePage<JiraSprint> page) => AgilePage.Render(page, Line);
+    public static Rendered Render(JiraAgilePage<JiraSprint> page) =>
+        AgilePage.Render(page, Line, (sprints, position) => new SprintListOutput
+        {
+            Outcome = Outcomes.Ok,
+            StartAt = position.StartAt,
+            Count = position.Count,
+            NextStartAt = position.NextStartAt,
+            Sprints =
+            [
+                .. sprints.Select(sprint => new SprintRowOutput
+                {
+                    Id = sprint.Id,
+                    Name = sprint.Name,
+                    State = sprint.State,
+                }),
+            ],
+        });
 
     private static string Line(JiraSprint sprint)
     {
