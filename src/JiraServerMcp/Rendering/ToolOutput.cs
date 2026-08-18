@@ -57,6 +57,15 @@ internal static class Outcomes
     /// </summary>
     public const string Refused = "refused";
 
+    /// <summary>
+    /// A fault in this server rather than in Jira or the network: something threw that none of the
+    /// arms above expected. It is named rather than left to the protocol's own "an error occurred"
+    /// because that sentence tells an agent nothing — not whether to retry, not whether anything
+    /// was written — and rule 3 promises an outcome on every result, including the results nobody
+    /// designed.
+    /// </summary>
+    public const string Fault = "fault";
+
     /// <summary>One key of a bulk read that Jira has nothing visible at.</summary>
     public const string NotFound = "not_found";
 
