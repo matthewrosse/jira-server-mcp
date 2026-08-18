@@ -106,7 +106,8 @@ internal sealed class ChangedSinceTool(
 
                 var rendered = SearchResults.Render(
                     page,
-                    kept => nextSince = ChangeFeed.NextSince(kept, window, zoneOffset));
+                    kept => nextSince = ChangeFeed.NextSince(kept, window, zoneOffset),
+                    aliases);
 
                 return new Rendered(
                     $"jql: {jql}\nnextSince: {nextSince}\n{rendered.Text}",

@@ -52,6 +52,13 @@ internal sealed class UpdateIssueTool(
                 + "least one field, or an assignee.");
         }
 
+        if (!aliases.TryResolve(fields, out var resolved, out var collided))
+        {
+            return ToolCall.Error(
+                $"{collided} name the same field on {key}, and they were given different values, "
+                + "so nothing was sent. Name it once — either by its alias or by its identifier.");
+        }
+
         return await ToolCall.RunAsync(
             profile,
             $"updating {key}",
@@ -63,13 +70,13 @@ internal sealed class UpdateIssueTool(
             {
                 await jira.UpdateIssueAsync(
                     key,
-                    Resolved(fields),
+                    resolved,
                     assignee is null
                         ? null
                         : new JiraAssignee(assignee.Length is 0 ? null : assignee),
                     cancellationToken);
 
-                return Confirm(key, Resolved(fields), assignee);
+                return Confirm(key, resolved, assignee);
             },
             cancellationToken,
             describeApiFailure: exception => JiraToolError.Describe(
@@ -87,20 +94,30 @@ internal sealed class UpdateIssueTool(
     /// the same traversal: it is the field ids the caller asked for, which is what a workflow
     /// checking its own write needs.
     /// </summary>
-    private static Rendered Confirm(
+    /// <summary>
+    /// What was changed, named as the caller would recognise it. The prose labels an aliased field
+    /// with both names, so an agent that wrote "story_points" can match the answer to its own
+    /// request; the structured half carries the identifiers alone, which is what rule 2 of
+    /// ADR-0009 admits and what a follow-up call must send.
+    /// </summary>
+    private Rendered Confirm(
         string key,
         IReadOnlyDictionary<string, JsonElement>? fields,
         string? assignee)
     {
         var changed = new List<string>(fields?.Keys ?? []);
+        var named = changed.Select(aliases.Label).ToList();
 
         if (assignee is not null)
         {
-            changed.Add(assignee.Length is 0 ? "assignee (cleared)" : "assignee");
+            var how = assignee.Length is 0 ? "assignee (cleared)" : "assignee";
+
+            changed.Add(how);
+            named.Add(how);
         }
 
         return new Rendered(
-            $"Updated {key}: {string.Join(", ", changed)}.",
+            $"Updated {key}: {string.Join(", ", named)}.",
             ToolOutputs.Node(new UpdatedIssueOutput
             {
                 Outcome = Outcomes.Ok,
@@ -109,26 +126,4 @@ internal sealed class UpdateIssueTool(
             }));
     }
 
-    /// <summary>
-    /// The field map with this profile's aliases resolved to the identifiers Jira knows. A key
-    /// that is not an alias is passed through: the field catalogue lives in Jira, not here, and a
-    /// name this server does not recognise is far more likely to be a real identifier.
-    /// </summary>
-    private IReadOnlyDictionary<string, JsonElement> Resolved(
-        IReadOnlyDictionary<string, JsonElement>? fields)
-    {
-        if (fields is not { Count: > 0 })
-        {
-            return new Dictionary<string, JsonElement>();
-        }
-
-        var resolved = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-
-        foreach (var field in fields)
-        {
-            resolved[aliases.Resolve(field.Key)] = field.Value;
-        }
-
-        return resolved;
-    }
 }

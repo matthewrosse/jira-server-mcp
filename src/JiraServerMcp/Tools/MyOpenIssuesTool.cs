@@ -58,7 +58,7 @@ internal sealed class MyOpenIssuesTool(
                     FieldProjection.Widen(fields, aliases),
                     cancellationToken);
 
-                var rendered = SearchResults.Render(page);
+                var rendered = SearchResults.Render(page, aliases: aliases);
 
                 return new Rendered($"jql: {jql}\n{rendered.Text}", rendered.Structure);
             },

@@ -27,19 +27,43 @@ internal sealed partial class FieldAliases
         _byAlias = byAlias;
 
         // Two aliases for one field is allowed and harmless; a read shows whichever came first,
-        // and both resolve on the way in.
+        // and both resolve on the way in. Matched without regard to case in both directions: an
+        // operator who declared CustomField_10010 must still see the label when Jira answers with
+        // customfield_10010.
         _byField = byAlias
-            .GroupBy(entry => entry.Value, StringComparer.Ordinal)
-            .ToDictionary(field => field.Key, field => field.First().Key, StringComparer.Ordinal);
+            .GroupBy(entry => entry.Value, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                field => field.Key,
+                field => field.First().Key,
+                StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>A profile that declares none, which is every profile until an operator says otherwise.</summary>
     public static FieldAliases None { get; } = new(new Dictionary<string, string>(StringComparer.Ordinal));
 
+    /// <summary>
+    /// The aliases a profile declares. Two spellings of one alias are collapsed rather than
+    /// refused: the profile file is editable by hand, and a file someone edited must not turn
+    /// every verb into a stack trace — including the verbs that would repair it.
+    /// </summary>
     public static FieldAliases For(IReadOnlyDictionary<string, string>? declared) =>
-        declared is { Count: > 0 }
-            ? new FieldAliases(new Dictionary<string, string>(declared, StringComparer.OrdinalIgnoreCase))
-            : None;
+        declared is { Count: > 0 } ? new FieldAliases(Collapsed(declared)) : None;
+
+    /// <summary>
+    /// Declared aliases as a case-insensitive table. Where a hand-edited file spells one alias two
+    /// ways, the last wins — the same rule a second `profile alias set` follows.
+    /// </summary>
+    public static Dictionary<string, string> Collapsed(IReadOnlyDictionary<string, string> declared)
+    {
+        var collapsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in declared)
+        {
+            collapsed[entry.Key] = entry.Value;
+        }
+
+        return collapsed;
+    }
 
     /// <summary>The aliases this profile declares, in the order an operator would read them.</summary>
     public IReadOnlyList<string> Known =>
@@ -62,6 +86,40 @@ internal sealed partial class FieldAliases
     /// </summary>
     public string Label(string field) =>
         _byField.TryGetValue(field, out var alias) ? $"{alias} ({field})" : field;
+
+    /// <summary>
+    /// A field map with every alias resolved to the identifier Jira knows. False where the caller
+    /// named one field twice — once by alias and once by identifier — because the two values are
+    /// usually different on purpose and silently keeping whichever enumerated last would write the
+    /// wrong one with nothing to show for it.
+    /// </summary>
+    public bool TryResolve<T>(
+        IReadOnlyDictionary<string, T>? fields,
+        out IReadOnlyDictionary<string, T> resolved,
+        out string? collided)
+    {
+        var byField = new Dictionary<string, T>(StringComparer.Ordinal);
+        var byCaller = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var field in fields ?? new Dictionary<string, T>())
+        {
+            var identifier = Resolve(field.Key);
+
+            if (byCaller.TryGetValue(identifier, out var already))
+            {
+                (resolved, collided) = (byField, $"{already} and {field.Key}");
+
+                return false;
+            }
+
+            byCaller[identifier] = field.Key;
+            byField[identifier] = field.Value;
+        }
+
+        (resolved, collided) = (byField, null);
+
+        return true;
+    }
 
     /// <summary>
     /// Whether a name may be declared as an alias. A name spelled like a Jira custom field

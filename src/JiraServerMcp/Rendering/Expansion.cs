@@ -70,13 +70,20 @@ internal static class Expansions
     /// The field projection this read needs: the default one, whatever the caller widened it with,
     /// and the collection fields that carry three of the sections.
     /// </summary>
+    /// <remarks>
+    /// Only the caller's own names go through the alias table. The fields an expansion needs are
+    /// this server's, not the caller's, and an operator who happened to alias the name "comment"
+    /// would otherwise turn a request for comments into a request for a custom field — which comes
+    /// back as an issue with no comments on it, the wrong answer this module exists to prevent.
+    /// </remarks>
     public static IReadOnlyList<string> Fields(
         IReadOnlyList<Expansion> expansions,
         IReadOnlyList<string>? widen,
         FieldAliases? aliases = null) =>
-        FieldProjection.Widen(
-            [.. widen ?? [], .. expansions.Select(AsField).OfType<string>()],
-            aliases);
+        [
+            .. FieldProjection.Widen(widen, aliases),
+            .. expansions.Select(AsField).OfType<string>(),
+        ];
 
     /// <summary>The sections Jira reaches through its own expand parameter.</summary>
     public static IReadOnlyList<string> Expand(IReadOnlyList<Expansion> expansions) =>

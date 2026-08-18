@@ -49,7 +49,7 @@ internal sealed class GetSprintIssuesTool(
                     FieldProjection.Widen(fields, aliases),
                     cancellationToken);
 
-                return SearchResults.Render(page);
+                return SearchResults.Render(page, aliases: aliases);
             },
             cancellationToken);
     }

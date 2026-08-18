@@ -53,6 +53,11 @@ internal sealed class CreateIssueTool(
         string? idempotencyKey = null,
         CancellationToken cancellationToken = default)
     {
+        if (!aliases.TryResolve(fields, out var resolved, out var collided))
+        {
+            return ToolCall.Error(Collided(collided!));
+        }
+
         // Claimed before anything is sent: a key that arrives twice must find the first attempt
         // recorded even when that attempt is what timed out.
         WriteAttempt? attempt = null;
@@ -84,7 +89,7 @@ internal sealed class CreateIssueTool(
                         projectKey,
                         issueType,
                         summary,
-                        Resolved(fields),
+                        resolved,
                         cancellationToken));
 
                 var rendered = new Rendered(
@@ -138,26 +143,13 @@ internal sealed class CreateIssueTool(
                   + FieldAliasAdvice.From(aliases)
                 : null);
 
+
     /// <summary>
-    /// The field map with this profile's aliases resolved to the identifiers Jira knows. A key
-    /// that is not an alias is passed through: the field catalogue lives in Jira, not here, and a
-    /// name this server does not recognise is far more likely to be a real identifier.
+    /// One field named twice, once by alias and once by identifier. Refused rather than resolved:
+    /// the two values are usually different on purpose, and keeping whichever came last would
+    /// write the wrong one with nothing in the answer to say so.
     /// </summary>
-    private IReadOnlyDictionary<string, JsonElement> Resolved(
-        IReadOnlyDictionary<string, JsonElement>? fields)
-    {
-        if (fields is not { Count: > 0 })
-        {
-            return new Dictionary<string, JsonElement>();
-        }
-
-        var resolved = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-
-        foreach (var field in fields)
-        {
-            resolved[aliases.Resolve(field.Key)] = field.Value;
-        }
-
-        return resolved;
-    }
+    private static string Collided(string collided) =>
+        $"{collided} name the same field, and they were given different values, so nothing was "
+        + "sent. Name it once — either by its alias or by its identifier.";
 }

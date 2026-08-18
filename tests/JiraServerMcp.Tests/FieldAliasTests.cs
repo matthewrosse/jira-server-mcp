@@ -108,6 +108,82 @@ public class FieldAliasTests
         aliases.Label("customfield_10010").ShouldContain("customfield_10010");
     }
 
+    [Fact]
+    public void An_alias_named_after_an_expansions_own_field_cannot_hijack_the_expansion()
+    {
+        // The fields an expansion needs are this server's, not the caller's. Resolving them
+        // through the alias table would turn a request for comments into a request for a custom
+        // field, and the issue would come back looking as though it had no comments.
+        var aliases = FieldAliases.For(new Dictionary<string, string>
+        {
+            ["comment"] = "customfield_10050",
+        });
+
+        var fields = Expansions.Fields([Expansion.Comments], widen: null, aliases);
+
+        fields.ShouldContain("comment");
+        fields.ShouldNotContain("customfield_10050");
+    }
+
+    [Fact]
+    public void A_profile_file_spelling_one_alias_two_ways_is_collapsed_rather_than_refused()
+    {
+        // profiles.json is editable by hand, and a file someone edited must not turn every verb
+        // into a stack trace — including the verbs that would repair it.
+        var declared = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["story_points"] = "customfield_10010",
+            ["Story_Points"] = "customfield_10011",
+        };
+
+        var aliases = Should.NotThrow(() => FieldAliases.For(declared));
+
+        aliases.Resolve("story_points").ShouldBe("customfield_10011");
+    }
+
+    [Fact]
+    public void An_identifier_declared_in_another_case_still_labels_what_jira_answers_with()
+    {
+        var aliases = FieldAliases.For(new Dictionary<string, string>
+        {
+            ["story_points"] = "CustomField_10010",
+        });
+
+        aliases.Label("customfield_10010").ShouldBe("story_points (customfield_10010)");
+    }
+
+    [Fact]
+    public void One_field_named_by_both_of_its_names_is_refused_rather_than_silently_halved()
+    {
+        var fields = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["story_points"] = 5,
+            ["customfield_10010"] = 8,
+        };
+
+        Aliases().TryResolve(fields, out _, out var collided).ShouldBeFalse();
+
+        // Keeping whichever enumerated last would write a value the caller did not choose.
+        collided.ShouldNotBeNull();
+        collided.ShouldContain("story_points");
+        collided.ShouldContain("customfield_10010");
+    }
+
+    [Fact]
+    public void A_field_map_naming_each_field_once_resolves_whole()
+    {
+        var fields = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["story_points"] = 5,
+            ["summary"] = 1,
+        };
+
+        Aliases().TryResolve(fields, out var resolved, out _).ShouldBeTrue();
+
+        resolved.Keys.Order(StringComparer.Ordinal)
+            .ShouldBe(["customfield_10010", "summary"]);
+    }
+
     private static FieldAliases Aliases() =>
         FieldAliases.For(new Dictionary<string, string>
         {
