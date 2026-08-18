@@ -14,7 +14,7 @@ internal sealed class GetProjectTool(JiraClient jira, ServedProfile profile)
 
     [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
         UseStructuredContent = true,
-        OutputSchemaType = typeof(OutcomeOutput))]
+        OutputSchemaType = typeof(ProjectDetailOutput))]
     [Description(
         "Read one Jira Server project: its details, its issue types with the statuses each can be "
         + "in, its components, and its versions — everything needed to prepare a valid create "

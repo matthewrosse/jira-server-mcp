@@ -14,7 +14,7 @@ internal sealed class ListProjectsTool(JiraClient jira, ServedProfile profile)
 
     [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
         UseStructuredContent = true,
-        OutputSchemaType = typeof(OutcomeOutput))]
+        OutputSchemaType = typeof(ProjectListOutput))]
     [Description(
         "List the Jira Server projects this account can see: key, name, identifier, and project "
         + "type, one line each. An orientation call — read one project with jira_get_project once "

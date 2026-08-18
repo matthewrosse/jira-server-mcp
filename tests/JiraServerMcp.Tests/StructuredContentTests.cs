@@ -271,6 +271,129 @@ public class StructuredContentTests
             + "the value cap and the optional-field cap, which are what make it finite.");
     }
 
+    [Fact]
+    public void A_project_listing_carries_the_keys_every_other_tool_takes_as_input()
+    {
+        var structure = Structure(ProjectList.Render(
+            [
+                new JiraProject("PROJ", "Platform", "10100", "software"),
+                new JiraProject("OPS", "Operations", "10200", null),
+            ]));
+
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","count":2,"totalCount":2,"cutByCap":false,"projects":[{"key":"PROJ","id":"10100","name":"Platform"},{"key":"OPS","id":"10200","name":"Operations"}]}
+            """);
+    }
+
+    [Fact]
+    public void A_project_listing_the_cap_cut_says_so_and_says_how_many_there_were()
+    {
+        var projects = Enumerable.Range(1, ResponseBudget.ProjectListCap + 37)
+            .Select(number => new JiraProject($"P{number}", $"Project {number}", $"{number}", null))
+            .ToArray();
+
+        var listing = Deserialize<ProjectListOutput>(ProjectList.Render(projects));
+
+        // There is no next page to offer — Jira answers with every project at once — so what the
+        // structure owes the caller is the true number and the fact that it was cut.
+        listing.Count.ShouldBe(ResponseBudget.ProjectListCap);
+        listing.TotalCount.ShouldBe(projects.Length);
+        listing.CutByCap.ShouldBe(true);
+        listing.Projects.ShouldNotBeNull().Count.ShouldBe(ResponseBudget.ProjectListCap);
+    }
+
+    [Fact]
+    public void A_project_carries_the_names_a_create_call_must_send_verbatim()
+    {
+        var structure = Structure(ProjectDetail.Render(new JiraProjectDetail(
+            new JiraProject("PROJ", "Platform", "10100", "software"),
+            Description: "A description, which is prose and is not carried.",
+            Lead: "mrosse",
+            IssueTypes:
+            [
+                new JiraIssueTypeStatuses("1", "Bug", false, [new JiraStatus("3", "In Progress")]),
+                new JiraIssueTypeStatuses("2", "Task", false, []),
+            ],
+            Components: [new JiraProjectComponent("100", "api", "The API, which is prose too.")],
+            Versions: [new JiraProjectVersion("200", "1.4.0", true, false, "2026-01-01")])));
+
+        // The lead and the description are absent by decision: nothing branches on the first, and
+        // the second is prose, which lives in the delimited region and nowhere else.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","key":"PROJ","id":"10100","name":"Platform","issueTypeNames":["Bug","Task"],"issueTypeCount":2,"issueTypesTruncated":false,"versionNames":["1.4.0"],"versionCount":1,"versionsTruncated":false,"componentNames":["api"],"componentCount":1,"componentsTruncated":false}
+            """);
+    }
+
+    [Fact]
+    public void A_capped_project_section_carries_the_true_count_beside_the_entries_it_kept()
+    {
+        var versions = Enumerable.Range(1, ResponseBudget.ProjectSectionCap + 164)
+            .Select(number => new JiraProjectVersion($"{number}", $"1.{number}.0", true, false, null))
+            .ToArray();
+
+        var project = Deserialize<ProjectDetailOutput>(ProjectDetail.Render(new JiraProjectDetail(
+            new JiraProject("PROJ", "Platform", "10100", null),
+            null,
+            null,
+            [],
+            [],
+            versions)));
+
+        project.VersionCount.ShouldBe(versions.Length);
+        project.VersionsTruncated.ShouldBe(true);
+
+        var names = project.VersionNames.ShouldNotBeNull();
+
+        names.Count.ShouldBe(ResponseBudget.ProjectSectionCap);
+
+        // Jira orders versions oldest first, and the prose keeps the most recent because those are
+        // the ones a create would name. The structured half keeps exactly the same ones.
+        names[^1].ShouldBe(versions[^1].Name);
+    }
+
+    /// <summary>
+    /// A project with the cap filled in every section, which is the largest a project detail's
+    /// structured half can be.
+    /// </summary>
+    [Fact]
+    public void The_worst_case_structured_half_of_a_project_stays_bounded()
+    {
+        var cap = ResponseBudget.ProjectSectionCap;
+
+        var structure = Structure(ProjectDetail.Render(new JiraProjectDetail(
+            new JiraProject("PROJ", "Platform", "10100", null),
+            null,
+            null,
+            [
+                .. Enumerable.Range(1, cap).Select(number => new JiraIssueTypeStatuses(
+                    $"{number}",
+                    $"An issue type with a long administrative name {number}",
+                    false,
+                    [])),
+            ],
+            [
+                .. Enumerable.Range(1, cap).Select(number => new JiraProjectComponent(
+                    $"{number}",
+                    $"a-component-with-a-long-name-{number}",
+                    "A description, which is not carried.")),
+            ],
+            [
+                .. Enumerable.Range(1, cap).Select(number => new JiraProjectVersion(
+                    $"{number}",
+                    $"2026.{number}.0-release-candidate",
+                    true,
+                    false,
+                    null)),
+            ])));
+
+        structure.Length.ShouldBeLessThan(
+            8_000,
+            "A project's structured half has grown past what its section caps bound it to. Check "
+            + "that a description or another piece of prose has not been added.");
+    }
+
     /// <summary>
     /// Rule 2 admits only short values, and rule 4 makes the structured half inherit the prose's
     /// budget cut, so the structure is bounded by construction. Rule 1 guarantees fields will be
