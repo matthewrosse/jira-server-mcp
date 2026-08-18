@@ -599,6 +599,47 @@ fails by absence rather than by a permission error.
   `jira_get_sprint_issues`, then one `jira_transition_issue` per issue. There is no bulk write, so
   ask the agent to list what it will change before it changes it.
 
+### Retry-safe writes
+
+Three writes have no natural way to be repeated safely: a create, a comment and a worklog. If one
+times out, Jira may or may not have committed it, and nothing in the answer says which. Today that
+leaves an agent to invent a recovery procedure in the worst possible context — after a timeout,
+mid-workflow — and an unattended loop either duplicates the work or stalls.
+
+`jira_create_issue`, `jira_add_comment` and `jira_add_worklog` each take an optional
+`idempotencyKey`: any string the caller invents, one per intended write.
+
+```
+jira_create_issue(projectKey: "PROJ", issueType: "Bug", summary: "…", idempotencyKey: "run-42-step-1")
+→ Jira does not answer in time
+jira_create_issue(projectKey: "PROJ", issueType: "Bug", summary: "…", idempotencyKey: "run-42-step-1")
+→ "This key was already used by a create whose outcome is unknown … Nothing was written again."
+```
+
+The key is recorded **before** the write is sent, which is the whole point. Recording the outcome
+afterwards would help only when the first call came back — and a duplicate arises precisely when it
+did not. Recording on the way out means a repeat knows an attempt was made even when nothing is
+known about how it ended, so the server remembers and the agent does not have to.
+
+What the second call is told depends on how the first ended, because what it may do next differs:
+
+- **It succeeded** — the answer names what it produced and is not an error. A loop repeating a step
+  wants "that is already done".
+- **Its outcome is unknown** — it was sent and nothing came back. Nothing is written again, and the
+  answer says how to find out what happened.
+- **Jira rejected it** — nothing was written then either, and a key names one attempt rather than
+  one intention, so the corrected call needs a new key.
+
+Two limits, stated rather than hidden. The server does not search Jira to find out what the first
+attempt did: that is a different search for each of the three writes, and a comment has no reliable
+search handle at all. And the record lives in memory for the life of the server process — a
+restarted loop is back to reading Jira, which is why every one of these tools still carries that
+advice for when there is no key.
+
+`jira_update_issue` and `jira_transition_issue` take no key: repeating them changes nothing beyond
+an extra audit-trail entry. `jira_add_remote_link` takes none either — it is keyed by the URL, which
+is Jira's own idempotency and better than anything this server could add.
+
 ### Writing — `comments:write`
 
 Launch with `--allow comments:write`. Comments are Jira wiki markup and are stored exactly as

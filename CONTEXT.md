@@ -108,6 +108,13 @@ read these limits from one module; their cutting and paging mechanics remain whe
 context authoring the query. The name is the contract; a parameter that changes what the query
 means belongs in `jira_search` instead.
 
+**Idempotency key** — a string a caller invents and hands to a write that Jira offers no natural
+way to repeat safely: a create, a comment, a worklog. This server records the key before it sends
+the write, so a second call carrying it writes nothing and is told what became of the first — above
+all when the first timed out and nobody knows. The record lasts as long as the server process and
+no longer, which is a bound the tools state rather than hide.
+_Avoid_: request id, transaction id, deduplication token.
+
 **Untrusted content** — free text authored inside Jira: descriptions, comments, custom field
 values, project names, transition names, and the text Jira returns when it refuses a request —
 a field validator's message is as admin-authored as a description is. It reaches a model, so it

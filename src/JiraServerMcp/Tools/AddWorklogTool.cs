@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using JiraServerMcp.Jira;
+using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
@@ -12,7 +13,10 @@ namespace JiraServerMcp.Tools;
 /// deletes a worklog entry, in this grant or any other.
 /// </summary>
 [McpServerToolType]
-internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
+internal sealed class AddWorklogTool(
+    JiraClient jira,
+    ServedProfile profile,
+    WriteAttempts attempts)
 {
     private const string Name = "jira_add_worklog";
 
@@ -35,6 +39,13 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
         string? started = null,
         [Description("A note on what the time went on.")]
         string? comment = null,
+        [Description(
+            "An optional idempotency key of the caller's choosing. A second call carrying a key "
+            + "this server has already seen writes nothing and reports what became of the first, "
+            + "which is what makes a retry after a timeout safe. The record lasts as long as this "
+            + "server process and no longer, so a restarted loop is back to reading Jira to find "
+            + "out. A key names one attempt: a corrected call after a rejection needs a new one.")]
+        string? idempotencyKey = null,
         CancellationToken cancellationToken = default)
     {
         // Refused here rather than by Jira, which answers a duration it cannot read with a bare
@@ -57,6 +68,20 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
                 + "\"2026-08-16T09:00:00+02:00\".");
         }
 
+        // Claimed before anything is sent: a key that arrives twice must find the first attempt
+        // recorded even when that attempt is what timed out.
+        WriteAttempt? attempt = null;
+
+        if (idempotencyKey is { Length: > 0 } supplied)
+        {
+            if (!attempts.TryBegin(Name, supplied, out var claimed))
+            {
+                return Replayed(claimed);
+            }
+
+            attempt = claimed;
+        }
+
         return await ToolCall.RunAsync(
             profile,
             $"logging work against {key}",
@@ -66,12 +91,15 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
                 + "jira_get_issues and the worklogs expansion before sending it again.",
             async () =>
             {
-                var logged = await jira.AddWorklogAsync(
-                    key,
-                    timeSpent.Trim(),
-                    startedAt,
-                    comment,
-                    cancellationToken);
+                var logged = await Attempted(
+                    attempt,
+                    () => jira.AddWorklogAsync(
+                        key,
+                        timeSpent.Trim(),
+                        startedAt,
+                        comment,
+                        cancellationToken),
+                    result => $"worklog {result.Id} on {key}");
 
                 return new Rendered(
                     $"Logged {logged.TimeSpent} against {key} as worklog {logged.Id}.",
@@ -85,4 +113,46 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
             },
             cancellationToken);
     }
+
+    /// <summary>
+    /// Runs the write and tells the attempt record how it ended. A Jira that answers and refuses
+    /// is the one ending that proves nothing was written; anything else — a timeout above all —
+    /// leaves the outcome unknown, which is what a repeat needs to be told.
+    /// </summary>
+    private static async Task<T> Attempted<T>(
+        WriteAttempt? attempt,
+        Func<Task<T>> write,
+        Func<T, string> describe)
+    {
+        try
+        {
+            var result = await write();
+
+            attempt?.Succeeded(describe(result));
+
+            return result;
+        }
+        catch (JiraApiException)
+        {
+            attempt?.Rejected();
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// A key this process has already spent. What the caller may do next differs per ending, so
+    /// the three are told apart rather than collapsed into one refusal.
+    /// </summary>
+    private static CallToolResult Replayed(WriteAttempt prior) => prior.Outcome switch
+    {
+        WriteOutcome.Ok => ToolCall.Text(new Rendered(
+            WriteAttemptAnswers.Ok("worklog", prior.Detail ?? "an entry"),
+            ToolOutputs.Node(new AddedWorklogOutput { Outcome = Outcomes.Ok }))),
+        WriteOutcome.Rejected => ToolCall.Error(WriteAttemptAnswers.Rejected("worklog")),
+        _ => ToolCall.Error(WriteAttemptAnswers.Unknown(
+            "worklog",
+            "Read the issue with jira_get_issues and the worklogs expansion before sending it "
+            + "again under a new key.")),
+    };
 }

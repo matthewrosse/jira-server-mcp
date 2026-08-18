@@ -65,6 +65,10 @@ internal static class ServeVerb
         builder.Services.AddSingleton(Options.Create(connected));
 
         builder.Services.AddSingleton(new ServedProfile(profileName));
+
+        // One record for the life of the process, which is exactly what an idempotency key
+        // promises and the whole of what it promises.
+        builder.Services.AddSingleton<WriteAttempts>();
         builder.Services.AddJiraClient();
 
         // ADR-0005: grants come only from launch arguments. The capability probe is read from the

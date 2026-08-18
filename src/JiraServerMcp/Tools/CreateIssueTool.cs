@@ -15,7 +15,10 @@ namespace JiraServerMcp.Tools;
 /// Registered only under the <c>issues:write</c> grant (ADR-0005).
 /// </summary>
 [McpServerToolType]
-internal sealed class CreateIssueTool(JiraClient jira, ServedProfile profile)
+internal sealed class CreateIssueTool(
+    JiraClient jira,
+    ServedProfile profile,
+    WriteAttempts attempts)
 {
     private const string Name = "jira_create_issue";
 
@@ -40,8 +43,29 @@ internal sealed class CreateIssueTool(JiraClient jira, ServedProfile profile)
             "Every other field, keyed by Jira's field identifier: \"description\", \"labels\", "
             + "\"customfield_10010\". Values take Jira's own shape.")]
         IReadOnlyDictionary<string, JsonElement>? fields = null,
+        [Description(
+            "An optional idempotency key of the caller's choosing. A second call carrying a key "
+            + "this server has already seen writes nothing and reports what became of the first, "
+            + "which is what makes a retry after a timeout safe. The record lasts as long as this "
+            + "server process and no longer, so a restarted loop is back to reading Jira to find "
+            + "out. A key names one attempt: a corrected call after a rejection needs a new one.")]
+        string? idempotencyKey = null,
         CancellationToken cancellationToken = default)
     {
+        // Claimed before anything is sent: a key that arrives twice must find the first attempt
+        // recorded even when that attempt is what timed out.
+        WriteAttempt? attempt = null;
+
+        if (idempotencyKey is { Length: > 0 } supplied)
+        {
+            if (!attempts.TryBegin(Name, supplied, out var claimed))
+            {
+                return Replayed(claimed);
+            }
+
+            attempt = claimed;
+        }
+
         return await ToolCall.RunAsync(
             profile,
             "creating an issue",
@@ -53,12 +77,15 @@ internal sealed class CreateIssueTool(JiraClient jira, ServedProfile profile)
                 + "exist: search for the summary with jira_search before sending it again.",
             async () =>
             {
-                var created = await jira.CreateIssueAsync(
-                    projectKey,
-                    issueType,
-                    summary,
-                    fields ?? new Dictionary<string, JsonElement>(),
-                    cancellationToken);
+                var created = await Attempted(
+                    attempt,
+                    () => jira.CreateIssueAsync(
+                        projectKey,
+                        issueType,
+                        summary,
+                        fields ?? new Dictionary<string, JsonElement>(),
+                        cancellationToken),
+                    result => result.Key);
 
                 return new Rendered(
                     $"Created {created.Key} (id {created.Id}) in {projectKey}.",
@@ -73,6 +100,52 @@ internal sealed class CreateIssueTool(JiraClient jira, ServedProfile profile)
             cancellationToken,
             describeApiFailure: exception => Describe(exception, projectKey, issueType));
     }
+
+    /// <summary>
+    /// Runs the write and tells the attempt record how it ended. A Jira that answers and refuses
+    /// is the one ending that proves nothing was written; anything else — a timeout above all —
+    /// leaves the outcome unknown, which is what a repeat needs to be told.
+    /// </summary>
+    private static async Task<T> Attempted<T>(
+        WriteAttempt? attempt,
+        Func<Task<T>> write,
+        Func<T, string> describe)
+    {
+        try
+        {
+            var result = await write();
+
+            attempt?.Succeeded(describe(result));
+
+            return result;
+        }
+        catch (JiraApiException)
+        {
+            attempt?.Rejected();
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// A key this process has already spent. What the caller may do next differs per ending, so
+    /// the three are told apart rather than collapsed into one refusal.
+    /// </summary>
+    private static CallToolResult Replayed(WriteAttempt prior) => prior.Outcome switch
+    {
+        WriteOutcome.Ok => ToolCall.Text(new Rendered(
+            WriteAttemptAnswers.Ok("create", prior.Detail ?? "an issue"),
+            ToolOutputs.Node(new CreatedIssueOutput
+            {
+                Outcome = Outcomes.Ok,
+                Key = prior.Detail,
+            }))),
+        WriteOutcome.Rejected => ToolCall.Error(WriteAttemptAnswers.Rejected("create")),
+        _ => ToolCall.Error(WriteAttemptAnswers.Unknown(
+            "create",
+            "The issue may or may not exist: search for the summary with jira_search before "
+            + "sending it again under a new key.")),
+    };
 
     /// <summary>
     /// A rejected create is the one failure an agent can fix by itself, so the message says which
