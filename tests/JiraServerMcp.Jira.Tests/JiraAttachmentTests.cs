@@ -60,6 +60,51 @@ public sealed class JiraAttachmentTests : IDisposable
     }
 
     [Fact]
+    public async Task The_range_stops_at_the_end_of_the_file_rather_than_at_the_end_of_the_window()
+    {
+        StubContent("0123456789", partial: true);
+
+        await ReadAsync(Attachment(size: 10), offset: 0, window: 16_000);
+
+        // Jira's attachment servlet answers a range that overruns the file by declaring the
+        // requested length and sending only what it has, which arrives as a response that ended
+        // prematurely. Asking only for bytes that exist is what stops it happening.
+        ContentRequest().Headers.ShouldNotBeNull()["Range"].ShouldHaveSingleItem()
+            .ShouldBe("bytes=0-9");
+    }
+
+    [Fact]
+    public async Task A_window_of_a_file_whose_size_jira_withheld_asks_for_the_whole_window()
+    {
+        StubContent("0123456789", partial: true);
+
+        var unsized = new JiraAttachment(
+            "10100",
+            "server.log",
+            0,
+            null,
+            $"{_jira.Url}/secure/attachment/10100/server.log");
+
+        await ReadAsync(unsized, offset: 0, window: 16);
+
+        ContentRequest().Headers.ShouldNotBeNull()["Range"].ShouldHaveSingleItem()
+            .ShouldBe("bytes=0-15");
+    }
+
+    [Fact]
+    public async Task An_offset_at_the_end_of_a_file_is_no_bytes_without_troubling_jira()
+    {
+        StubContent("0123456789", partial: false);
+
+        var window = await ReadAsync(Attachment(size: 10), offset: 10, window: 16);
+
+        window.ShouldBeEmpty();
+
+        // Unsatisfiable by definition, so the round trip to be told so is not worth making.
+        _jira.LogEntries.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task A_jira_that_ignores_the_range_is_read_past_rather_than_believed()
     {
         // Some proxies strip the header and answer 200 with the whole file. The bytes a caller
