@@ -350,8 +350,14 @@ no page of its own — it answers with every project at once, and this server ca
 so a cut listing is narrowed with `jira_search`, or the project is named directly by its key to
 `jira_get_project`. There is no next page to ask for, so no field pretends there is one.
 
-Tools whose payload is not structured yet — users, boards, sprints — still carry the `outcome`, so
-a workflow can tell what happened even where it cannot yet read what came back.
+`jira_list_boards` and `jira_list_sprints` carry **no `total`, and not a null one**. Jira's software
+API says only whether a page is the last, never how many rows exist, and a paging field is present
+here only where the server was actually given the number — absence means unknown, where zero would
+mean none. `nextStartAt` is absent on a last page and otherwise advances past the page rather than
+by the rows returned, because that API filters a page by permission after paging it.
+
+Tools whose payload is not structured yet — users — still carry the `outcome`, so a workflow can
+tell what happened even where it cannot yet read what came back.
 
 ## Example prompts
 

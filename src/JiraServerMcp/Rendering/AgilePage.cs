@@ -10,9 +10,19 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class AgilePage
 {
-    public static string Render<T>(JiraAgilePage<T> page, Func<T, string> line)
+    /// <summary>
+    /// The page as text and as structure, off one traversal: the row projector sits beside the
+    /// line renderer so the page mechanics stay here and the two halves cannot admit different
+    /// rows or disagree on where to resume.
+    /// </summary>
+    public static Rendered Render<T, TOutput>(
+        JiraAgilePage<T> page,
+        Func<T, string> line,
+        Func<IReadOnlyList<T>, AgilePagePosition, TOutput> structure)
+        where TOutput : ToolOutput
     {
         var lines = new List<string>();
+        var shown = new List<T>();
         var used = 0;
 
         foreach (var value in page.Values)
@@ -25,10 +35,32 @@ internal static class AgilePage
             }
 
             lines.Add(rendered);
+            shown.Add(value);
             used += rendered.Length + 1;
         }
 
-        return UntrustedContent.Envelope(Header(page, lines.Count), string.Join("\n", lines));
+        return new Rendered(
+            UntrustedContent.Envelope(Header(page, lines.Count), string.Join("\n", lines)),
+            ToolOutputs.Node(structure(shown, Position(page, lines.Count))));
+    }
+
+    /// <summary>
+    /// Where the caller resumes, saying exactly what the header says. A page the budget cut
+    /// resumes at the row it stopped on; anything else resumes where Jira's page ends, which
+    /// advances by the page size rather than by the rows returned — the software API filters a
+    /// page by permission after paging it, so advancing by rows would ask for the same page for
+    /// ever. A last page offers nothing.
+    /// </summary>
+    private static AgilePagePosition Position<T>(JiraAgilePage<T> page, int rendered)
+    {
+        var cutByBudget = rendered > 0 && rendered < page.Values.Count;
+
+        return new AgilePagePosition(
+            page.StartAt,
+            rendered,
+            cutByBudget ? page.StartAt + rendered
+            : page.HasMore ? page.NextStartAt
+            : null);
     }
 
     private static string Header<T>(JiraAgilePage<T> page, int rendered)
@@ -56,3 +88,9 @@ internal static class AgilePage
             : $"{shown} — no more pages.";
     }
 }
+
+/// <summary>
+/// A page's position in its listing: where it began, how many rows it carried, and where a caller
+/// resumes — or null where there is nowhere to resume to.
+/// </summary>
+internal readonly record struct AgilePagePosition(int StartAt, int Count, int? NextStartAt);

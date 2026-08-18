@@ -10,7 +10,23 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class BoardList
 {
-    public static string Render(JiraAgilePage<JiraBoard> page) => AgilePage.Render(page, Line);
+    public static Rendered Render(JiraAgilePage<JiraBoard> page) =>
+        AgilePage.Render(page, Line, (boards, position) => new BoardListOutput
+        {
+            Outcome = Outcomes.Ok,
+            StartAt = position.StartAt,
+            Count = position.Count,
+            NextStartAt = position.NextStartAt,
+            Boards =
+            [
+                .. boards.Select(board => new BoardRowOutput
+                {
+                    Id = board.Id,
+                    Name = board.Name,
+                    Type = board.Type,
+                }),
+            ],
+        });
 
     private static string Line(JiraBoard board)
     {

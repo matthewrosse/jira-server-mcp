@@ -382,6 +382,76 @@ internal sealed record ProjectDetailOutput : ToolOutput
 }
 
 /// <summary>
+/// A page from the software API. It carries no total, and not a null one: that API does not report
+/// how many rows exist, and a paging field is present only where the server was actually given the
+/// number (ADR-0009, as amended). Absence means unknown; zero would mean none.
+/// </summary>
+internal sealed record BoardListOutput : ToolOutput
+{
+    [JsonPropertyName("startAt")]
+    public int? StartAt { get; init; }
+
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    /// <summary>Absent when Jira said this was the last page.</summary>
+    [JsonPropertyName("nextStartAt")]
+    public int? NextStartAt { get; init; }
+
+    [JsonPropertyName("boards")]
+    public IReadOnlyList<BoardRowOutput>? Boards { get; init; }
+}
+
+/// <summary>
+/// One board. The name is a selection label: a board id names nothing, and the name is the only
+/// basis an agent has for choosing between rows.
+/// </summary>
+internal sealed record BoardRowOutput
+{
+    [JsonPropertyName("id")]
+    public required int Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; init; }
+}
+
+/// <summary>A page of a board's sprints, paged as <see cref="BoardListOutput"/> is.</summary>
+internal sealed record SprintListOutput : ToolOutput
+{
+    [JsonPropertyName("startAt")]
+    public int? StartAt { get; init; }
+
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    [JsonPropertyName("nextStartAt")]
+    public int? NextStartAt { get; init; }
+
+    [JsonPropertyName("sprints")]
+    public IReadOnlyList<SprintRowOutput>? Sprints { get; init; }
+}
+
+/// <summary>
+/// One sprint. <see cref="State"/> answers "which sprint is current", which is the known use; the
+/// dates are deliberately absent, because rule 1 would make anything carried a permanent contract
+/// over a date format this server does not control and does not normalise.
+/// </summary>
+internal sealed record SprintRowOutput
+{
+    [JsonPropertyName("id")]
+    public required int Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("state")]
+    public string? State { get; init; }
+}
+
+/// <summary>
 /// The envelope on its own, for a tool whose payload is not yet structured. Rule 3 of ADR-0009 is
 /// that structure is present on every result, so these still answer "did this work, and if not
 /// why" — they simply carry nothing else yet.
