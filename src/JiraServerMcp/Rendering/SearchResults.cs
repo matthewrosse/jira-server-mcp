@@ -47,7 +47,11 @@ internal static class SearchResults
     private static IssuePageOutput Structure(JiraSearchPage page, int rendered, bool cutByBudget)
     {
         var resumeAt = page.StartAt + rendered;
-        var more = cutByBudget || page.HasMore;
+
+        // A page whose first row did not fit has nowhere to resume from: offering startAt back
+        // would send the caller to fetch the page it just asked for, forever. The prose says
+        // "nothing to show on this page" for the same reason, and the two halves agree.
+        var more = rendered > 0 && (cutByBudget || page.HasMore);
 
         return new IssuePageOutput
         {

@@ -22,23 +22,56 @@ internal static class CreateFields
     /// </summary>
     public const int OptionalCap = 40;
 
-    public static string Render(JiraCreateFields fields)
+    public static Rendered Render(JiraCreateFields fields)
     {
         var required = fields.Fields.Where(field => field.Required).ToArray();
         var optional = fields.Fields.Where(field => !field.Required).ToArray();
+        var shownOptional = optional.Take(OptionalCap).ToArray();
 
         var body = new StringBuilder();
 
         body.Append("issue type: ").AppendLine(fields.IssueTypeName);
 
         Section(body, "required", required, required.Length);
-        Section(body, "optional", optional.Take(OptionalCap).ToArray(), optional.Length);
+        Section(body, "optional", shownOptional, optional.Length);
 
-        return $"""
-            {fields.ProjectKey} — {fields.Fields.Count} fields on the create screen
-            {UntrustedContent.Preamble}
-            {UntrustedContent.Delimit(body.ToString().TrimEnd())}
-            """;
+        // The same fields, in the same order, off the same traversal: an agent reading the
+        // structure to build a create must see exactly what the prose showed it.
+        return new Rendered(
+            $"""
+             {fields.ProjectKey} — {fields.Fields.Count} fields on the create screen
+             {UntrustedContent.Preamble}
+             {UntrustedContent.Delimit(body.ToString().TrimEnd())}
+             """,
+            ToolOutputs.Node(new CreateFieldsOutput
+            {
+                Outcome = Outcomes.Ok,
+                ProjectKey = fields.ProjectKey,
+                IssueTypeName = fields.IssueTypeName,
+                Fields = [.. required.Concat(shownOptional).Select(Field)],
+                TotalFields = fields.Fields.Count,
+                FieldsTruncated = shownOptional.Length < optional.Length,
+            }));
+    }
+
+    /// <summary>
+    /// One field, with its allowed values capped as the prose caps them. The values are what a
+    /// create must send verbatim, so they are carried rather than described.
+    /// </summary>
+    private static CreateFieldOutput Field(JiraCreateField field)
+    {
+        var constrained = field.AllowedValues.Count > 0;
+
+        return new CreateFieldOutput
+        {
+            Id = field.Id,
+            Name = field.Name,
+            Required = field.Required,
+            Type = field.Type,
+            HasAllowedValues = constrained,
+            AllowedValues = constrained ? [.. field.AllowedValues.Take(ValueCap)] : null,
+            AllowedValuesTruncated = constrained ? field.AllowedValues.Count > ValueCap : null,
+        };
     }
 
     private static void Section(

@@ -14,7 +14,7 @@ internal sealed class GetCreateFieldsTool(JiraClient jira, ServedProfile profile
 
     [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
         UseStructuredContent = true,
-        OutputSchemaType = typeof(OutcomeOutput))]
+        OutputSchemaType = typeof(CreateFieldsOutput))]
     [Description(
         "Discover what Jira Server will accept when an issue of one type is created in one "
         + "project: every field with its identifier — custom field identifiers included — its "

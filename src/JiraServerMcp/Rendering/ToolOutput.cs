@@ -49,7 +49,12 @@ internal static class Outcomes
 
     public const string TimedOut = "timed_out";
 
-    /// <summary>A call this server refused before anything reached Jira.</summary>
+    /// <summary>
+    /// A call this server refused rather than performed: an empty comment, a duration Jira could
+    /// not read, a transition name no workflow offers, a relation phrase this Jira does not
+    /// publish. Some of those are known only after a read, so what this promises is that the write
+    /// was never attempted — not that nothing was sent.
+    /// </summary>
     public const string Refused = "refused";
 
     /// <summary>One key of a bulk read that Jira has nothing visible at.</summary>
@@ -203,6 +208,80 @@ internal sealed record AddedWorklogOutput : ToolOutput
 
     [JsonPropertyName("timeSpent")]
     public string? TimeSpent { get; init; }
+}
+
+/// <summary>
+/// The create screen: what a create call must send, and what each field will accept. The most
+/// machine-shaped answer this server gives — an agent reads it to build its next call, and every
+/// value in it is one that call must send verbatim.
+/// </summary>
+internal sealed record CreateFieldsOutput : ToolOutput
+{
+    [JsonPropertyName("projectKey")]
+    public string? ProjectKey { get; init; }
+
+    [JsonPropertyName("issueTypeName")]
+    public string? IssueTypeName { get; init; }
+
+    /// <summary>
+    /// The fields the prose shows, in the order it shows them: required first, then as many
+    /// optional ones as the response budget allows. Both halves are cut together.
+    /// </summary>
+    [JsonPropertyName("fields")]
+    public IReadOnlyList<CreateFieldOutput>? Fields { get; init; }
+
+    /// <summary>Every field on the create screen, including the optional ones that were cut.</summary>
+    [JsonPropertyName("totalFields")]
+    public int? TotalFields { get; init; }
+
+    /// <summary>
+    /// Whether optional fields were left out. Without it, a field's absence from
+    /// <see cref="Fields"/> could mean "not on this screen" or "cut", which is the confusion
+    /// <c>hasAllowedValues</c> exists to prevent one level down. Required fields are never cut —
+    /// a create fails without every one of them.
+    /// </summary>
+    [JsonPropertyName("fieldsTruncated")]
+    public bool? FieldsTruncated { get; init; }
+}
+
+/// <summary>
+/// One field on the create screen. The name is a selection label under ADR-0009's amended rule 2:
+/// <c>customfield_10010</c> tells an agent nothing, and the name is what makes the identifier it
+/// must send actionable.
+/// </summary>
+internal sealed record CreateFieldOutput
+{
+    /// <summary>What a create call must send. For a custom field, nothing else will do.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("required")]
+    public required bool Required { get; init; }
+
+    /// <summary>
+    /// Jira's own <c>schema.type</c>, passed through unchanged and absent where Jira sent none.
+    /// Normalising it into a vocabulary this server owns would mean maintaining a mapping across
+    /// every Jira Server version, and a mistranslation is worse than an unfamiliar string: an
+    /// agent can match an unfamiliar string against the prose, but cannot detect a wrong one.
+    /// </summary>
+    [JsonPropertyName("type")]
+    public string? Type { get; init; }
+
+    /// <summary>
+    /// Whether Jira constrains this field to a list. Kept beside <see cref="AllowedValues"/> so
+    /// that "constrained, but the list was cut" stays distinguishable from "unconstrained".
+    /// </summary>
+    [JsonPropertyName("hasAllowedValues")]
+    public required bool HasAllowedValues { get; init; }
+
+    [JsonPropertyName("allowedValues")]
+    public IReadOnlyList<string>? AllowedValues { get; init; }
+
+    [JsonPropertyName("allowedValuesTruncated")]
+    public bool? AllowedValuesTruncated { get; init; }
 }
 
 /// <summary>

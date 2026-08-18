@@ -336,9 +336,17 @@ clients that ignore `structuredContent`: honouring it would make you pay for eve
 against a server whose whole premise is what a response costs. A client that ignores the structure
 still gets a complete, readable answer as prose.
 
-Tools whose payload is not structured yet — projects, users, boards, sprints, the create screen —
-still carry the `outcome`, so a workflow can tell what happened even where it cannot yet read what
-came back.
+`jira_get_create_fields` is the fullest of these: it carries every field a create must send, with
+its identifier, its name, whether it is required, and its allowed values. **A field's `type` is
+Jira's own `schema.type`** — `string`, `option`, `array` — passed through unchanged rather than
+normalised into a vocabulary this server owns. A mapping would have to be maintained across every
+Jira Server version, and a mistranslation is worse than an unfamiliar string: you can match an
+unfamiliar string against the prose, but you cannot detect a wrong one. `hasAllowedValues` sits
+beside `allowedValues` so that "constrained, but the list was cut" stays distinguishable from
+"unconstrained", and `allowedValuesTruncated` says which happened.
+
+Tools whose payload is not structured yet — projects, users, boards, sprints — still carry the
+`outcome`, so a workflow can tell what happened even where it cannot yet read what came back.
 
 ## Example prompts
 
