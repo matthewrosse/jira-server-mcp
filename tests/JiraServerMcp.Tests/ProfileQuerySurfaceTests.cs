@@ -101,6 +101,45 @@ public class ProfileQuerySurfaceTests
         }
     }
 
+    [Fact]
+    public void A_hand_edited_name_the_protocol_cannot_carry_is_left_out_rather_than_registered()
+    {
+        // The CLI refuses this name, but profiles.json is a file someone can edit. A tool name
+        // with a space in it is rejected against the whole tool list, so an agent would lose every
+        // tool this server offers over one bad row.
+        var profile = ProfileWith(
+            new ProfileQuery("Sprint Bugs", "labels = bugs", "Hand-edited."),
+            Query("blocked"));
+
+        var tools = ProfileQuerySurface.ToolsToRegister(profile, Services());
+
+        tools.ShouldHaveSingleItem().ProtocolTool.Name.ShouldBe("jira_q_blocked");
+    }
+
+    [Fact]
+    public void A_hand_edited_duplicate_registers_once_rather_than_failing_the_whole_server()
+    {
+        // Two registrations of one tool name is a startup throw against the SDK's name-keyed
+        // collection: serve would not start at all, taking every built-in tool with it.
+        var profile = ProfileWith(
+            new ProfileQuery("blocked", "labels = blocked", "The first."),
+            new ProfileQuery("blocked", "labels = stuck", "The second."));
+
+        var tools = ProfileQuerySurface.ToolsToRegister(profile, Services());
+
+        tools.ShouldHaveSingleItem().ProtocolTool.Description.ShouldNotBeNull()
+            .ShouldStartWith("The first.");
+    }
+
+    [Fact]
+    public void A_name_long_enough_to_be_a_sentence_is_not_a_name()
+    {
+        var name = new string('q', ProfileQueryName.Longest + 1);
+
+        ProfileQueryName.IsValid(name).ShouldBeFalse();
+        ProfileQueryName.IsValid(new string('q', ProfileQueryName.Longest)).ShouldBeTrue();
+    }
+
     [Theory]
     [InlineData("sprint_bugs", true)]
     [InlineData("q1", true)]

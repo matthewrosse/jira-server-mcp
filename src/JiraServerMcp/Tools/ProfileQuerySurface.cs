@@ -48,7 +48,21 @@ internal static class ProfileQuerySurface
     public static IReadOnlyList<McpServerTool> ToolsToRegister(
         Profile profile,
         IServiceProvider services) =>
-        [.. (profile.Queries ?? []).Take(Cap).Select(query => Tool(query, services))];
+        [.. Declared(profile).Select(query => Tool(query, services))];
+
+    /// <summary>
+    /// The queries a profile actually offers. The CLI refuses a bad name, a duplicate and an
+    /// eleventh query, but profiles.json is a file someone can edit — and every one of those
+    /// invariants, broken, costs more than the query itself. A name outside the grammar is a tool
+    /// name the protocol will not carry, and a repeated name is two registrations of one name,
+    /// which the SDK refuses at startup: either takes down the whole tool list, built-ins and all,
+    /// rather than the one query at fault.
+    /// </summary>
+    private static IEnumerable<ProfileQuery> Declared(Profile profile) =>
+        (profile.Queries ?? [])
+            .Where(query => ProfileQueryName.IsValid(query.Name))
+            .DistinctBy(query => query.Name, StringComparer.Ordinal)
+            .Take(Cap);
 
     private static McpServerTool Tool(ProfileQuery query, IServiceProvider services) =>
         McpServerTool.Create(

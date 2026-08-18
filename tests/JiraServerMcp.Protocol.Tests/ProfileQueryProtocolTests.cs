@@ -211,6 +211,38 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_jira_that_hangs_leaves_the_query_unchecked_rather_than_crashing_the_verb()
+    {
+        // A laptop off the VPN, or an address that black-holes. The client gives up after its own
+        // timeout, which arrives as a cancellation nobody asked for.
+        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(OnePage)
+                .WithDelay(TimeSpan.FromSeconds(40)));
+
+        var added = await AddQueryAsync("slow", "labels = slow", "A query against a hung Jira.");
+
+        added.ExitCode.ShouldBe(1);
+        added.StandardError.ShouldContain("did not answer in time");
+        added.StandardError.ShouldNotContain("Unhandled exception");
+    }
+
+    [Fact]
+    public async Task An_empty_jql_is_refused_because_jira_reads_it_as_every_issue_it_has()
+    {
+        StubSearch();
+
+        var added = await AddQueryAsync("everything", "   ", "A quoting slip.");
+
+        added.ExitCode.ShouldBe(1);
+        added.StandardError.ShouldContain("every issue on the instance");
+
+        // Refused before Jira was troubled with it, since Jira would have accepted it.
+        _jira.LogEntries.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task An_eleventh_query_is_refused_with_the_reason()
     {
         StubSearch();

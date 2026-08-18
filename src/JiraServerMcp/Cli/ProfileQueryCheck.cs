@@ -52,5 +52,16 @@ internal static class ProfileQueryCheck
 
             return false;
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The client's own timeout, which arrives as a cancellation nobody asked for. A Jira
+            // that hangs — a laptop off the VPN, an address that black-holes — is a query that was
+            // not checked, not a crash in front of the operator.
+            await Console.Error.WriteLineAsync(
+                $"{profile.BaseUrl} did not answer in time, so the query was not checked and not "
+                + "stored.");
+
+            return false;
+        }
     }
 }

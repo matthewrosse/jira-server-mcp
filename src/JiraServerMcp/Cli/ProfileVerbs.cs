@@ -341,6 +341,18 @@ internal static class ProfileVerbs
             return 1;
         }
 
+        // Jira accepts an empty JQL and answers with every issue on the instance, so this one
+        // slip — a shell quoting mistake, a variable that expanded to nothing — would ship a tool
+        // that pages through the whole of Jira.
+        if (jql.Trim().Length is 0)
+        {
+            await Console.Error.WriteLineAsync(
+                "A query needs JQL. Jira reads an empty query as every issue on the instance, "
+                + "which is not something worth offering as a tool.");
+
+            return 1;
+        }
+
         var declared = profile.Queries ?? [];
 
         if (declared.Count >= ProfileQuerySurface.Cap
