@@ -18,7 +18,7 @@ public class BulkIssueRenderingTests
     [Fact]
     public void One_envelope_covers_every_issue_rather_than_one_per_issue()
     {
-        var rendered = BulkIssueDetail.Render(
+        var rendered = Render(
             [Success("PROJ-1"), Success("PROJ-2"), Success("PROJ-3")],
             []);
 
@@ -30,7 +30,7 @@ public class BulkIssueRenderingTests
     [Fact]
     public void The_callers_order_is_preserved_in_the_region()
     {
-        var rendered = BulkIssueDetail.Render([Success("PROJ-2"), Success("PROJ-1")], []);
+        var rendered = Render([Success("PROJ-2"), Success("PROJ-1")], []);
 
         rendered.IndexOf("PROJ-2", StringComparison.Ordinal)
             .ShouldBeLessThan(rendered.IndexOf("PROJ-1", StringComparison.Ordinal));
@@ -42,7 +42,7 @@ public class BulkIssueRenderingTests
         // Each issue is rendered whole; three issues this large trip the budget on the third.
         var big = new string('x', 15_000);
 
-        var rendered = BulkIssueDetail.Render(
+        var rendered = Render(
             [Success("PROJ-1", big), Success("PROJ-2", big), Success("PROJ-3", big)],
             []);
 
@@ -55,7 +55,7 @@ public class BulkIssueRenderingTests
     [Fact]
     public void The_header_names_a_failed_keys_outcome_and_carries_no_jira_authored_text()
     {
-        var rendered = BulkIssueDetail.Render(
+        var rendered = Render(
             [
                 Success("PROJ-1"),
                 Failure("PROJ-9", new JiraApiException(
@@ -78,7 +78,7 @@ public class BulkIssueRenderingTests
     [Fact]
     public void A_not_found_key_says_so_without_manufacturing_jira_words_for_a_bare_404()
     {
-        var rendered = BulkIssueDetail.Render(
+        var rendered = Render(
             [
                 Failure("PROJ-9", new JiraApiException(
                     HttpStatusCode.NotFound,
@@ -95,12 +95,18 @@ public class BulkIssueRenderingTests
     [Fact]
     public void A_timed_out_key_is_named_as_timed_out()
     {
-        var rendered = BulkIssueDetail.Render(
+        var rendered = Render(
             [Failure("PROJ-9", new OperationCanceledException())],
             []);
 
         rendered.ShouldContain("PROJ-9: timed out");
     }
+
+    /// <summary>The prose half, which is what these tests are about.</summary>
+    private static string Render(
+        IReadOnlyList<BulkIssueResult> results,
+        IReadOnlyList<Expansion> expansions) =>
+        BulkIssueDetail.Render(results, expansions).Text;
 
     private static BulkIssueResult Success(string key, string? summary = null) =>
         new(

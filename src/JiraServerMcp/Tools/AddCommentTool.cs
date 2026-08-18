@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -15,7 +16,9 @@ internal sealed class AddCommentTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_add_comment";
 
-    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(AddedCommentOutput))]
     [Description(
         "Add one comment to an issue. The body is Jira wiki markup, written as Jira stores it and "
         + "not converted. The comment cannot be edited or removed afterwards by this server. "
@@ -46,7 +49,14 @@ internal sealed class AddCommentTool(JiraClient jira, ServedProfile profile)
                 var added = await jira.AddCommentAsync(key, body, cancellationToken);
 
                 // The caller wrote the body; handing it back would be context spent on nothing.
-                return $"Added comment {added.Id} to {key} at {added.Created}.";
+                return new Rendered(
+                    $"Added comment {added.Id} to {key} at {added.Created}.",
+                    ToolOutputs.Node(new AddedCommentOutput
+                    {
+                        Outcome = Outcomes.Ok,
+                        Key = key,
+                        CommentId = added.Id,
+                    }));
             },
             cancellationToken);
     }

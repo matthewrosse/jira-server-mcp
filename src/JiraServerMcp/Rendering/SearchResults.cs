@@ -11,7 +11,7 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class SearchResults
 {
-    public static string Render(JiraSearchPage page)
+    public static Rendered Render(JiraSearchPage page)
     {
         var lines = new List<string>();
         var used = 0;
@@ -31,9 +31,44 @@ internal static class SearchResults
 
         var cutByBudget = lines.Count < page.Issues.Count;
 
-        return UntrustedContent.Envelope(
-            Header(page, lines.Count, cutByBudget),
-            string.Join("\n", lines));
+        // Both halves off one traversal (ADR-0009, rule 4): the rows the budget admitted are the
+        // rows the structure carries, so the two can never disagree on their count.
+        return new Rendered(
+            UntrustedContent.Envelope(
+                Header(page, lines.Count, cutByBudget),
+                string.Join("\n", lines)),
+            ToolOutputs.Node(Structure(page, lines.Count, cutByBudget)));
+    }
+
+    /// <summary>
+    /// The page's structured half. <c>nextStartAt</c> is where the caller resumes — the position
+    /// after the last row actually rendered, which a budget cut moves back from Jira's own.
+    /// </summary>
+    private static IssuePageOutput Structure(JiraSearchPage page, int rendered, bool cutByBudget)
+    {
+        var resumeAt = page.StartAt + rendered;
+        var more = cutByBudget || page.HasMore;
+
+        return new IssuePageOutput
+        {
+            Outcome = Outcomes.Ok,
+            Total = page.Total,
+            StartAt = page.StartAt,
+            Count = rendered,
+            NextStartAt = more ? resumeAt : null,
+            CutByBudget = cutByBudget,
+            Issues =
+            [
+                .. page.Issues.Take(rendered).Select(issue => new IssueRowOutput
+                {
+                    Key = issue.Key,
+                    StatusId = issue.StatusId,
+                    Status = issue.Status,
+                    TypeName = issue.TypeName,
+                    Assignee = issue.Assignee,
+                }),
+            ],
+        };
     }
 
     private static string Header(JiraSearchPage page, int rendered, bool cutByBudget)

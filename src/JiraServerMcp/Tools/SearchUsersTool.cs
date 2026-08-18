@@ -20,7 +20,9 @@ internal sealed class SearchUsersTool(JiraClient jira, ServedProfile profile)
     /// </summary>
     private const int LargestPageSize = 100;
 
-    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(OutcomeOutput))]
     [Description(
         "Look up Jira Server users by part of a name. Returns the username, display name, email, "
         + "and whether the account is active. The username is what an assignment must send — Jira "

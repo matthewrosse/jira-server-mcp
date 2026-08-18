@@ -1,6 +1,7 @@
 using System.Net;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Rendering;
 using JiraServerMcp.Tools;
 using ModelContextProtocol.Protocol;
 
@@ -15,7 +16,7 @@ public sealed class ToolCallTests
     [Fact]
     public async Task Work_that_answers_becomes_the_result_text()
     {
-        var result = await Run(() => Task.FromResult("display name: Ada"));
+        var result = await Run(() => Task.FromResult<Rendered>("display name: Ada"));
 
         result.IsError.ShouldNotBe(true);
         Text(result).ShouldBe("display name: Ada");
@@ -150,7 +151,7 @@ public sealed class ToolCallTests
     }
 
     private static Task<CallToolResult> Run(
-        Func<Task<string>> work,
+        Func<Task<Rendered>> work,
         string whenUnreachable = "",
         string whenTimedOut = ", and the request was given up.") =>
         ToolCall.RunAsync(

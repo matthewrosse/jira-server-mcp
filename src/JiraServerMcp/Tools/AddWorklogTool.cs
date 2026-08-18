@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -15,7 +16,9 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_add_worklog";
 
-    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(AddedWorklogOutput))]
     [Description(
         "Log work against an issue. The time spent is written in Jira's own duration syntax — "
         + "\"3h 30m\", \"1w 2d\", units w, d, h and m — so that how long a working day is stays "
@@ -70,7 +73,15 @@ internal sealed class AddWorklogTool(JiraClient jira, ServedProfile profile)
                     comment,
                     cancellationToken);
 
-                return $"Logged {logged.TimeSpent} against {key} as worklog {logged.Id}.";
+                return new Rendered(
+                    $"Logged {logged.TimeSpent} against {key} as worklog {logged.Id}.",
+                    ToolOutputs.Node(new AddedWorklogOutput
+                    {
+                        Outcome = Outcomes.Ok,
+                        Key = key,
+                        WorklogId = logged.Id,
+                        TimeSpent = logged.TimeSpent,
+                    }));
             },
             cancellationToken);
     }

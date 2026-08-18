@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -16,7 +17,9 @@ internal sealed class AddRemoteLinkTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_add_remote_link";
 
-    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(OutcomeOutput))]
     [Description(
         "Attach a URL to an issue — a pull request, a build, a document — so it appears in Jira's "
         + "link panel rather than buried in a comment. The URL is the link's identity: attaching "

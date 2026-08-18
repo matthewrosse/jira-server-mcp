@@ -5,6 +5,7 @@ using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -18,7 +19,9 @@ internal sealed class CreateIssueTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_create_issue";
 
-    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(CreatedIssueOutput))]
     [Description(
         "Create one issue in a Jira project. Every field beyond the project, the issue type and "
         + "the summary — description, assignee, labels, and custom fields by their identifier — "
@@ -57,7 +60,15 @@ internal sealed class CreateIssueTool(JiraClient jira, ServedProfile profile)
                     fields ?? new Dictionary<string, JsonElement>(),
                     cancellationToken);
 
-                return $"Created {created.Key} (id {created.Id}) in {projectKey}.";
+                return new Rendered(
+                    $"Created {created.Key} (id {created.Id}) in {projectKey}.",
+                    ToolOutputs.Node(new CreatedIssueOutput
+                    {
+                        Outcome = Outcomes.Ok,
+                        Key = created.Key,
+                        Id = created.Id,
+                        ProjectKey = projectKey,
+                    }));
             },
             cancellationToken,
             describeApiFailure: exception => Describe(exception, projectKey, issueType));

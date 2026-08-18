@@ -219,7 +219,7 @@ public class SearchRenderingTests
         rendered.Length.ShouldBeLessThanOrEqualTo(ResponseBudget.SearchTextBudget);
     }
 
-    private static string Render(JiraSearchPage page) => SearchResults.Render(page);
+    private static string Render(JiraSearchPage page) => SearchResults.Render(page).Text;
 
     private static JiraIssue Issue(string key, string fields) =>
         new(key, JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fields)!);

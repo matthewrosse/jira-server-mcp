@@ -20,7 +20,9 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
 {
     private const string Name = "jira_transition_issue";
 
-    [McpServerTool(Name = Name, ReadOnly = false, Destructive = true)]
+    [McpServerTool(Name = Name, ReadOnly = false, Destructive = true,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(TransitionedIssueOutput))]
     [Description(
         "Move one issue along its workflow, naming the transition rather than its identifier — "
         + "\"Done\", not \"31\". Matching ignores casing and surrounding spaces, and a name this "
@@ -120,15 +122,30 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
     /// framed as such (ADR-0005's grant is the bound on what a transition can do; the framing is
     /// the bound on what its name can talk the model into).
     /// </summary>
-    private static string Transitioned(string key, JiraTransition matched) =>
-        $"""
-         Transitioned {key}. The transition and the status it led to are named below.
-         {UntrustedContent.Preamble}
-         {UntrustedContent.Delimit(
-             matched.ToStatus is { } status
-                 ? $"transition: {matched.Name}\nnow in: {status}"
-                 : $"transition: {matched.Name}")}
-         """;
+    /// <remarks>
+    /// The structured half carries the transition id and the status name, the second only where
+    /// Jira reported a destination — matching the prose's conditional "now in:" line rather than
+    /// promising a field the prose does not have. A status name is admin-authored and so is
+    /// untrusted in provenance, but it is a value Jira enumerates rather than prose someone typed,
+    /// which is where ADR-0009 draws the line.
+    /// </remarks>
+    private static Rendered Transitioned(string key, JiraTransition matched) =>
+        new(
+            $"""
+             Transitioned {key}. The transition and the status it led to are named below.
+             {UntrustedContent.Preamble}
+             {UntrustedContent.Delimit(
+                 matched.ToStatus is { } status
+                     ? $"transition: {matched.Name}\nnow in: {status}"
+                     : $"transition: {matched.Name}")}
+             """,
+            ToolOutputs.Node(new TransitionedIssueOutput
+            {
+                Outcome = Outcomes.Ok,
+                Key = key,
+                TransitionId = matched.Id,
+                Status = matched.ToStatus,
+            }));
 
     /// <summary>
     /// What an agent that guessed a transition name most needs: the names it could have used. The

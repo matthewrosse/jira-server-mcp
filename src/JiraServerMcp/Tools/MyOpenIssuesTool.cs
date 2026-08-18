@@ -17,7 +17,9 @@ internal sealed class MyOpenIssuesTool(JiraClient jira, ServedProfile profile)
 
     private static readonly Regex ProjectKeyGrammar = new("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
-    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(IssuePageOutput))]
     [Description(
         "Your own unresolved Jira issues, most recently updated first — the start-of-session work "
         + "queue, with no JQL to author. One line per issue, key first. Use jira_search for any "

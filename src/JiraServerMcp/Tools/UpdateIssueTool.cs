@@ -3,6 +3,7 @@ using System.Text.Json;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -17,7 +18,9 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_update_issue";
 
-    [McpServerTool(Name = Name, ReadOnly = false, Destructive = true)]
+    [McpServerTool(Name = Name, ReadOnly = false, Destructive = true,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(UpdatedIssueOutput))]
     [Description(
         "Change fields of one issue, and its assignee, in a single call. Values in the field map "
         + "take Jira's own shape: a string for a text field, {\"id\": \"10300\"} for a select, a "
@@ -66,7 +69,12 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
             cancellationToken);
     }
 
-    private static string Confirm(
+    /// <summary>
+    /// What was sent, named as the prose names it. The structured half carries the same list, off
+    /// the same traversal: it is the field ids the caller asked for, which is what a workflow
+    /// checking its own write needs.
+    /// </summary>
+    private static Rendered Confirm(
         string key,
         IReadOnlyDictionary<string, JsonElement>? fields,
         string? assignee)
@@ -78,6 +86,13 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
             changed.Add(assignee.Length is 0 ? "assignee (cleared)" : "assignee");
         }
 
-        return $"Updated {key}: {string.Join(", ", changed)}.";
+        return new Rendered(
+            $"Updated {key}: {string.Join(", ", changed)}.",
+            ToolOutputs.Node(new UpdatedIssueOutput
+            {
+                Outcome = Outcomes.Ok,
+                Key = key,
+                Changed = changed,
+            }));
     }
 }
