@@ -150,6 +150,12 @@ public sealed class JiraClient(HttpClient httpClient)
     /// section, and losing the whole issue read because this account may not see that section
     /// punishes it for asking for more.
     /// </summary>
+    /// <remarks>
+    /// A 404 degrades alongside the 403: Jira answers this endpoint that way both where the issue
+    /// is invisible and where issue linking is switched off instance-wide, and the issue itself
+    /// having just been read says the key is fine. A 401 is left to propagate, because a dead
+    /// token is never a per-section outcome.
+    /// </remarks>
     private async Task<IReadOnlyList<JiraRemoteLink>?> RemoteLinksAsync(
         string key,
         CancellationToken cancellationToken)
@@ -172,7 +178,8 @@ public sealed class JiraClient(HttpClient httpClient)
                 ? []
                 : IssueDetailReader.ReadRemoteLinks(document.RootElement);
         }
-        catch (JiraApiException exception) when (exception.StatusCode is HttpStatusCode.Forbidden)
+        catch (JiraApiException exception) when (exception.StatusCode is
+            HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
         {
             return null;
         }

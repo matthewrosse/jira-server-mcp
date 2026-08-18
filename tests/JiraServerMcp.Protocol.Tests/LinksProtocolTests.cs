@@ -203,6 +203,28 @@ public sealed class LinksProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_blank_relation_is_refused_before_anything_is_sent()
+    {
+        StubLinkTypes();
+        StubLink(201);
+
+        var text = await FailedCallAsync(
+            await ClientAsync("links:write"),
+            "jira_link_issues",
+            new Dictionary<string, object?>
+            {
+                ["from"] = "PROJ-1",
+                ["to"] = "PROJ-2",
+                ["relation"] = "   ",
+            });
+
+        // A blank phrase names no direction, and Jira publishes types whose payload may omit one
+        // wording — matching on that would link two issues under a type nobody asked for.
+        text.ShouldContain("PROJ-1");
+        Requests().ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task A_404_names_both_keys_and_says_nothing_was_linked()
     {
         StubLinkTypes();
@@ -351,6 +373,30 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         refused.ShouldContain("Login fails with a 401");
         refused.ShouldContain("is blocked by PROJ-13");
         refused.ShouldContain("may not read them");
+    }
+
+    [Fact]
+    public async Task An_instance_with_linking_switched_off_still_reads_the_issue()
+    {
+        StubIssue();
+
+        // Jira answers this endpoint with a 404 both where the issue is invisible and where issue
+        // linking is disabled instance-wide — and the issue itself just read fine.
+        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(404));
+
+        var text = await CallAsync(
+            await ClientAsync(),
+            "jira_get_issues",
+            new Dictionary<string, object?>
+            {
+                ["keys"] = new[] { "PROJ-12" },
+                ["include"] = new[] { "links" },
+            });
+
+        text.ShouldContain("Login fails with a 401");
+        text.ShouldContain("is blocked by PROJ-13");
+        text.ShouldContain("may not read them");
     }
 
     [Fact]

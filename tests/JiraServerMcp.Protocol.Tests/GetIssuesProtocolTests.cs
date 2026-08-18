@@ -151,6 +151,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
 
         var query = _jira.LogEntries
             .Select(entry => entry.RequestMessage)
+            .OfType<IRequestMessage>()
             .Single(request => request.Path is "/rest/api/2/issue/PROJ-12")
             .Query.ShouldNotBeNull();
 

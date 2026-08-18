@@ -37,10 +37,20 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
             "Jira's own wording for the relation, such as \"blocks\", \"is blocked by\", "
             + "\"duplicates\" or \"relates to\".")]
         string relation,
-        [Description("A comment to add to 'from' as part of the link, in the same request.")]
+        [Description(
+            "A comment explaining the link, added in the same request. Jira puts it on the issue "
+            + "it treats as the link's source, which the relation phrase decides.")]
         string? comment = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(relation))
+        {
+            return ToolCall.Error(
+                $"{from} was not linked to {to}: the relation is what says how the two are "
+                + "related and which way round, and an empty one says neither. Name Jira's own "
+                + "wording, such as \"blocks\" or \"is blocked by\".");
+        }
+
         // Not a safety pre-flight: Jira's endpoint takes a type name and a direction, and this is
         // the only thing that turns the phrase the caller wrote into either of them.
         var listed = await ToolCall.StepAsync(
@@ -115,8 +125,14 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
             .Where(match => match.Outward || Same(match.Type.Inward, relation)),
     ];
 
+    /// <summary>
+    /// Casing and surrounding space are forgiven, as they are on a transition name. A wording Jira
+    /// did not send is never a match: it arrives here as an empty string, and matching it would
+    /// link two issues under whichever type happened to have a gap in its payload.
+    /// </summary>
     private static bool Same(string wording, string relation) =>
-        string.Equals(wording.Trim(), relation.Trim(), StringComparison.OrdinalIgnoreCase);
+        wording.Trim().Length > 0
+        && string.Equals(wording.Trim(), relation.Trim(), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Jira answers a key it cannot see with the same 404 it answers a key that does not exist,

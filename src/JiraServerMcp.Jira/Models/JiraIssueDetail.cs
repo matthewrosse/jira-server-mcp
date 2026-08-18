@@ -81,6 +81,11 @@ public sealed record JiraIssueLink(string Relation, string Key, string? Summary)
 /// <summary>
 /// A link from an issue to a URL outside Jira.
 /// </summary>
+/// <param name="Title">The text the link panel shows.</param>
+/// <param name="Url">
+/// Where the link points, which is also what identifies it: this server sends the URL as the
+/// link's <c>globalId</c>, so one URL is one link on one issue.
+/// </param>
 /// <param name="Relationship">
 /// Jira's free-text grouping header in the link panel — "pull request" — which a producer may
 /// leave unset.
