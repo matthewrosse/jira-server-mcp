@@ -88,3 +88,30 @@ batch. The remaining tool work on the backlog will spend it.
 row would make this a ratchet that only ever moves in one direction, which is a guard that guards
 nothing. When it goes red again, take response 1 above, on its own commit, and set the threshold
 from what the split actually measures.
+
+## Amendment (2026-08-18): the split, taken
+
+The trigger fired again on #73's attachment work, which took the glob from 899 to 1,017. As the
+previous amendment committed, this was answered with response 1 rather than a third number.
+
+`JiraClient` is now `partial` across a file per resource — account, issues, projects, users, agile,
+writes, links — over a core file holding the shared request helpers and the one transport limit.
+The public surface is unchanged, and so is every call site, which is what `partial` was chosen for.
+The boundary is the one the test tree already used, so nothing about it is new; the source has
+simply caught up.
+
+The split measures 984 lines across ten files, against 899 before it: the increase is the using
+blocks each file repeats, exactly as the previous amendment predicted. Two thresholds replace the
+one:
+
+- **The glob stays, at 1,150.** Roughly one feature batch of headroom over 984, which is the
+  headroom 800 left over 636 and 1,000 left over 867. It still guards the client as a whole, and it
+  still survives a further split.
+- **No single `JiraClient*.cs` file may reach 250 lines.** This is the guard the split makes
+  meaningful and the sum cannot express: the cost being managed is what a reader loads to change
+  one part, and after a split that is a property of the largest file. The largest today is
+  `JiraClientWrites.cs` at 203.
+
+Answering a red build on either is the same as before: add the file the resource wants, or amend
+this ADR deliberately. What is no longer available is editing a constant in passing.
+
