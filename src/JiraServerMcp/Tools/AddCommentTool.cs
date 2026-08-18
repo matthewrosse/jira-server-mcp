@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
@@ -52,9 +51,9 @@ internal sealed class AddCommentTool(
         // recorded even when that attempt is what timed out.
         WriteAttempt? attempt = null;
 
-        if (idempotencyKey is { Length: > 0 } supplied)
+        if (!string.IsNullOrWhiteSpace(idempotencyKey))
         {
-            if (!attempts.TryBegin(Name, supplied, out var claimed))
+            if (!attempts.TryBegin(Name, idempotencyKey, out var claimed))
             {
                 return Replayed(claimed);
             }
@@ -71,13 +70,12 @@ internal sealed class AddCommentTool(
                 + "jira_get_issues and the comments expansion before sending it again.",
             async () =>
             {
-                var added = await Attempted(
+                var added = await WriteAttempts.SendAsync(
                     attempt,
-                    () => jira.AddCommentAsync(key, body, cancellationToken),
-                    result => $"comment {result.Id} on {key}");
+                    () => jira.AddCommentAsync(key, body, cancellationToken));
 
                 // The caller wrote the body; handing it back would be context spent on nothing.
-                return new Rendered(
+                var rendered = new Rendered(
                     $"Added comment {added.Id} to {key} at {added.Created}.",
                     ToolOutputs.Node(new AddedCommentOutput
                     {
@@ -85,35 +83,14 @@ internal sealed class AddCommentTool(
                         Key = key,
                         CommentId = added.Id,
                     }));
+
+                attempt?.Succeeded($"comment {added.Id} on {key}", rendered.Structure);
+
+                return rendered;
             },
             cancellationToken);
     }
 
-    /// <summary>
-    /// Runs the write and tells the attempt record how it ended. A Jira that answers and refuses
-    /// is the one ending that proves nothing was written; anything else — a timeout above all —
-    /// leaves the outcome unknown, which is what a repeat needs to be told.
-    /// </summary>
-    private static async Task<T> Attempted<T>(
-        WriteAttempt? attempt,
-        Func<Task<T>> write,
-        Func<T, string> describe)
-    {
-        try
-        {
-            var result = await write();
-
-            attempt?.Succeeded(describe(result));
-
-            return result;
-        }
-        catch (JiraApiException)
-        {
-            attempt?.Rejected();
-
-            throw;
-        }
-    }
 
     /// <summary>
     /// A key this process has already spent. What the caller may do next differs per ending, so
@@ -123,7 +100,7 @@ internal sealed class AddCommentTool(
     {
         WriteOutcome.Ok => ToolCall.Text(new Rendered(
             WriteAttemptAnswers.Ok("comment", prior.Detail ?? "a comment"),
-            ToolOutputs.Node(new AddedCommentOutput { Outcome = Outcomes.Ok }))),
+            prior.Structure)),
         WriteOutcome.Rejected => ToolCall.Error(WriteAttemptAnswers.Rejected("comment")),
         _ => ToolCall.Error(WriteAttemptAnswers.Unknown(
             "comment",

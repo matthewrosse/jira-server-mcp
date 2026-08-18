@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text.Json;
+using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Tools;
 
 namespace JiraServerMcp.Tests;
@@ -41,7 +44,7 @@ public class WriteAttemptsTests
         var attempts = new WriteAttempts();
 
         attempts.TryBegin("jira_create_issue", "run-42", out var attempt);
-        attempt.Succeeded("PROJ-42");
+        attempt.Succeeded("PROJ-42", Structure());
 
         attempts.TryBegin("jira_create_issue", "run-42", out var prior).ShouldBeFalse();
 
@@ -61,6 +64,78 @@ public class WriteAttemptsTests
 
         // The one ending that proves nothing was written, which is why it is worth distinguishing.
         prior.Outcome.ShouldBe(WriteOutcome.Rejected);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Conflict)]
+    public async Task Jira_reading_the_request_and_refusing_it_proves_nothing_was_written(
+        HttpStatusCode status)
+    {
+        var attempts = new WriteAttempts();
+
+        attempts.TryBegin("jira_create_issue", "run-42", out var attempt);
+
+        await Should.ThrowAsync<JiraApiException>(
+            () => WriteAttempts.SendAsync<string>(attempt, () => throw Failed(status)));
+
+        attempt.Outcome.ShouldBe(WriteOutcome.Rejected);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    public async Task A_status_that_does_not_prove_jira_stayed_out_of_it_leaves_the_outcome_unknown(
+        HttpStatusCode status)
+    {
+        var attempts = new WriteAttempts();
+
+        attempts.TryBegin("jira_create_issue", "run-42", out var attempt);
+
+        await Should.ThrowAsync<JiraApiException>(
+            () => WriteAttempts.SendAsync<string>(attempt, () => throw Failed(status)));
+
+        // A proxy answering 502 in front of a Jira that already committed the write looks exactly
+        // like a refusal from here. Calling it one would tell the next call, with false certainty,
+        // that nothing was written — and it would write again.
+        attempt.Outcome.ShouldBe(WriteOutcome.Unknown);
+    }
+
+    [Fact]
+    public async Task A_write_that_never_answered_at_all_leaves_the_outcome_unknown()
+    {
+        var attempts = new WriteAttempts();
+
+        attempts.TryBegin("jira_create_issue", "run-42", out var attempt);
+
+        await Should.ThrowAsync<HttpRequestException>(
+            () => WriteAttempts.SendAsync<string>(
+                attempt,
+                () => throw new HttpRequestException("the connection was reset")));
+
+        attempt.Outcome.ShouldBe(WriteOutcome.Unknown);
+    }
+
+    [Fact]
+    public void A_replay_hands_back_the_structured_half_the_first_call_answered_with()
+    {
+        var attempts = new WriteAttempts();
+
+        attempts.TryBegin("jira_add_comment", "run-42", out var attempt);
+        attempt.Succeeded("comment 10200 on PROJ-42", Structure());
+
+        attempts.TryBegin("jira_add_comment", "run-42", out var prior);
+
+        // A caller that read an identifier out of the first answer finds the same identifier in
+        // the second, which is the whole of what "already done" should mean.
+        prior.Structure.ShouldNotBeNull().GetProperty("commentId").GetString().ShouldBe("10200");
     }
 
     [Fact]
@@ -88,4 +163,22 @@ public class WriteAttemptsTests
         attempts.TryBegin("jira_add_comment", "run-42", out _).ShouldBeTrue();
         attempts.TryBegin("jira_add_comment", "  run-42  ", out _).ShouldBeFalse();
     }
+
+    [Fact]
+    public void Two_keys_that_are_nothing_but_space_are_the_same_key_which_is_why_tools_refuse_them()
+    {
+        // The trim that makes "  run-42  " one key also makes " " and "\n" one key. A tool that
+        // accepted either would refuse a genuinely different write as a replay of the first, so
+        // the tools require a key with something in it.
+        var attempts = new WriteAttempts();
+
+        attempts.TryBegin("jira_add_comment", " ", out _).ShouldBeTrue();
+        attempts.TryBegin("jira_add_comment", "\n", out _).ShouldBeFalse();
+    }
+
+    private static JiraApiException Failed(HttpStatusCode status) =>
+        new(status, "/rest/api/2/issue", [], new Dictionary<string, string>());
+
+    private static JsonElement Structure() =>
+        JsonSerializer.Deserialize<JsonElement>("""{"outcome":"ok","commentId":"10200"}""");
 }

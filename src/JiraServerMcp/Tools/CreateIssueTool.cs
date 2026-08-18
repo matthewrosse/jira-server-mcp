@@ -56,9 +56,9 @@ internal sealed class CreateIssueTool(
         // recorded even when that attempt is what timed out.
         WriteAttempt? attempt = null;
 
-        if (idempotencyKey is { Length: > 0 } supplied)
+        if (!string.IsNullOrWhiteSpace(idempotencyKey))
         {
-            if (!attempts.TryBegin(Name, supplied, out var claimed))
+            if (!attempts.TryBegin(Name, idempotencyKey, out var claimed))
             {
                 return Replayed(claimed);
             }
@@ -77,17 +77,16 @@ internal sealed class CreateIssueTool(
                 + "exist: search for the summary with jira_search before sending it again.",
             async () =>
             {
-                var created = await Attempted(
+                var created = await WriteAttempts.SendAsync(
                     attempt,
                     () => jira.CreateIssueAsync(
                         projectKey,
                         issueType,
                         summary,
                         fields ?? new Dictionary<string, JsonElement>(),
-                        cancellationToken),
-                    result => result.Key);
+                        cancellationToken));
 
-                return new Rendered(
+                var rendered = new Rendered(
                     $"Created {created.Key} (id {created.Id}) in {projectKey}.",
                     ToolOutputs.Node(new CreatedIssueOutput
                     {
@@ -96,36 +95,15 @@ internal sealed class CreateIssueTool(
                         Id = created.Id,
                         ProjectKey = projectKey,
                     }));
+
+                attempt?.Succeeded(created.Key, rendered.Structure);
+
+                return rendered;
             },
             cancellationToken,
             describeApiFailure: exception => Describe(exception, projectKey, issueType));
     }
 
-    /// <summary>
-    /// Runs the write and tells the attempt record how it ended. A Jira that answers and refuses
-    /// is the one ending that proves nothing was written; anything else — a timeout above all —
-    /// leaves the outcome unknown, which is what a repeat needs to be told.
-    /// </summary>
-    private static async Task<T> Attempted<T>(
-        WriteAttempt? attempt,
-        Func<Task<T>> write,
-        Func<T, string> describe)
-    {
-        try
-        {
-            var result = await write();
-
-            attempt?.Succeeded(describe(result));
-
-            return result;
-        }
-        catch (JiraApiException)
-        {
-            attempt?.Rejected();
-
-            throw;
-        }
-    }
 
     /// <summary>
     /// A key this process has already spent. What the caller may do next differs per ending, so
@@ -135,11 +113,7 @@ internal sealed class CreateIssueTool(
     {
         WriteOutcome.Ok => ToolCall.Text(new Rendered(
             WriteAttemptAnswers.Ok("create", prior.Detail ?? "an issue"),
-            ToolOutputs.Node(new CreatedIssueOutput
-            {
-                Outcome = Outcomes.Ok,
-                Key = prior.Detail,
-            }))),
+            prior.Structure)),
         WriteOutcome.Rejected => ToolCall.Error(WriteAttemptAnswers.Rejected("create")),
         _ => ToolCall.Error(WriteAttemptAnswers.Unknown(
             "create",

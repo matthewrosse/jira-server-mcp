@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.Net;
+using System.Text.Json;
+using JiraServerMcp.Jira.Errors;
 
 namespace JiraServerMcp.Tools;
 
@@ -43,6 +46,47 @@ internal sealed class WriteAttempts
 
         return ReferenceEquals(attempt, claimed);
     }
+
+    /// <summary>
+    /// Sends the write and tells the attempt what became of it. Only an answer that proves Jira
+    /// did not act is recorded as a refusal; everything else leaves the outcome unknown, which is
+    /// the answer a repeat can act on safely.
+    /// </summary>
+    /// <remarks>
+    /// The two mistakes here are not equal. Calling an unknown ending "rejected" tells the next
+    /// call, with false certainty, that nothing was written — it sends the write again under a new
+    /// key and creates the duplicate this whole feature exists to prevent. Calling a real refusal
+    /// "unknown" costs a read of Jira. So anything short of proof is unknown.
+    /// </remarks>
+    public static async Task<T> SendAsync<T>(WriteAttempt? attempt, Func<Task<T>> write)
+    {
+        try
+        {
+            return await write();
+        }
+        catch (JiraApiException exception) when (Refused(exception.StatusCode))
+        {
+            attempt?.Rejected();
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Whether a status proves Jira did not act. A client error does: Jira read the request,
+    /// refused it, and wrote nothing.
+    /// </summary>
+    /// <remarks>
+    /// A 5xx does not, and that is the case worth being careful about — a proxy answering 502 or
+    /// 504 in front of a Jira that has already committed the write looks exactly like a refusal
+    /// from here. <see cref="Jira.Resilience.JiraRetryHandler"/> encodes the same belief from the
+    /// other side: it refuses to repeat a write on a 5xx precisely because the write may have
+    /// landed. A 408 is a timeout wearing a status code, and a 429 may be answered by something in
+    /// front of Jira rather than by Jira.
+    /// </remarks>
+    private static bool Refused(HttpStatusCode status) =>
+        (int)status is >= 400 and < 500
+        && status is not (HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests);
 }
 
 /// <summary>
@@ -51,24 +95,41 @@ internal sealed class WriteAttempts
 internal sealed class WriteAttempt
 {
     /// <summary>
+    /// How the write ended, written once in a single store. Two calls can hold the same attempt —
+    /// one sending, one repeating — and a reader must never see an outcome paired with the detail
+    /// of the one before it.
+    /// </summary>
+    private volatile Ending? _ending;
+
+    /// <summary>
     /// What became of the write. <see cref="WriteOutcome.Unknown"/> until the call comes back, and
     /// that is the value that matters: it is what a timeout leaves behind.
     /// </summary>
-    public WriteOutcome Outcome { get; private set; } = WriteOutcome.Unknown;
+    public WriteOutcome Outcome => _ending?.Outcome ?? WriteOutcome.Unknown;
 
     /// <summary>
     /// What the write produced, in the tool's own words — "PROJ-42", a comment identifier. Present
     /// only where the write came back and succeeded.
     /// </summary>
-    public string? Detail { get; private set; }
+    public string? Detail => _ending?.Detail;
 
-    public void Succeeded(string detail) => (Outcome, Detail) = (WriteOutcome.Ok, detail);
+    /// <summary>
+    /// The structured half the first call answered with, handed back verbatim by a replay. A
+    /// caller that read an identifier out of the first answer finds the same identifier in the
+    /// second, which is the whole of what "already done" should mean.
+    /// </summary>
+    public JsonElement? Structure => _ending?.Structure;
+
+    public void Succeeded(string detail, JsonElement? structure) =>
+        _ending = new Ending(WriteOutcome.Ok, detail, structure);
 
     /// <summary>
     /// Jira answered and refused. This is the one ending that says the write certainly did not
     /// happen, which is why it is worth telling apart from silence.
     /// </summary>
-    public void Rejected() => Outcome = WriteOutcome.Rejected;
+    public void Rejected() => _ending = new Ending(WriteOutcome.Rejected, null, null);
+
+    private sealed record Ending(WriteOutcome Outcome, string? Detail, JsonElement? Structure);
 }
 
 internal enum WriteOutcome

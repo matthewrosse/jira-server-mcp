@@ -628,7 +628,9 @@ What the second call is told depends on how the first ended, because what it may
 - **Its outcome is unknown** — it was sent and nothing came back. Nothing is written again, and the
   answer says how to find out what happened.
 - **Jira rejected it** — nothing was written then either, and a key names one attempt rather than
-  one intention, so the corrected call needs a new key.
+  one intention, so the corrected call needs a new key. Only an answer that proves Jira did not act
+  counts as a rejection: a 502 or a 504 from something in front of Jira leaves the outcome unknown,
+  because the write may well have landed behind it.
 
 Two limits, stated rather than hidden. The server does not search Jira to find out what the first
 attempt did: that is a different search for each of the three writes, and a comment has no reliable

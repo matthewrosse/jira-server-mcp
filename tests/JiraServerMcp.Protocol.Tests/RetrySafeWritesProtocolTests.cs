@@ -186,6 +186,67 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_gateway_error_is_not_proof_that_jira_stayed_out_of_it()
+    {
+        // A proxy in front of a Jira that has already committed the create answers 502, and from
+        // here that is indistinguishable from a refusal. Recording it as one would send the next
+        // call away to write again under a new key — the duplicate this feature exists to prevent.
+        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(Json(502, """{"errorMessages":["Bad gateway"],"errors":{}}"""));
+
+        var first = await CreateAsync("run-42-step-1");
+
+        first.IsError.ShouldBe(true);
+
+        _jira.Reset();
+        StubCreate();
+
+        var second = await CreateAsync("run-42-step-1");
+
+        second.IsError.ShouldBe(true);
+        TextOf(second).ShouldContain("outcome is unknown");
+        TextOf(second).ShouldNotContain("rejected");
+
+        Posts("/rest/api/2/issue").ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_replay_carries_the_identifiers_the_first_answer_carried()
+    {
+        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
+            .RespondWith(Json(201, """{ "id": "10200", "created": "2026-08-18T09:00:00.000+0200" }"""));
+
+        var first = await CommentAsync("run-42-step-2");
+        var second = await CommentAsync("run-42-step-2");
+
+        second.IsError.ShouldNotBe(true);
+
+        // A caller that read the comment id out of the first answer finds it in the second.
+        var structure = second.StructuredContent.ShouldNotBeNull();
+
+        structure.GetProperty("commentId").GetString().ShouldBe("10200");
+        structure.GetProperty("key").GetString().ShouldBe("PROJ-42");
+        first.StructuredContent.ShouldNotBeNull().GetProperty("commentId").GetString()
+            .ShouldBe("10200");
+
+        Posts("/rest/api/2/issue/PROJ-42/comment").ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_key_of_nothing_but_space_is_refused_rather_than_claiming_the_empty_key()
+    {
+        StubCreate();
+
+        // Trimming is what makes "  run-42  " the same key as "run-42"; it also makes every
+        // whitespace-only key the same key, so a tool that accepted one would refuse an unrelated
+        // write as a replay of it.
+        await CreateAsync(" ");
+        await CreateAsync("\n");
+
+        Posts("/rest/api/2/issue").ShouldBe(2);
+    }
+
+    [Fact]
     public async Task One_key_across_two_write_tools_is_two_attempts_rather_than_a_collision()
     {
         StubCreate();
@@ -246,6 +307,17 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
             arguments,
             cancellationToken: TestContext.Current.CancellationToken);
     }
+
+    private async Task<CallToolResult> CommentAsync(string idempotencyKey) =>
+        await _client.CallToolAsync(
+            "jira_add_comment",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["body"] = "Looked at it.",
+                ["idempotencyKey"] = idempotencyKey,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
 
     private static string TextOf(CallToolResult result) =>
         result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
