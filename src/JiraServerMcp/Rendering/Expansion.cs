@@ -1,3 +1,5 @@
+using JiraServerMcp.Profiles;
+
 namespace JiraServerMcp.Rendering;
 
 /// <summary>An optional extra section of an issue read, opt-in because each one costs context.</summary>
@@ -70,8 +72,11 @@ internal static class Expansions
     /// </summary>
     public static IReadOnlyList<string> Fields(
         IReadOnlyList<Expansion> expansions,
-        IReadOnlyList<string>? widen) =>
-        FieldProjection.Widen([.. widen ?? [], .. expansions.Select(AsField).OfType<string>()]);
+        IReadOnlyList<string>? widen,
+        FieldAliases? aliases = null) =>
+        FieldProjection.Widen(
+            [.. widen ?? [], .. expansions.Select(AsField).OfType<string>()],
+            aliases);
 
     /// <summary>The sections Jira reaches through its own expand parameter.</summary>
     public static IReadOnlyList<string> Expand(IReadOnlyList<Expansion> expansions) =>

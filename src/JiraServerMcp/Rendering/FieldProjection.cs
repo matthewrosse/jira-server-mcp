@@ -1,3 +1,5 @@
+using JiraServerMcp.Profiles;
+
 namespace JiraServerMcp.Rendering;
 
 /// <summary>
@@ -29,7 +31,15 @@ internal static class FieldProjection
     /// The default projection plus whatever the caller asked for. Widening adds; it never
     /// replaces, so a caller reaching for one custom field does not lose the status by accident.
     /// </summary>
-    public static IReadOnlyList<string> Widen(IReadOnlyList<string>? extra)
+    /// <param name="extra">The fields the caller named, by identifier or by this profile's alias.</param>
+    /// <param name="aliases">
+    /// The operator's names for this Jira's fields. A name that is not one is passed through: this
+    /// server does not hold Jira's field catalogue, and an unrecognised name is far more likely to
+    /// be a real identifier than a mistake.
+    /// </param>
+    public static IReadOnlyList<string> Widen(
+        IReadOnlyList<string>? extra,
+        FieldAliases? aliases = null)
     {
         if (extra is null or { Count: 0 })
         {
@@ -40,7 +50,7 @@ internal static class FieldProjection
 
         foreach (var field in extra)
         {
-            var trimmed = field.Trim();
+            var trimmed = (aliases ?? FieldAliases.None).Resolve(field).Trim();
 
             if (trimmed.Length > 0 && !widened.Contains(trimmed, StringComparer.Ordinal))
             {

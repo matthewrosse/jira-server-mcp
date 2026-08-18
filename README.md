@@ -599,6 +599,39 @@ fails by absence rather than by a permission error.
   `jira_get_sprint_issues`, then one `jira_transition_issue` per issue. There is no bulk write, so
   ask the agent to list what it will change before it changes it.
 
+### Field aliases
+
+A custom field is named only by identifier everywhere an agent touches it: `customfield_10010` in a
+create, in an update, in the extra fields of a read. The identifier differs per instance, so a
+workflow that sets story points against a second Jira is otherwise a different workflow — and
+`jira_get_create_fields` answering with the field's name fixes discovery at the cost of a round trip
+per workflow, in an answer that does not survive a compacted conversation.
+
+Declare the names you want on the profile:
+
+```
+jira-server-mcp profile alias set work story_points customfield_10010
+jira-server-mcp profile alias set work severity     customfield_10021
+jira-server-mcp profile alias list work
+jira-server-mcp profile alias remove work severity
+```
+
+An alias is an **additional** name, never a rename:
+
+- **Writes and field projections accept either.** `jira_create_issue`, `jira_update_issue` and the
+  `fields` argument of every read take `story_points` or `customfield_10010` interchangeably.
+- **Reads show both**, as `story_points (customfield_10010)`. Replacing the identifier would hide
+  the value an agent still needs for everything an alias does not cover.
+- **A rejected write names the aliases this profile declares.** A field name this server does not
+  recognise is passed to Jira unchanged — the field catalogue lives in Jira, not here, and an
+  unfamiliar name is far more likely to be a real identifier than a mistake. So the moment an
+  unknown name fails is the moment Jira refuses it, and that failure carries the aliases it could
+  have used.
+
+Aliases are declared, never derived from Jira's own field names: two instances would otherwise get
+the same alias by accident, which is a trap rather than a contract. A name spelled like a field
+identifier — `customfield_10010` — is refused as an alias, since the two would be ambiguous.
+
 ### Retry-safe writes
 
 Three writes have no natural way to be repeated safely: a create, a comment and a worklog. If one

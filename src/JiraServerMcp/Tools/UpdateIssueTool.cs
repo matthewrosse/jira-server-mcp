@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.Net;
 using System.Text.Json;
+using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
@@ -14,7 +16,10 @@ namespace JiraServerMcp.Tools;
 /// separate assign tool: reassignment should not cost two operations.
 /// </summary>
 [McpServerToolType]
-internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
+internal sealed class UpdateIssueTool(
+    JiraClient jira,
+    ServedProfile profile,
+    FieldAliases aliases)
 {
     private const string Name = "jira_update_issue";
 
@@ -58,15 +63,23 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
             {
                 await jira.UpdateIssueAsync(
                     key,
-                    fields ?? new Dictionary<string, JsonElement>(),
+                    Resolved(fields),
                     assignee is null
                         ? null
                         : new JiraAssignee(assignee.Length is 0 ? null : assignee),
                     cancellationToken);
 
-                return Confirm(key, fields, assignee);
+                return Confirm(key, Resolved(fields), assignee);
             },
-            cancellationToken);
+            cancellationToken,
+            describeApiFailure: exception => JiraToolError.Describe(
+                exception,
+                profile.Name,
+                $"updating {key}",
+                advice: exception.StatusCode is HttpStatusCode.BadRequest
+                    ? "Call jira_get_create_fields for the identifiers this project's fields "
+                      + "have." + FieldAliasAdvice.From(aliases)
+                    : null));
     }
 
     /// <summary>
@@ -94,5 +107,28 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
                 Key = key,
                 Changed = changed,
             }));
+    }
+
+    /// <summary>
+    /// The field map with this profile's aliases resolved to the identifiers Jira knows. A key
+    /// that is not an alias is passed through: the field catalogue lives in Jira, not here, and a
+    /// name this server does not recognise is far more likely to be a real identifier.
+    /// </summary>
+    private IReadOnlyDictionary<string, JsonElement> Resolved(
+        IReadOnlyDictionary<string, JsonElement>? fields)
+    {
+        if (fields is not { Count: > 0 })
+        {
+            return new Dictionary<string, JsonElement>();
+        }
+
+        var resolved = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+
+        foreach (var field in fields)
+        {
+            resolved[aliases.Resolve(field.Key)] = field.Value;
+        }
+
+        return resolved;
     }
 }

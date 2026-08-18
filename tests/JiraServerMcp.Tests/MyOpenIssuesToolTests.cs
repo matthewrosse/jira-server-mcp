@@ -97,7 +97,8 @@ public sealed class MyOpenIssuesToolTests
                 BaseAddress = new Uri("https://jira.example.com", UriKind.Absolute),
                 Timeout = timeout ?? TimeSpan.FromSeconds(30),
             }),
-            new ServedProfile("work"));
+            new ServedProfile("work"),
+            FieldAliases.None);
 
     private static string Text(CallToolResult result) =>
         result.Content.OfType<TextContentBlock>().Single().Text;

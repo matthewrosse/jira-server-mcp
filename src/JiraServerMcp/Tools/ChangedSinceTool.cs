@@ -18,7 +18,10 @@ namespace JiraServerMcp.Tools;
 /// window is asked for. The tool says so rather than advancing past rows nobody read.
 /// </summary>
 [McpServerToolType]
-internal sealed class ChangedSinceTool(JiraClient jira, ServedProfile profile)
+internal sealed class ChangedSinceTool(
+    JiraClient jira,
+    ServedProfile profile,
+    FieldAliases aliases)
 {
     private const string Name = "jira_changed_since";
 
@@ -91,7 +94,7 @@ internal sealed class ChangedSinceTool(JiraClient jira, ServedProfile profile)
                     jql,
                     Math.Max(startAt, 0),
                     Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize),
-                    FieldProjection.Widen(fields),
+                    FieldProjection.Widen(fields, aliases),
                     cancellationToken);
 
                 // The renderer decides which rows the budget admits, so the watermark is taken

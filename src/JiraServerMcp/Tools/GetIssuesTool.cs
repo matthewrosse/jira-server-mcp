@@ -8,7 +8,10 @@ using ModelContextProtocol.Server;
 namespace JiraServerMcp.Tools;
 
 [McpServerToolType]
-internal sealed class GetIssuesTool(JiraClient jira, ServedProfile profile)
+internal sealed class GetIssuesTool(
+    JiraClient jira,
+    ServedProfile profile,
+    FieldAliases aliases)
 {
     private const string Name = "jira_get_issues";
 
@@ -76,7 +79,7 @@ internal sealed class GetIssuesTool(JiraClient jira, ServedProfile profile)
                 + "timeout line instead; this means the whole call ran out of time.",
             () => jira.GetIssuesAsync(
                 distinctKeys,
-                Expansions.Fields(expansions, fields),
+                Expansions.Fields(expansions, fields, aliases),
                 Expansions.Expand(expansions),
                 expansions.Contains(Expansion.Links),
                 cancellationToken),
@@ -88,7 +91,7 @@ internal sealed class GetIssuesTool(JiraClient jira, ServedProfile profile)
         }
 
         var results = step.Value;
-        var rendered = BulkIssueDetail.Render(results, expansions);
+        var rendered = BulkIssueDetail.Render(results, expansions, aliases);
 
         // A partial answer is a useful one; flagging it an error invites the agent to discard text
         // it has already paid for. Only nothing at all is genuinely an error.

@@ -8,7 +8,10 @@ using ModelContextProtocol.Server;
 namespace JiraServerMcp.Tools;
 
 [McpServerToolType]
-internal sealed class MyOpenIssuesTool(JiraClient jira, ServedProfile profile)
+internal sealed class MyOpenIssuesTool(
+    JiraClient jira,
+    ServedProfile profile,
+    FieldAliases aliases)
 {
     private const string Name = "jira_my_open_issues";
 
@@ -52,7 +55,7 @@ internal sealed class MyOpenIssuesTool(JiraClient jira, ServedProfile profile)
                     jql,
                     Math.Max(startAt, 0),
                     Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize),
-                    FieldProjection.Widen(fields),
+                    FieldProjection.Widen(fields, aliases),
                     cancellationToken);
 
                 var rendered = SearchResults.Render(page);

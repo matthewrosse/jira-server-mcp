@@ -19,6 +19,12 @@ internal sealed record Profile
     /// </summary>
     public JiraCapabilities? Capabilities { get; init; }
 
+    /// <summary>
+    /// The operator's own names for this Jira's fields, alias to field identifier. Absent from
+    /// every profile written before aliases existed, which reads as none.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? FieldAliases { get; init; }
+
     public required DateTimeOffset CreatedAt { get; init; }
 
     public required DateTimeOffset UpdatedAt { get; init; }

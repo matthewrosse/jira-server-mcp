@@ -8,7 +8,10 @@ using ModelContextProtocol.Server;
 namespace JiraServerMcp.Tools;
 
 [McpServerToolType]
-internal sealed class GetSprintIssuesTool(JiraClient jira, ServedProfile profile)
+internal sealed class GetSprintIssuesTool(
+    JiraClient jira,
+    ServedProfile profile,
+    FieldAliases aliases)
 {
     private const string Name = "jira_get_sprint_issues";
 
@@ -43,7 +46,7 @@ internal sealed class GetSprintIssuesTool(JiraClient jira, ServedProfile profile
                     sprintId,
                     Math.Max(startAt, 0),
                     SoftwarePage.Clamp(maxResults),
-                    FieldProjection.Widen(fields),
+                    FieldProjection.Widen(fields, aliases),
                     cancellationToken);
 
                 return SearchResults.Render(page);

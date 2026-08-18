@@ -18,7 +18,8 @@ namespace JiraServerMcp.Tools;
 internal sealed class CreateIssueTool(
     JiraClient jira,
     ServedProfile profile,
-    WriteAttempts attempts)
+    WriteAttempts attempts,
+    FieldAliases aliases)
 {
     private const string Name = "jira_create_issue";
 
@@ -83,7 +84,7 @@ internal sealed class CreateIssueTool(
                         projectKey,
                         issueType,
                         summary,
-                        fields ?? new Dictionary<string, JsonElement>(),
+                        Resolved(fields),
                         cancellationToken));
 
                 var rendered = new Rendered(
@@ -134,5 +135,29 @@ internal sealed class CreateIssueTool(
                 ? $"Call jira_get_create_fields with projectKey '{projectKey}' and issueType "
                   + $"'{issueType}' for the fields this project requires and the values they "
                   + "accept."
+                  + FieldAliasAdvice.From(aliases)
                 : null);
+
+    /// <summary>
+    /// The field map with this profile's aliases resolved to the identifiers Jira knows. A key
+    /// that is not an alias is passed through: the field catalogue lives in Jira, not here, and a
+    /// name this server does not recognise is far more likely to be a real identifier.
+    /// </summary>
+    private IReadOnlyDictionary<string, JsonElement> Resolved(
+        IReadOnlyDictionary<string, JsonElement>? fields)
+    {
+        if (fields is not { Count: > 0 })
+        {
+            return new Dictionary<string, JsonElement>();
+        }
+
+        var resolved = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+
+        foreach (var field in fields)
+        {
+            resolved[aliases.Resolve(field.Key)] = field.Value;
+        }
+
+        return resolved;
+    }
 }
