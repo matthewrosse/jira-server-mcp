@@ -124,11 +124,16 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Every_expansion_at_once_costs_one_request_per_key_not_five()
+    public async Task Every_expansion_at_once_costs_the_issue_and_the_remote_links_and_nothing_more()
     {
         StubIssue(
             "PROJ-12",
             Json(IssuePayload("comments", "transitions", "changelog", "links", "worklogs")));
+
+        // Remote links are not a field on the issue, so the links expansion alone reaches past
+        // the one GET the other four ride on.
+        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
+            .RespondWith(Json("[]"));
 
         var text = await GetIssuesAsync(new Dictionary<string, object?>
         {
@@ -136,7 +141,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
             ["include"] = new[] { "comments", "transitions", "changelog", "links", "worklogs" },
         });
 
-        _jira.LogEntries.Count.ShouldBe(1);
+        _jira.LogEntries.Count.ShouldBe(2);
 
         text.ShouldContain("comments");
         text.ShouldContain("transitions");
@@ -144,7 +149,10 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
         text.ShouldContain("links");
         text.ShouldContain("worklogs");
 
-        var query = SingleRequest().Query.ShouldNotBeNull();
+        var query = _jira.LogEntries
+            .Select(entry => entry.RequestMessage)
+            .Single(request => request.Path is "/rest/api/2/issue/PROJ-12")
+            .Query.ShouldNotBeNull();
 
         query["expand"].ShouldHaveSingleItem().ShouldBe("transitions.fields,changelog");
     }

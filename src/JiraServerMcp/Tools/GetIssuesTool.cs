@@ -76,6 +76,7 @@ internal sealed class GetIssuesTool(JiraClient jira, ServedProfile profile)
                 distinctKeys,
                 Expansions.Fields(expansions, fields),
                 Expansions.Expand(expansions),
+                expansions.Contains(Expansion.Links),
                 cancellationToken),
             cancellationToken);
 

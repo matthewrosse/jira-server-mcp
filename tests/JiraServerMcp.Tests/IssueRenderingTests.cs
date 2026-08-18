@@ -287,6 +287,7 @@ public class IssueRenderingTests
         JiraChangelog? changelog = null,
         JiraComments? comments = null,
         IReadOnlyList<JiraIssueLink>? links = null,
+        IReadOnlyList<JiraRemoteLink>? remoteLinks = null,
         JiraWorklogs? worklogs = null) =>
         new(
             "PROJ-12",
@@ -295,5 +296,6 @@ public class IssueRenderingTests
             changelog,
             comments,
             links ?? [],
+            remoteLinks,
             worklogs);
 }

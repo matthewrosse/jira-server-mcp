@@ -15,9 +15,12 @@ public class JiraClientGrowthTests
         var totalLines = jiraProject.GetFiles("JiraClient*.cs")
             .Sum(file => File.ReadAllLines(file.FullName).Length);
 
-        totalLines.ShouldBeLessThan(800,
+        // ADR-0006's 2026-08-18 amendment moved this from 800 and spent its one deferral: the
+        // next time it goes red, the split is the answer, not a third number.
+        totalLines.ShouldBeLessThan(1_000,
             "JiraClient*.cs has grown past the ADR-0006 budget. Split JiraClient into " +
             "partial class files along the resource axis (issues, projects, users, agile, " +
-            "writes, core), or amend ADR-0006 to move the threshold.");
+            "writes, core), on a commit of its own, and set the threshold from what the split " +
+            "measures. ADR-0006's amendment rules out moving the number again.");
     }
 }

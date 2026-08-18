@@ -1,6 +1,6 @@
 # ADR-0006: A line-count trigger for splitting JiraClient
 
-**Status:** Accepted (2026-08-17)
+**Status:** Accepted (2026-08-17), amended (2026-08-18)
 
 ## Context
 
@@ -62,3 +62,29 @@ When the test goes red, two responses are allowed:
   outcome as splitting, as long as it is deliberate and recorded here.
 - This does not become a repo-wide per-file line cap. It is about the one class with no internal
   seam, not a general style rule.
+
+## Amendment (2026-08-18): the threshold moves to 1,000
+
+The trigger fired on the first batch to arrive after it was written — the two link tools of #68,
+which added the link-type read, the two writes, and the remote-link read to `JiraClient`, taking
+the glob total from 636 to 867.
+
+The threshold moves to **1,000** rather than the split being taken now, for two reasons.
+
+The first is that the split would not have answered the test. What is measured is the glob, on
+purpose, so that the guard survives its own remedy — and that means a split leaves the total
+exactly where it was, plus a few lines of duplicated `using` blocks. Splitting under a red build
+here would have been a refactor that made no test green, ridden along on a feature change, which
+is precisely the shape of change this project's conventions refuse.
+
+The second is that the class is unchanged in kind. It is still one method per REST endpoint, still
+has no internal seam, and still passes the deletion test. What grew is the number of endpoints,
+which is what a client of a growing API does.
+
+1,000 leaves roughly the same headroom over 867 that 800 left over 636: about one more feature
+batch. The remaining tool work on the backlog will spend it.
+
+**The next firing is to be answered with the split, not with another number.** Two deferrals in a
+row would make this a ratchet that only ever moves in one direction, which is a guard that guards
+nothing. When it goes red again, take response 1 above, on its own commit, and set the threshold
+from what the split actually measures.

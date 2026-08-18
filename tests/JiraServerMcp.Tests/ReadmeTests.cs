@@ -131,6 +131,7 @@ public class ReadmeTests
         Grant.IssuesWrite => "issues:write",
         Grant.CommentsWrite => "comments:write",
         Grant.WorklogsWrite => "worklogs:write",
+        Grant.LinksWrite => "links:write",
         _ => throw new InvalidOperationException(
             $"The tool surface registers a tool under Grant.{grant}, which this test does not "
             + "know. A new grant needs a row in the README's catalogue and a name here."),

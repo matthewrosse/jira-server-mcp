@@ -16,6 +16,11 @@ namespace JiraServerMcp.Jira.Models;
 /// <param name="Changelog">The issue history, null unless expanded.</param>
 /// <param name="Comments">The issue's comments, null unless expanded.</param>
 /// <param name="Links">Links to other issues, empty unless expanded.</param>
+/// <param name="RemoteLinks">
+/// Links out of Jira, null unless they were asked for and could be read. Remote links are not a
+/// field on the issue, so they cost a request of their own, and one this account may be refused
+/// even where the issue itself was readable.
+/// </param>
 /// <param name="Worklogs">Logged time, null unless expanded.</param>
 public sealed record JiraIssueDetail(
     string Key,
@@ -24,6 +29,7 @@ public sealed record JiraIssueDetail(
     JiraChangelog? Changelog,
     JiraComments? Comments,
     IReadOnlyList<JiraIssueLink> Links,
+    IReadOnlyList<JiraRemoteLink>? RemoteLinks,
     JiraWorklogs? Worklogs);
 
 /// <summary>
@@ -71,6 +77,24 @@ public sealed record JiraChangeItem(string Field, string? From, string? To);
 /// <param name="Key">The issue on the other end of the link.</param>
 /// <param name="Summary">That issue's summary, where the projection carried one.</param>
 public sealed record JiraIssueLink(string Relation, string Key, string? Summary);
+
+/// <summary>
+/// A link from an issue to a URL outside Jira.
+/// </summary>
+/// <param name="Relationship">
+/// Jira's free-text grouping header in the link panel — "pull request" — which a producer may
+/// leave unset.
+/// </param>
+public sealed record JiraRemoteLink(string Title, string Url, string? Relationship);
+
+/// <summary>
+/// One type of issue link, named once from each end. The two phrases are what this server's tools
+/// take in place of a type name and a direction, because only the phrase says which end is which.
+/// </summary>
+/// <param name="Name">Jira's name for the type, which is what a write must send.</param>
+/// <param name="Inward">The wording for the end the link points at — "is blocked by".</param>
+/// <param name="Outward">The wording for the end the link points from — "blocks".</param>
+public sealed record JiraIssueLinkType(string Name, string Inward, string Outward);
 
 /// <summary>The issue's logged time. <see cref="Total"/> is Jira's own count.</summary>
 public sealed record JiraWorklogs(int Total, IReadOnlyList<JiraWorklog> Worklogs);

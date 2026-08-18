@@ -116,7 +116,12 @@ public sealed class JiraBulkIssueTests : IDisposable
     }
 
     private Task<IReadOnlyList<BulkIssueResult>> GetIssuesAsync(IReadOnlyList<string> keys) =>
-        CreateClient().GetIssuesAsync(keys, ["summary"], [], TestContext.Current.CancellationToken);
+        CreateClient().GetIssuesAsync(
+            keys,
+            ["summary"],
+            [],
+            remoteLinks: false,
+            TestContext.Current.CancellationToken);
 
     private static IResponseBuilder Json(string key) =>
         Response.Create().WithStatusCode(200)

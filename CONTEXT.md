@@ -63,7 +63,7 @@ time. The per-tool advice is data handed to it; the sentences around that advice
 _Avoid_: handler, invocation, request.
 
 **Grant** — a named category of write permission (`issues:write`, `comments:write`,
-`worklogs:write`) that the operator hands to one MCP client. Without a grant, the corresponding
+`worklogs:write`, `links:write`) that the operator hands to one MCP client. Without a grant, the corresponding
 tools are not registered, so an agent cannot attempt them.
 _Avoid_: scope, permission, role — all three already mean something inside Jira.
 

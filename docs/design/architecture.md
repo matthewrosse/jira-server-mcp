@@ -294,13 +294,15 @@ Jira Core instance, and the model would try them.
 | `jira_transition_issue` | `issues:write` | `POST /rest/api/2/issue/{key}/transitions` — accepts a transition *name*, resolves the id, optional comment and screen fields in the same call |
 | `jira_add_comment` | `comments:write` | `POST /rest/api/2/issue/{key}/comment` |
 | `jira_add_worklog` | `worklogs:write` | `POST /rest/api/2/issue/{key}/worklog` — `timeSpent` in Jira's own form (`"3h 30m"`), optional `started`, optional comment |
+| `jira_link_issues` | `links:write` | `POST /rest/api/2/issueLink`, after `GET /rest/api/2/issueLinkType` — takes a relation *phrase*, which decides which key goes in which slot (ADR-0010), optional comment |
+| `jira_add_remote_link` | `links:write` | `POST /rest/api/2/issue/{key}/remotelink` — the URL is the `globalId`, so the call is an upsert and the answer says which it was |
 
 ### Deliberately excluded from the MVP
 
 Issue deletion (irreversible, and no agent should reach for it unprompted); comment edit and
 delete; attachment upload and download (file paths crossing the MCP boundary is a path-traversal
-surface that deserves its own design pass); issue linking; sprint mutation; watchers; votes;
-bulk operations. Each is straightforward to add once the write path has real usage.
+surface that deserves its own design pass); unlinking, of either kind of link; sprint mutation;
+watchers; votes; bulk operations. Each is straightforward to add once the write path has real usage.
 
 ### Resources versus tools
 

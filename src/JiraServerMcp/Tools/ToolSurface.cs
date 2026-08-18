@@ -37,6 +37,8 @@ internal static class ToolSurface
         new(typeof(TransitionIssueTool), RequiredGrant: Grant.IssuesWrite),
         new(typeof(AddCommentTool), RequiredGrant: Grant.CommentsWrite),
         new(typeof(AddWorklogTool), RequiredGrant: Grant.WorklogsWrite),
+        new(typeof(LinkIssuesTool), RequiredGrant: Grant.LinksWrite),
+        new(typeof(AddRemoteLinkTool), RequiredGrant: Grant.LinksWrite),
     ];
 
     /// <summary>
