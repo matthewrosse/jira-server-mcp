@@ -2,6 +2,7 @@ using System.Reflection;
 using JiraServerMcp.Credentials;
 using JiraServerMcp.Grants;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Prompts;
 using JiraServerMcp.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -79,6 +80,13 @@ internal static class ServeVerb
         foreach (var toolType in ToolSurface.ToolsToRegister(grants, profile.Capabilities))
         {
             server.WithTools([toolType]);
+        }
+
+        // Same one-call-per-type caution as the tools above: WithPrompts takes a batch, and the
+        // tool equivalent is known to mis-register one.
+        foreach (var promptType in PromptSurface.PromptsToRegister(grants, profile.Capabilities))
+        {
+            server.WithPrompts([promptType]);
         }
 
         await ToolSurface.WarnAboutTheProbeAsync(profileName, profile);

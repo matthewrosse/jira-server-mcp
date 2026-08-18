@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using JiraServerMcp.Grants;
+using JiraServerMcp.Prompts;
 using JiraServerMcp.Tools;
 using ModelContextProtocol.Server;
 
@@ -75,6 +76,56 @@ public class ReadmeTests
             .Select(row => row.Key)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ShouldBe(SoftwareTools().OrderBy(name => name, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// The workflow prompts section, held to <see cref="PromptSurface"/> the same way the tool
+    /// catalogue is held to <see cref="ToolSurface"/>: a prompt added or renamed fails here rather
+    /// than quietly outliving its row.
+    /// </summary>
+    [Fact]
+    public void The_workflow_prompt_section_names_every_prompt_the_serve_verb_registers()
+    {
+        var documented = new Regex(@"^\|\s*`(?<prompt>[a-z_]+)`\s*\|", RegexOptions.Multiline)
+            .Matches(Section("## Workflow prompts"))
+            .Select(match => match.Groups["prompt"].Value)
+            .ToList();
+
+        documented.ShouldBe([ImplementIssuePrompt.Name]);
+    }
+
+    [Fact]
+    public void Every_tool_a_prompt_requires_is_named_in_that_prompts_row()
+    {
+        // What a reader needs from this section is why a prompt they cannot see is missing, and
+        // that answer is the tools it requires — so the row carries them rather than a grant.
+        var section = Section("## Workflow prompts");
+        var declared = Declared();
+
+        foreach (var entry in PromptSurface.Entries)
+        {
+            foreach (var required in entry.RequiredTools)
+            {
+                var name = declared.Single(tool => tool.Value == required.Name).Key;
+
+                section.ShouldContain(
+                    name,
+                    Case.Sensitive,
+                    $"{entry.PromptType.Name}'s procedure calls {name}, so its row must say so.");
+            }
+        }
+    }
+
+    /// <summary>One section of the README, from its heading to the next one at the same level.</summary>
+    private static string Section(string heading)
+    {
+        var start = _readme.IndexOf(heading, StringComparison.Ordinal);
+
+        start.ShouldBeGreaterThanOrEqualTo(0, $"The README has no '{heading}' section.");
+
+        var next = _readme.IndexOf("\n## ", start + heading.Length, StringComparison.Ordinal);
+
+        return next < 0 ? _readme[start..] : _readme[start..next];
     }
 
     private static IReadOnlyDictionary<string, (string Grant, string What)> Catalogue()
