@@ -51,6 +51,40 @@ public class AttachmentTextTests
     }
 
     [Fact]
+    public void Binary_bytes_past_the_first_pages_still_make_the_window_binary()
+    {
+        // A SQL dump before its first blob, an mbox before its first attachment, a log with
+        // something binary pasted into it: pages of clean text and then bytes that are not. A
+        // check that sampled only the front of the window would pass this and hand the caller the
+        // NUL and everything after it as though it were text.
+        var file = new byte[10_000];
+
+        Array.Fill(file, (byte)'a');
+        file[5_000] = 0x00;
+        file[5_001] = 0xFF;
+
+        AttachmentText.IsText(file).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void An_invalid_sequence_in_the_middle_is_not_mistaken_for_a_cut_off_character()
+    {
+        // 0xC3 0x28 is invalid rather than incomplete, and it is nowhere near the end, so the
+        // window is not text however much valid text surrounds it.
+        var file = Encoding.UTF8.GetBytes(new string('a', 500) + "  " + new string('b', 500))
+            .ToArray();
+
+        file[500] = 0xC3;
+        file[501] = 0x28;
+
+        AttachmentText.IsText(file).ShouldBeFalse();
+
+        // And what was readable is measurable, so a caller can be told where text stopped rather
+        // than handed replacement marks for the rest.
+        AttachmentText.Usable(file).ShouldBe(500);
+    }
+
+    [Fact]
     public void A_window_ending_mid_character_is_still_text()
     {
         var whole = Encoding.UTF8.GetBytes("Rêverie");

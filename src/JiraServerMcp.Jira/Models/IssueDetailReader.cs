@@ -171,7 +171,7 @@ internal static class IssueDetailReader
         return
         [
             .. attachments
-                .Select(attachment => String(attachment, "id") is { Length: > 0 } id
+                .Select(attachment => Identifier(attachment) is { Length: > 0 } id
                     ? new JiraAttachment(
                         Id: id,
                         FileName: String(attachment, "filename") ?? "(unnamed)",
@@ -185,6 +185,21 @@ internal static class IssueDetailReader
                 .OfType<JiraAttachment>(),
         ];
     }
+
+    /// <summary>
+    /// An attachment's identifier, quoted or numbered. Jira's own two shapes for the same value
+    /// disagree — the issue field carries it as a string and the attachment endpoint as a number —
+    /// so neither is assumed, and a file is never dropped from a listing over its spelling.
+    /// </summary>
+    private static string? Identifier(JsonElement attachment) =>
+        attachment.TryGetProperty("id", out var id)
+            ? id.ValueKind switch
+            {
+                JsonValueKind.String => id.GetString(),
+                JsonValueKind.Number => id.GetRawText(),
+                _ => null,
+            }
+            : null;
 
     private static IReadOnlyList<JiraIssueLink> Links(JsonElement fields)
     {

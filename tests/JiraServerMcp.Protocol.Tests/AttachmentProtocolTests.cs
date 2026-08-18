@@ -129,7 +129,11 @@ public sealed class AttachmentProtocolTests : IAsyncLifetime
         var structure = result.StructuredContent.ShouldNotBeNull();
 
         structure.GetProperty("binary").GetBoolean().ShouldBeTrue();
-        structure.TryGetProperty("bytes", out _).ShouldBeFalse();
+
+        // Nothing was decoded, and there is nowhere to resume from: no offset this module could
+        // name is where readable text picks up again.
+        structure.GetProperty("bytes").GetInt32().ShouldBe(0);
+        structure.TryGetProperty("nextOffset", out _).ShouldBeFalse();
     }
 
     [Fact]

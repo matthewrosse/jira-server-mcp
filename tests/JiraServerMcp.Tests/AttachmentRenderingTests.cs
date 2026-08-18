@@ -83,6 +83,78 @@ public class AttachmentRenderingTests
     }
 
     [Fact]
+    public void A_file_that_stops_being_text_partway_through_is_never_inlined()
+    {
+        // The window is text for its first pages and then is not. Deciding from a sample of the
+        // front would inline the NUL, and everything after it, as text.
+        var file = new byte[10_000];
+
+        Array.Fill(file, (byte)'a');
+        file[5_000] = 0x00;
+
+        var rendered = AttachmentContent.Render(File(size: 10_000), file, offset: 0);
+        var window = Deserialize(rendered);
+
+        window.Binary.ShouldBe(true);
+        window.Bytes.ShouldBe(0);
+        rendered.Text.ShouldNotContain("aaaa");
+        rendered.Text.ShouldNotContain("\uFFFD");
+    }
+
+    [Fact]
+    public void A_window_that_stops_being_text_is_described_as_the_window_it_is()
+    {
+        var file = new byte[100];
+
+        Array.Fill(file, (byte)'a');
+        file[50] = 0x00;
+
+        // The caller already holds readable text from earlier in this file, so telling it the file
+        // is not text would contradict what it is holding.
+        var rendered = AttachmentContent.Render(File(size: 20_000), file, offset: 16_000);
+
+        rendered.Text.ShouldContain("stops being text at byte 16000");
+        rendered.Text.ShouldNotContain("notes.csv is not text");
+        Deserialize(rendered).Offset.ShouldBe(16_000);
+    }
+
+    [Fact]
+    public void A_file_jira_gave_no_size_for_says_there_is_probably_more_rather_than_claiming_the_end()
+    {
+        // Jira's size is missing or unreadable, which reaches the renderer as zero. Reading that
+        // as "an empty file" would tell a caller holding the first window that it holds the whole
+        // file.
+        var window = Encoding.UTF8.GetBytes(new string('a', ResponseBudget.AttachmentWindow));
+
+        var rendered = AttachmentContent.Render(
+            new JiraAttachment("10100", "notes.csv", 0, "text/csv", Content),
+            window,
+            offset: 0);
+
+        var page = Deserialize(rendered);
+
+        page.NextOffset.ShouldBe(ResponseBudget.AttachmentWindow);
+        rendered.Text.ShouldContain("did not say how large this file is");
+
+        // A paging field only where Jira gave the number (ADR-0009, as amended): absence is
+        // unknown, where a zero would say the file is empty.
+        page.Size.ShouldBeNull();
+        page.BytesRemaining.ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_short_window_from_a_file_of_unknown_size_is_the_end_of_it()
+    {
+        var rendered = AttachmentContent.Render(
+            new JiraAttachment("10100", "notes.csv", 0, "text/csv", Content),
+            "id,name\n"u8,
+            offset: 0);
+
+        Deserialize(rendered).NextOffset.ShouldBeNull();
+        rendered.Text.ShouldContain("the rest of the file");
+    }
+
+    [Fact]
     public void A_binary_is_described_rather_than_read_whatever_jira_claims_it_is()
     {
         var png = new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G', 0, 0, 0, 0 };
@@ -100,7 +172,7 @@ public class AttachmentRenderingTests
         // Nothing decoded means nothing to delimit, and no resume position to offer.
         Structure(rendered).ShouldBe(
             """
-            {"outcome":"ok","attachmentId":"10101","fileName":"screenshot.png","mediaType":"text/plain","size":90000,"binary":true}
+            {"outcome":"ok","attachmentId":"10101","fileName":"screenshot.png","mediaType":"text/plain","size":90000,"binary":true,"offset":0,"bytes":0,"bytesRemaining":89992}
             """);
     }
 

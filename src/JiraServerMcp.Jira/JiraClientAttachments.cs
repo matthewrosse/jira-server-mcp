@@ -58,11 +58,7 @@ public sealed partial class JiraClient
         int window,
         CancellationToken cancellationToken)
     {
-        var content = attachment.Content is { Length: > 0 } url
-                      && Uri.TryCreate(url, UriKind.Absolute, out var absolute)
-            ? new Uri(httpClient.BaseAddress!, absolute.PathAndQuery)
-            : throw new InvalidOperationException(
-                $"Jira did not say where attachment {attachment.Id} is served.");
+        var content = Content(attachment);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, content);
 
@@ -71,6 +67,14 @@ public sealed partial class JiraClient
         using var response = await httpClient
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
+
+        // A range starting at or past the end of the file is unsatisfiable, and a server says so
+        // with a 416 rather than with an empty body. That is the honest answer to "what is at byte
+        // N of an N-byte file", so it is read as no bytes rather than raised as a failure.
+        if (response.StatusCode is HttpStatusCode.RequestedRangeNotSatisfiable)
+        {
+            return [];
+        }
 
         await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
 
@@ -87,6 +91,27 @@ public sealed partial class JiraClient
 
             return await Window(stream, window, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Where the bytes are, as a request this client will make. Jira composes the content URL from
+    /// its own configured base URL, so only the path is taken from it and resolved against the base
+    /// this profile was configured with — an instance behind a proxy regularly names a host this
+    /// server was never pointed at, and a tampered-with one would name a host of its choosing.
+    /// A relative path is resolved the same way rather than refused: what is used is the path
+    /// either way.
+    /// </summary>
+    private Uri Content(JiraAttachment attachment)
+    {
+        if (attachment.Content is not { Length: > 0 } url)
+        {
+            throw new InvalidOperationException(
+                $"Jira did not say where attachment {attachment.Id} is served.");
+        }
+
+        return Uri.TryCreate(url, UriKind.Absolute, out var absolute)
+            ? new Uri(httpClient.BaseAddress!, absolute.PathAndQuery)
+            : new Uri(httpClient.BaseAddress!, url);
     }
 
     /// <summary>

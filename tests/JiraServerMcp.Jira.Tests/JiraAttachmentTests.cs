@@ -101,6 +101,39 @@ public sealed class JiraAttachmentTests : IDisposable
     }
 
     [Fact]
+    public async Task A_range_past_the_end_of_the_file_is_no_bytes_rather_than_a_failure()
+    {
+        // "What is at byte 14 of a 14-byte file" is an honest question with an honest answer, and
+        // a server gives it as a 416 rather than as an empty body. Raising that as a Jira failure
+        // would tell the caller its request was refused when the file simply ended.
+        _jira.Given(Request.Create().WithPath("/secure/attachment/10100/server.log").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(416));
+
+        var window = await ReadAsync(Attachment(size: 14), offset: 14, window: 100);
+
+        window.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_content_path_is_resolved_against_the_configured_base_rather_than_refused()
+    {
+        StubContent("0123456789", partial: false);
+
+        // Some instances and proxies answer with a path rather than an absolute URL. Only the path
+        // is ever used, so there is nothing to refuse.
+        var relative = new JiraAttachment(
+            "10100",
+            "server.log",
+            10,
+            null,
+            "/secure/attachment/10100/server.log");
+
+        var window = await ReadAsync(relative, offset: 0, window: 10);
+
+        Encoding.UTF8.GetString(window).ShouldBe("0123456789");
+    }
+
+    [Fact]
     public async Task An_attachment_jira_will_not_say_where_to_find_cannot_be_read()
     {
         var nowhere = new JiraAttachment("10100", "server.log", 10, null, Content: null);
@@ -109,6 +142,40 @@ public sealed class JiraAttachmentTests : IDisposable
 
         (await reading.ShouldThrowAsync<InvalidOperationException>())
             .Message.ShouldContain("10100");
+    }
+
+    [Fact]
+    public async Task An_attachment_whose_identifier_jira_numbered_is_still_listed()
+    {
+        // Jira's two shapes for the same value disagree: the attachment endpoint numbers the id,
+        // and an issue's attachment field is documented to quote it. An instance that numbers it
+        // there too would drop the file out of the listing entirely, and the agent would conclude
+        // there was nothing to read.
+        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+                    {
+                      "key": "PROJ-12",
+                      "fields": {
+                        "attachment": [
+                          { "id": 10100, "filename": "server.log", "size": 2048 }
+                        ]
+                      }
+                    }
+                    """));
+
+        var issue = await CreateClient().GetIssueAsync(
+            "PROJ-12",
+            ["attachment"],
+            [],
+            remoteLinks: false,
+            TestContext.Current.CancellationToken);
+
+        var attachment = issue.Attachments.ShouldHaveSingleItem();
+
+        attachment.Id.ShouldBe("10100");
+        attachment.FileName.ShouldBe("server.log");
     }
 
     private async Task<byte[]> ReadAsync(JiraAttachment attachment, long offset, int window) =>

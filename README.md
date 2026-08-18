@@ -527,14 +527,18 @@ far more context than a section of an issue read should ever spend.
   that identifier.
 - *"Read the 400 KB server log on PROJ-123 and find the first stack trace."* —
   `jira_get_attachment`, then again with the `nextOffset` it returned, and again, until there is no
-  `nextOffset` left. Each call is one window of the file.
+  `nextOffset` left. Each call is one window of the file. Where Jira reports no size for an
+  attachment — some instances do not — a full window is reported as "probably more" rather than as
+  the end of the file, and `size` and `bytesRemaining` are absent rather than zero.
 
 Two things this deliberately does not do. It does not trust the media type: whether a file is
 readable is decided by inspecting its bytes, because instances of the vintage this project targets
 label plain text as `application/octet-stream` and binaries as `text/plain` often enough that a
 rule built on the label fails exactly where it matters. Jira's claim is still reported, marked as a
 claim. And it never inlines a binary — a screenshot or a ZIP is described, with its name, size and
-claimed type, because its bytes would cost an agent its context to learn nothing.
+claimed type, because its bytes would cost an agent its context to learn nothing. The whole of a
+window is checked rather than a sample of its front, so a file that is text for a page and binary
+after it is not half inlined.
 
 An attachment is the least trustworthy text on a ticket: anyone with a Jira account can put a file
 there. It is delimited as untrusted content on the way out, always, with no case analysis about

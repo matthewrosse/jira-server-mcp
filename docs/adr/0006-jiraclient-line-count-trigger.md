@@ -91,8 +91,9 @@ from what the split actually measures.
 
 ## Amendment (2026-08-18): the split, taken
 
-The trigger fired again on #73's attachment work, which took the glob from 899 to 1,017. As the
-previous amendment committed, this was answered with response 1 rather than a third number.
+The trigger fired again on #73's attachment work, which took the glob from 899 to 1,017 before the
+split. As the previous amendment committed, this was answered with response 1 rather than a third
+number.
 
 `JiraClient` is now `partial` across a file per resource — account, issues, projects, users, agile,
 writes, links — over a core file holding the shared request helpers and the one transport limit.
@@ -100,11 +101,14 @@ The public surface is unchanged, and so is every call site, which is what `parti
 The boundary is the one the test tree already used, so nothing about it is new; the source has
 simply caught up.
 
-The split measures 984 lines across ten files, against 899 before it: the increase is the using
-blocks each file repeats, exactly as the previous amendment predicted. Two thresholds replace the
-one:
+The split itself measures 984 lines across ten files, against 899 before it: the increase is the
+using blocks each file repeats, exactly as the previous amendment predicted. With the attachment
+endpoints that triggered it also in, the client measures **1,154 across eleven files**, and that is
+the number the new threshold is set from — a threshold set from the split commit alone would have
+left twenty-one lines of headroom and fired on the very next endpoint, which is a guard nobody can
+act on. Two thresholds replace the one:
 
-- **The glob stays, at 1,150.** Roughly one feature batch of headroom over 984, which is the
+- **The glob stays, at 1,300.** Roughly one feature batch of headroom over 1,154, which is the
   headroom 800 left over 636 and 1,000 left over 867. It still guards the client as a whole, and it
   still survives a further split.
 - **No single `JiraClient*.cs` file may reach 250 lines.** This is the guard the split makes
