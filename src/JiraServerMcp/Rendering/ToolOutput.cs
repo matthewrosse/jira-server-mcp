@@ -516,6 +516,55 @@ internal sealed record AccountOutput : ToolOutput
 }
 
 /// <summary>
+/// One window of an attachment. The file name is a selection label under ADR-0009's amended rule
+/// 2 — an attachment id names nothing, and the name is the only basis an agent has for knowing
+/// which file it is holding. The bytes themselves are not here: they are the least trustworthy
+/// text on a ticket, and they belong in the delimited region and nowhere else.
+/// </summary>
+internal sealed record AttachmentOutput : ToolOutput
+{
+    [JsonPropertyName("attachmentId")]
+    public string? AttachmentId { get; init; }
+
+    [JsonPropertyName("fileName")]
+    public string? FileName { get; init; }
+
+    /// <summary>
+    /// What Jira claims the file is. Advisory, and named so in the prose too: nothing branches on
+    /// it, because legacy instances report it wrongly often enough that a caller which trusted it
+    /// would skip readable files and try to read unreadable ones.
+    /// </summary>
+    [JsonPropertyName("mediaType")]
+    public string? MediaType { get; init; }
+
+    /// <summary>The whole file's size in bytes, as Jira records it.</summary>
+    [JsonPropertyName("size")]
+    public long? Size { get; init; }
+
+    /// <summary>
+    /// Whether the bytes were decided to be unreadable, by inspecting them rather than by
+    /// believing <see cref="MediaType"/>. A binary is described and never inlined.
+    /// </summary>
+    [JsonPropertyName("binary")]
+    public bool? Binary { get; init; }
+
+    /// <summary>Where this window started. Absent on a binary, which has no window.</summary>
+    [JsonPropertyName("offset")]
+    public long? Offset { get; init; }
+
+    /// <summary>How many bytes this window carried.</summary>
+    [JsonPropertyName("bytes")]
+    public int? Bytes { get; init; }
+
+    /// <summary>Where the next window starts. Absent once the file is read out.</summary>
+    [JsonPropertyName("nextOffset")]
+    public long? NextOffset { get; init; }
+
+    [JsonPropertyName("bytesRemaining")]
+    public long? BytesRemaining { get; init; }
+}
+
+/// <summary>
 /// The envelope on its own, for a tool whose payload is not yet structured. Rule 3 of ADR-0009 is
 /// that structure is present on every result, so these still answer "did this work, and if not
 /// why" — they simply carry nothing else yet.

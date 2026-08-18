@@ -8,12 +8,13 @@ internal enum Expansion
     Changelog,
     Links,
     Worklogs,
+    Attachments,
 }
 
 /// <summary>
-/// Turns the expansions a caller named into the one request that carries them. Jira reaches three
+/// Turns the expansions a caller named into the one request that carries them. Jira reaches four
 /// of these sections through the field projection and two through its own expand parameter, and
-/// both travel on the same GET — so asking for all five costs one call, not five.
+/// both travel on the same GET — so asking for all six costs one call, not six.
 /// </summary>
 internal static class Expansions
 {
@@ -25,6 +26,7 @@ internal static class Expansions
             ["changelog"] = Expansion.Changelog,
             ["links"] = Expansion.Links,
             ["worklogs"] = Expansion.Worklogs,
+            ["attachments"] = Expansion.Attachments,
         };
 
     public static string Names => string.Join(", ", _byName.Keys);
@@ -80,6 +82,7 @@ internal static class Expansions
         Expansion.Comments => "comment",
         Expansion.Links => "issuelinks",
         Expansion.Worklogs => "worklog",
+        Expansion.Attachments => "attachment",
         _ => null,
     };
 

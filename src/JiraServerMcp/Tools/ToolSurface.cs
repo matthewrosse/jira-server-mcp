@@ -25,6 +25,7 @@ internal static class ToolSurface
         new(typeof(MyOpenIssuesTool)),
         new(typeof(ChangedSinceTool)),
         new(typeof(GetIssuesTool)),
+        new(typeof(GetAttachmentTool)),
         new(typeof(ListProjectsTool)),
         new(typeof(GetProjectTool)),
         new(typeof(GetCreateFieldsTool)),

@@ -70,6 +70,21 @@ internal static class ResponseBudget
     public const int PageReserve = 600;
 
     /// <summary>
+    /// The most bytes of one attachment a single fetch is worth, about four thousand tokens of
+    /// text. A log or a pasted CSV is routinely larger than anything worth reading in one go, so
+    /// the window is a window: the fetch says where it stopped and the next one resumes there,
+    /// which is the paging shape the rest of this server already uses.
+    /// </summary>
+    public const int AttachmentWindow = 16_000;
+
+    /// <summary>
+    /// How much of an attachment is read to decide whether it is text at all. Enough to catch the
+    /// header of any binary format worth naming, and small enough that deciding costs nothing on
+    /// a file that turns out to be unreadable.
+    /// </summary>
+    public const int AttachmentSniff = 4_096;
+
+    /// <summary>
     /// The most characters a failed tool call's framed block of Jira's own words is worth. A 500
     /// can carry a full stack trace in <c>errorMessages</c>, and this is a rare path by
     /// construction, so it gets the same order as <see cref="Prose"/> rather than a search row's.

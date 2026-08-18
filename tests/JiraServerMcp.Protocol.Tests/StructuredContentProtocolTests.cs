@@ -40,6 +40,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
             ["jira_my_open_issues"] = [],
             ["jira_changed_since"] = new() { ["since"] = "2026-08-18T09:00:00+02:00" },
             ["jira_get_issues"] = new() { ["keys"] = new[] { "PROJ-12" } },
+            ["jira_get_attachment"] = new() { ["attachmentId"] = "10100" },
             ["jira_list_projects"] = [],
             ["jira_get_project"] = new() { ["key"] = "PROJ" },
             ["jira_get_create_fields"] = new()

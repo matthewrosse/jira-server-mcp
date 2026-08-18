@@ -159,6 +159,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
                 "jira_add_worklog",
                 "jira_changed_since",
                 "jira_create_issue",
+                "jira_get_attachment",
                 "jira_get_create_fields",
                 "jira_get_issues",
                 "jira_get_project",

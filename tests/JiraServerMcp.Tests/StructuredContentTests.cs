@@ -695,7 +695,8 @@ public class StructuredContentTests
                 null,
                 [],
                 null,
-                null),
+                null,
+                []),
             null);
 
     private static BulkIssueResult Failure(string key, Exception failure) =>

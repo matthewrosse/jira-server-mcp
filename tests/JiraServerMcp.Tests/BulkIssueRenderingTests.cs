@@ -120,7 +120,8 @@ public class BulkIssueRenderingTests
                 null,
                 [],
                 null,
-                null),
+                null,
+                []),
             null);
 
     private static BulkIssueResult Failure(string key, Exception failure) => new(key, null, failure);
