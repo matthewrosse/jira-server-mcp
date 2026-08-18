@@ -173,12 +173,89 @@ internal static class VerbDispatcher
             parseResult.GetValue(removeCredentialStore),
             cancellationToken));
 
+        profile.Subcommands.Add(AliasCommand());
         profile.Subcommands.Add(add);
         profile.Subcommands.Add(list);
         profile.Subcommands.Add(refresh);
         profile.Subcommands.Add(remove);
 
         return profile;
+    }
+
+    /// <summary>
+    /// `profile alias set|list|remove`. Aliases live on the profile because that is where this
+    /// project keeps configuration (ADR-0005); a second location would need precedence rules of
+    /// its own.
+    /// </summary>
+    private static Command AliasCommand()
+    {
+        var alias = new Command("alias", "Declare your own names for this Jira's fields.");
+
+        var setProfile = new Argument<string>("profile")
+        {
+            Description = "The profile the alias belongs to.",
+        };
+
+        var setAlias = new Argument<string>("alias")
+        {
+            Description = "The name to read and write the field by, such as \"story_points\".",
+        };
+
+        var setField = new Argument<string>("field")
+        {
+            Description = "Jira's own identifier for the field, such as \"customfield_10010\".",
+        };
+
+        var set = new Command("set", "Declare an alias for a field, or replace one.")
+        {
+            setProfile,
+            setAlias,
+            setField,
+        };
+
+        set.SetAction((parseResult, cancellationToken) => ProfileVerbs.SetAliasAsync(
+            parseResult.GetValue(setProfile)!,
+            parseResult.GetValue(setAlias)!,
+            parseResult.GetValue(setField)!,
+            cancellationToken));
+
+        var listProfile = new Argument<string>("profile")
+        {
+            Description = "The profile whose aliases are listed.",
+        };
+
+        var list = new Command("list", "List a profile's field aliases.") { listProfile };
+
+        list.SetAction((parseResult, cancellationToken) => ProfileVerbs.ListAliasesAsync(
+            parseResult.GetValue(listProfile)!,
+            cancellationToken));
+
+        var removeProfile = new Argument<string>("profile")
+        {
+            Description = "The profile the alias belongs to.",
+        };
+
+        var removeAlias = new Argument<string>("alias")
+        {
+            Description = "The alias to remove. The field itself is untouched.",
+        };
+
+        var remove = new Command("remove", "Remove a field alias.")
+        {
+            removeProfile,
+            removeAlias,
+        };
+
+        remove.SetAction((parseResult, cancellationToken) => ProfileVerbs.RemoveAliasAsync(
+            parseResult.GetValue(removeProfile)!,
+            parseResult.GetValue(removeAlias)!,
+            cancellationToken));
+
+        alias.Subcommands.Add(set);
+        alias.Subcommands.Add(list);
+        alias.Subcommands.Add(remove);
+
+        return alias;
     }
 
     private static Command AuthCommand()

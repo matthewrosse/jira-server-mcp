@@ -1,6 +1,7 @@
 using System.Text;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Models;
+using JiraServerMcp.Profiles;
 
 namespace JiraServerMcp.Rendering;
 
@@ -18,16 +19,22 @@ internal static class SearchResults
     /// call would resume past a change the caller never saw. Absent for every other page of
     /// issues, none of which is a feed.
     /// </param>
+    /// <param name="aliases">
+    /// The operator's names for this Jira's fields. A row labels an aliased field with both names,
+    /// as an issue read does — a caller that asked for "story_points" must be able to find it in
+    /// the answer.
+    /// </param>
     public static Rendered Render(
         JiraSearchPage page,
-        Func<IReadOnlyList<JiraIssue>, string>? watermark = null)
+        Func<IReadOnlyList<JiraIssue>, string>? watermark = null,
+        FieldAliases? aliases = null)
     {
         var lines = new List<string>();
         var used = 0;
 
         foreach (var issue in page.Issues)
         {
-            var line = Line(issue);
+            var line = Line(issue, aliases ?? FieldAliases.None);
 
             if (used + line.Length + 1 > ResponseBudget.SearchTextBudget - ResponseBudget.PageReserve)
             {
@@ -110,7 +117,7 @@ internal static class SearchResults
             : $"{shown} — no more pages.";
     }
 
-    private static string Line(JiraIssue issue)
+    private static string Line(JiraIssue issue, FieldAliases aliases)
     {
         var line = new StringBuilder(issue.Key);
 
@@ -121,7 +128,7 @@ internal static class SearchResults
                 continue;
             }
 
-            line.Append(" | ").Append(field.Key).Append(": ")
+            line.Append(" | ").Append(aliases.Label(field.Key)).Append(": ")
                 .Append(Truncation.Apply(value, issue.Key));
         }
 

@@ -108,6 +108,13 @@ read these limits from one module; their cutting and paging mechanics remain whe
 context authoring the query. The name is the contract; a parameter that changes what the query
 means belongs in `jira_search` instead.
 
+**Field alias** — a name an operator declares on a profile for one of that Jira's fields:
+`story_points` for `customfield_10010`. An additional name, never a rename — a read shows both, and
+a write accepts either — because the identifier is still what every part of Jira that has no alias
+requires. Declared, never derived from Jira's own field names: derivation would give two instances
+the same alias by accident, and the operator's intent is the one thing nothing else can supply.
+_Avoid_: field mapping, custom field name, friendly name.
+
 **Idempotency key** — a string a caller invents and hands to a write that Jira offers no natural
 way to repeat safely: a create, a comment, a worklog. This server records the key before it sends
 the write, so a second call carrying it writes nothing and is told what became of the first — above

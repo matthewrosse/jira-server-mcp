@@ -18,7 +18,8 @@ namespace JiraServerMcp.Tools;
 internal sealed class CreateIssueTool(
     JiraClient jira,
     ServedProfile profile,
-    WriteAttempts attempts)
+    WriteAttempts attempts,
+    FieldAliases aliases)
 {
     private const string Name = "jira_create_issue";
 
@@ -52,6 +53,11 @@ internal sealed class CreateIssueTool(
         string? idempotencyKey = null,
         CancellationToken cancellationToken = default)
     {
+        if (!aliases.TryResolve(fields, out var resolved, out var collided))
+        {
+            return ToolCall.Error(Collided(collided!));
+        }
+
         // Claimed before anything is sent: a key that arrives twice must find the first attempt
         // recorded even when that attempt is what timed out.
         WriteAttempt? attempt = null;
@@ -83,7 +89,7 @@ internal sealed class CreateIssueTool(
                         projectKey,
                         issueType,
                         summary,
-                        fields ?? new Dictionary<string, JsonElement>(),
+                        resolved,
                         cancellationToken));
 
                 var rendered = new Rendered(
@@ -134,5 +140,16 @@ internal sealed class CreateIssueTool(
                 ? $"Call jira_get_create_fields with projectKey '{projectKey}' and issueType "
                   + $"'{issueType}' for the fields this project requires and the values they "
                   + "accept."
+                  + FieldAliasAdvice.From(aliases)
                 : null);
+
+
+    /// <summary>
+    /// One field named twice, once by alias and once by identifier. Refused rather than resolved:
+    /// the two values are usually different on purpose, and keeping whichever came last would
+    /// write the wrong one with nothing in the answer to say so.
+    /// </summary>
+    private static string Collided(string collided) =>
+        $"{collided} name the same field, and they were given different values, so nothing was "
+        + "sent. Name it once — either by its alias or by its identifier.";
 }

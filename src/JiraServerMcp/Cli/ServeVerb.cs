@@ -69,6 +69,10 @@ internal static class ServeVerb
         // One record for the life of the process, which is exactly what an idempotency key
         // promises and the whole of what it promises.
         builder.Services.AddSingleton<WriteAttempts>();
+
+        // Read from the profile at startup and never re-read: an alias is the operator's
+        // declaration, not something Jira can change under the process.
+        builder.Services.AddSingleton(FieldAliases.For(profile.FieldAliases));
         builder.Services.AddJiraClient();
 
         // ADR-0005: grants come only from launch arguments. The capability probe is read from the

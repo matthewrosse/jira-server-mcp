@@ -3,6 +3,8 @@ using JiraServerMcp.Errors;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
 
+using JiraServerMcp.Profiles;
+
 namespace JiraServerMcp.Rendering;
 
 /// <summary>
@@ -17,7 +19,8 @@ internal static class BulkIssueDetail
 {
     public static Rendered Render(
         IReadOnlyList<BulkIssueResult> results,
-        IReadOnlyList<Expansion> expansions)
+        IReadOnlyList<Expansion> expansions,
+        FieldAliases? aliases = null)
     {
         var entries = new List<string>();
         var outcomes = new List<string>();
@@ -31,7 +34,7 @@ internal static class BulkIssueDetail
         {
             if (result.Issue is { } issue)
             {
-                var body = IssueDetail.Render(issue, expansions);
+                var body = IssueDetail.Render(issue, expansions, aliases);
 
                 if (budgetExhausted
                     || used + body.Length + 2 > ResponseBudget.BulkTextBudget - ResponseBudget.PageReserve)

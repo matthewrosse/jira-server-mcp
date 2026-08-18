@@ -173,6 +173,131 @@ internal static class ProfileVerbs
         return 0;
     }
 
+    /// <summary>
+    /// `profile alias set`. Declaring the same alias twice replaces it: an operator correcting a
+    /// field identifier should not have to remove the alias first.
+    /// </summary>
+    public static async Task<int> SetAliasAsync(
+        string name,
+        string alias,
+        string field,
+        CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+
+        if (await ProfileResolution.FindAsync(name) is not { } profile)
+        {
+            return 1;
+        }
+
+        if (!FieldAliases.IsDeclarable(alias))
+        {
+            await Console.Error.WriteLineAsync(
+                $"'{alias}' cannot be an alias: it is spelled like a Jira field identifier, which "
+                + "would leave the two ambiguous. Choose the name you want to read and write, "
+                + "such as 'story_points'.");
+
+            return 1;
+        }
+
+        if (field.Trim().Length is 0)
+        {
+            await Console.Error.WriteLineAsync(
+                $"'{alias}' was given no field to stand for. Name the identifier Jira uses, such "
+                + "as 'customfield_10010'.");
+
+            return 1;
+        }
+
+        var aliases = new Dictionary<string, string>(
+            profile.FieldAliases ?? new Dictionary<string, string>(),
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [alias.Trim()] = field.Trim(),
+        };
+
+        Store(name, profile, aliases);
+
+        await Console.Out.WriteLineAsync(
+            $"Profile '{name}' now reads and writes '{alias.Trim()}' as '{field.Trim()}'.");
+
+        return 0;
+    }
+
+    /// <summary>`profile alias list`.</summary>
+    public static async Task<int> ListAliasesAsync(string name, CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+
+        if (await ProfileResolution.FindAsync(name) is not { } profile)
+        {
+            return 1;
+        }
+
+        var aliases = FieldAliases.For(profile.FieldAliases);
+
+        if (!aliases.Any)
+        {
+            await Console.Out.WriteLineAsync(
+                $"Profile '{name}' declares no field aliases. Add one with 'jira-server-mcp "
+                + $"profile alias set {name} story_points customfield_10010'.");
+
+            return 0;
+        }
+
+        foreach (var alias in aliases.Known)
+        {
+            await Console.Out.WriteLineAsync(alias);
+        }
+
+        return 0;
+    }
+
+    /// <summary>`profile alias remove`.</summary>
+    public static async Task<int> RemoveAliasAsync(
+        string name,
+        string alias,
+        CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+
+        if (await ProfileResolution.FindAsync(name) is not { } profile)
+        {
+            return 1;
+        }
+
+        var aliases = new Dictionary<string, string>(
+            profile.FieldAliases ?? new Dictionary<string, string>(),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (!aliases.Remove(alias.Trim()))
+        {
+            await Console.Error.WriteLineAsync(
+                $"Profile '{name}' declares no alias '{alias.Trim()}'. List what it does declare "
+                + $"with 'jira-server-mcp profile alias list {name}'.");
+
+            return 1;
+        }
+
+        Store(name, profile, aliases);
+
+        await Console.Out.WriteLineAsync($"Profile '{name}' no longer declares '{alias.Trim()}'.");
+
+        return 0;
+    }
+
+    private static void Store(
+        string name,
+        Profile profile,
+        IReadOnlyDictionary<string, string> aliases) =>
+        ProfileStore.InConfigurationDirectory().Add(
+            name,
+            profile with
+            {
+                FieldAliases = aliases,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+
     private static bool HoldsACertificate(string caBundlePath)
     {
         var roots = new X509Certificate2Collection();

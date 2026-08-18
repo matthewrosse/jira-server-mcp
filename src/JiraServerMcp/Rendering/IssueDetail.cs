@@ -1,5 +1,6 @@
 using System.Text;
 using JiraServerMcp.Jira.Models;
+using JiraServerMcp.Profiles;
 
 namespace JiraServerMcp.Rendering;
 
@@ -15,7 +16,17 @@ namespace JiraServerMcp.Rendering;
 /// </remarks>
 internal static class IssueDetail
 {
-    public static string Render(JiraIssueDetail issue, IReadOnlyList<Expansion> expansions)
+    /// <param name="issue">The issue as Jira answered with it.</param>
+    /// <param name="expansions">The sections the caller asked for.</param>
+    /// <param name="aliases">
+    /// The operator's names for this Jira's fields. An aliased field is labelled with both names —
+    /// the alias is an additional name, and hiding the identifier would cost an agent the value
+    /// every write that is not aliased still needs.
+    /// </param>
+    public static string Render(
+        JiraIssueDetail issue,
+        IReadOnlyList<Expansion> expansions,
+        FieldAliases? aliases = null)
     {
         var body = new StringBuilder();
 
@@ -27,7 +38,8 @@ internal static class IssueDetail
             {
                 // Not truncated: a search result's marker sends a caller here for the full text,
                 // and cutting it here would make that promise false with nowhere else to go.
-                body.Append(field.Key).Append(": ").AppendLine(value);
+                body.Append((aliases ?? FieldAliases.None).Label(field.Key))
+                    .Append(": ").AppendLine(value);
             }
         }
 

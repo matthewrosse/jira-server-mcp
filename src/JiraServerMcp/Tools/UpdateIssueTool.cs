@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.Net;
 using System.Text.Json;
+using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
@@ -14,7 +16,10 @@ namespace JiraServerMcp.Tools;
 /// separate assign tool: reassignment should not cost two operations.
 /// </summary>
 [McpServerToolType]
-internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
+internal sealed class UpdateIssueTool(
+    JiraClient jira,
+    ServedProfile profile,
+    FieldAliases aliases)
 {
     private const string Name = "jira_update_issue";
 
@@ -47,6 +52,13 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
                 + "least one field, or an assignee.");
         }
 
+        if (!aliases.TryResolve(fields, out var resolved, out var collided))
+        {
+            return ToolCall.Error(
+                $"{collided} name the same field on {key}, and they were given different values, "
+                + "so nothing was sent. Name it once — either by its alias or by its identifier.");
+        }
+
         return await ToolCall.RunAsync(
             profile,
             $"updating {key}",
@@ -58,15 +70,23 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
             {
                 await jira.UpdateIssueAsync(
                     key,
-                    fields ?? new Dictionary<string, JsonElement>(),
+                    resolved,
                     assignee is null
                         ? null
                         : new JiraAssignee(assignee.Length is 0 ? null : assignee),
                     cancellationToken);
 
-                return Confirm(key, fields, assignee);
+                return Confirm(key, resolved, assignee);
             },
-            cancellationToken);
+            cancellationToken,
+            describeApiFailure: exception => JiraToolError.Describe(
+                exception,
+                profile.Name,
+                $"updating {key}",
+                advice: exception.StatusCode is HttpStatusCode.BadRequest
+                    ? "Call jira_get_create_fields for the identifiers this project's fields "
+                      + "have." + FieldAliasAdvice.From(aliases)
+                    : null));
     }
 
     /// <summary>
@@ -74,20 +94,30 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
     /// the same traversal: it is the field ids the caller asked for, which is what a workflow
     /// checking its own write needs.
     /// </summary>
-    private static Rendered Confirm(
+    /// <summary>
+    /// What was changed, named as the caller would recognise it. The prose labels an aliased field
+    /// with both names, so an agent that wrote "story_points" can match the answer to its own
+    /// request; the structured half carries the identifiers alone, which is what rule 2 of
+    /// ADR-0009 admits and what a follow-up call must send.
+    /// </summary>
+    private Rendered Confirm(
         string key,
         IReadOnlyDictionary<string, JsonElement>? fields,
         string? assignee)
     {
         var changed = new List<string>(fields?.Keys ?? []);
+        var named = changed.Select(aliases.Label).ToList();
 
         if (assignee is not null)
         {
-            changed.Add(assignee.Length is 0 ? "assignee (cleared)" : "assignee");
+            var how = assignee.Length is 0 ? "assignee (cleared)" : "assignee";
+
+            changed.Add(how);
+            named.Add(how);
         }
 
         return new Rendered(
-            $"Updated {key}: {string.Join(", ", changed)}.",
+            $"Updated {key}: {string.Join(", ", named)}.",
             ToolOutputs.Node(new UpdatedIssueOutput
             {
                 Outcome = Outcomes.Ok,
@@ -95,4 +125,5 @@ internal sealed class UpdateIssueTool(JiraClient jira, ServedProfile profile)
                 Changed = changed,
             }));
     }
+
 }
