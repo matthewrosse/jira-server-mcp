@@ -114,3 +114,10 @@ a field validator's message is as admin-authored as a description is. It reaches
 can carry instructions aimed at that model. The term marks provenance, not suspicion of any
 particular string, and provenance does not change because the text arrived on a failure.
 _Avoid_: user input, which suggests the tool's caller wrote it.
+
+**Structured content** — the machine-shaped half of a tool result, carried beside the prose: issue
+keys, status ids and names, transition ids, usernames, paging positions, per-key outcomes. Narrower
+than MCP's own term, and narrower on purpose — it carries identifiers and the values Jira
+enumerates, never issue prose, which stays inside the untrusted content region. A contract: fields
+are added, never removed or retyped. See ADR-0009.
+_Avoid_: structured output, JSON response, the machine-readable half.
