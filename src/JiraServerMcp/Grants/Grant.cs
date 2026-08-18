@@ -9,4 +9,5 @@ internal enum Grant
     IssuesWrite,
     CommentsWrite,
     WorklogsWrite,
+    LinksWrite,
 }

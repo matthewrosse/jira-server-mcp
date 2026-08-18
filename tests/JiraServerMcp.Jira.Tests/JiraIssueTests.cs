@@ -364,11 +364,13 @@ public sealed class JiraIssueTests : IDisposable
     private Task<Models.JiraIssueDetail> GetIssueAsync(
         string key,
         IReadOnlyList<string> fields,
-        IReadOnlyList<string>? expand = null) =>
+        IReadOnlyList<string>? expand = null,
+        bool remoteLinks = false) =>
         CreateClient().GetIssueAsync(
             key,
             fields,
             expand ?? [],
+            remoteLinks,
             TestContext.Current.CancellationToken);
 
     private static IResponseBuilder Json(string body) =>

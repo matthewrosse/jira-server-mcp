@@ -30,6 +30,7 @@ internal static class IssueDetailReader
             Changelog: Changelog(root),
             Comments: Comments(fields),
             Links: Links(fields),
+            RemoteLinks: null,
             Worklogs: Worklogs(fields));
     }
 
@@ -191,6 +192,51 @@ internal static class IssueDetailReader
             Summary: other.TryGetProperty("fields", out var otherFields)
                 ? String(otherFields, "summary")
                 : null);
+    }
+
+    /// <summary>
+    /// The remote-link endpoint's answer: a bare array, each entry carrying the link's target
+    /// inside an <c>object</c> of its own. A link with no URL is dropped — it is the one part a
+    /// reader can do nothing without.
+    /// </summary>
+    public static IReadOnlyList<JiraRemoteLink> ReadRemoteLinks(JsonElement root)
+    {
+        if (root.ValueKind is not JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return
+        [
+            .. root.EnumerateArray()
+                .Select(link => link.TryGetProperty("object", out var target)
+                                && String(target, "url") is { Length: > 0 } url
+                    ? new JiraRemoteLink(
+                        Title: String(target, "title") ?? url,
+                        Url: url,
+                        Relationship: String(link, "relationship"))
+                    : null)
+                .OfType<JiraRemoteLink>(),
+        ];
+    }
+
+    /// <summary>
+    /// The link types this Jira publishes, each with the wording for both of its ends.
+    /// </summary>
+    public static IReadOnlyList<JiraIssueLinkType> ReadIssueLinkTypes(JsonElement root)
+    {
+        if (!TryArray(root, "issueLinkTypes", out var types))
+        {
+            return [];
+        }
+
+        return
+        [
+            .. types.Select(type => new JiraIssueLinkType(
+                Name: String(type, "name") ?? "",
+                Inward: String(type, "inward") ?? "",
+                Outward: String(type, "outward") ?? "")),
+        ];
     }
 
     private static JiraWorklogs? Worklogs(JsonElement fields)

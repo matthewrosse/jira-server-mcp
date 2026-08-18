@@ -34,6 +34,6 @@ public sealed class ToolCallConventionTests
             where type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null
             select type;
 
-        toolTypes.Count().ShouldBe(17);
+        toolTypes.Count().ShouldBe(19);
     }
 }

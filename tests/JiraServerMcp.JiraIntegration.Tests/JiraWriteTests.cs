@@ -22,7 +22,7 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
 
         _session = await HarnessSession.StartAsync(
             _jira,
-            ["issues:write", "comments:write", "worklogs:write"],
+            ["issues:write", "comments:write", "worklogs:write", "links:write"],
             TestContext.Current.CancellationToken);
     }
 
@@ -137,6 +137,66 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
         logged[0].GetProperty("comment").GetString().ShouldBe("Logged through the protocol.");
     }
 
+    [Fact]
+    public async Task Linking_two_issues_puts_the_link_in_jira()
+    {
+        var blocker = await CreateIssueAsync("To block another issue");
+        var blocked = await CreateIssueAsync("To be blocked by another issue");
+
+        await CallAsync("jira_link_issues", new Dictionary<string, object?>
+        {
+            ["from"] = blocker,
+            ["to"] = blocked,
+            ["relation"] = "blocks",
+        });
+
+        // Read from the blocked end, where Jira words the link the other way round: that the two
+        // wordings describe one link is the whole premise of the relation phrase (ADR-0010).
+        var issue = await _session.ReadAsync(
+            $"/rest/api/2/issue/{blocked}?fields=issuelinks", TestContext.Current.CancellationToken);
+
+        var link = issue.GetProperty("fields").GetProperty("issuelinks").EnumerateArray()
+            .ShouldHaveSingleItem();
+
+        link.GetProperty("type").GetProperty("name").GetString().ShouldBe("Blocks");
+        link.GetProperty("inwardIssue").GetProperty("key").GetString().ShouldBe(blocker);
+    }
+
+    [Fact]
+    public async Task A_remote_link_appears_on_the_issue_and_the_same_url_twice_is_one_link()
+    {
+        var key = await CreateIssueAsync("To carry a pull request");
+        var url = "https://github.com/acme/web/pull/" + Guid.NewGuid().ToString("N")[..8];
+
+        await CallAsync("jira_add_remote_link", new Dictionary<string, object?>
+        {
+            ["key"] = key,
+            ["url"] = url,
+            ["title"] = "The pull request",
+            ["relationship"] = "pull request",
+        });
+
+        var repeated = await CallAsync("jira_add_remote_link", new Dictionary<string, object?>
+        {
+            ["key"] = key,
+            ["url"] = url,
+            ["title"] = "The pull request, merged",
+            ["relationship"] = "pull request",
+        });
+
+        repeated.ShouldContain("already attached");
+
+        var links = await _session.ReadAsync(
+            $"/rest/api/2/issue/{key}/remotelink", TestContext.Current.CancellationToken);
+
+        // The URL is the globalId, so the second call updated the link rather than adding one.
+        var link = links.EnumerateArray().ShouldHaveSingleItem();
+
+        link.GetProperty("globalId").GetString().ShouldBe(url);
+        link.GetProperty("object").GetProperty("title").GetString()
+            .ShouldBe("The pull request, merged");
+    }
+
     /// <summary>
     /// The write tools this client was granted, and no others: worklogs and comments and issues
     /// were asked for, so all three are registered.
@@ -154,6 +214,8 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
         names.ShouldContain("jira_transition_issue");
         names.ShouldContain("jira_add_comment");
         names.ShouldContain("jira_add_worklog");
+        names.ShouldContain("jira_link_issues");
+        names.ShouldContain("jira_add_remote_link");
     }
 
     private async Task<string> CreateIssueAsync(string summary)

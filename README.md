@@ -297,8 +297,10 @@ context learning that it is forbidden.
 | `jira_transition_issue` | `issues:write` | Transition by transition *name*; the identifier is resolved here. Takes an optional comment and any screen fields the transition demands. |
 | `jira_add_comment` | `comments:write` | Add one comment, in Jira wiki markup, stored as written. |
 | `jira_add_worklog` | `worklogs:write` | Log work, with the time spent in Jira's own duration syntax (`"3h 30m"`), so how long a working day is stays Jira's decision. |
+| `jira_link_issues` | `links:write` | Link two issues by the relation *phrase* Jira publishes — `"blocks"`, `"is blocked by"` — so the direction reads as English and cannot be got backwards. Takes an optional comment. |
+| `jira_add_remote_link` | `links:write` | Attach a URL to an issue — a pull request, a build — so it lands in Jira's link panel rather than in a comment. The URL is the link's identity, so attaching it twice updates one link and says so. |
 
-Deliberately absent: issue deletion, comment editing and deletion, attachments, issue linking,
+Deliberately absent: issue deletion, comment editing and deletion, attachments, unlinking,
 sprint mutation, watchers, and votes. See [Known limitations](#known-limitations).
 
 ## Example prompts
@@ -470,6 +472,20 @@ is stays Jira's decision, not this server's.
 - *"How much have I logged against PROJ-123 so far, and add another 45m?"* — `jira_get_issues` with
   `include: ["worklogs"]`, then `jira_add_worklog`.
 
+### Writing — `links:write`
+
+Launch with `--allow links:write`. The relation is Jira's own wording, so the prompt and the tool
+call read the same way round.
+
+- *"Link PROJ-123 as blocking PROJ-124."* — `jira_link_issues` with `relation: "blocks"`.
+- *"PROJ-123 is blocked by PROJ-124 — record that, and say why in a comment on the link."* —
+  `jira_link_issues` with `relation: "is blocked by"` and a comment, in the one call.
+- *"Attach this pull request to PROJ-123 so it shows in the link panel."* —
+  `jira_add_remote_link` with `relationship: "pull request"`. Attaching the same URL again updates
+  that link rather than adding a second.
+- *"What is blocking PROJ-123, and is there a PR on it yet?"* — `jira_get_issues` with
+  `include: ["links"]`, which returns both the issue links and the remote links.
+
 ### Multi-step workflows
 
 Where the batching actually pays: each of these is one prompt that would otherwise be a dozen
@@ -487,6 +503,9 @@ browser tabs.
 - *"This stack trace matches PROJ-123. Confirm it against the issue, then comment with the analysis
   and move it to In Progress."* — `jira_get_issues`, `jira_add_comment`, `jira_transition_issue`,
   which needs both `comments:write` and `issues:write`.
+- *"You have finished PROJ-123 — attach the pull request you opened, move it to In Review, and
+  comment with what changed."* — `jira_add_remote_link`, `jira_transition_issue`,
+  `jira_add_comment`, which needs `links:write`, `issues:write` and `comments:write`.
 - *"Audit the PROJ backlog: which items have no description, no component, or no estimate?"* —
   `jira_get_backlog`, then `jira_get_issues` for the details the backlog view omits.
 - *"I am picking up PROJ-123. Assign it to me, move it to In Progress, and comment that I have
@@ -499,8 +518,6 @@ Named here so the failure is expected rather than surprising. Each is a
 
 - *"Delete PROJ-123."* — no delete tool exists at any grant.
 - *"Attach this log file to PROJ-123."* — no attachment upload or download.
-- *"Link PROJ-123 as blocking PROJ-124."* — no link tools. Existing links are readable through
-  `jira_get_issues`' `links` expansion.
 - *"Move PROJ-123 into the next sprint"* or *"create a sprint."* — sprints and boards are read-only
   here.
 - *"Edit my last comment on PROJ-123."* — comments cannot be edited or removed through this server.
@@ -696,8 +713,10 @@ What is **not** in this server, so you find out here rather than by asking an ag
 - **Deletion.** No delete tool of any kind, at any grant. Not issues, not comments, not worklogs.
 - **Comment and worklog editing.** A comment or worklog this server adds cannot be edited or
   removed through it.
-- **Issue linking.** No link, unlink, or link-type tools. Links are readable through
-  `jira_get_issues`' `links` expansion.
+- **Unlinking.** Links are made with `links:write` and read through `jira_get_issues`' `links`
+  expansion, but nothing removes one. A remote link is keyed by its URL, so the ordinary
+  correction — the same pull request attached again — updates the one link instead; a wrong issue
+  link is a human's cleanup in Jira.
 - **Sprint mutation.** Sprints and boards are read-only here: no creating a sprint, no moving an
   issue into one.
 - **Watchers, votes, and bulk operations.** None of them — "bulk operations" here means bulk

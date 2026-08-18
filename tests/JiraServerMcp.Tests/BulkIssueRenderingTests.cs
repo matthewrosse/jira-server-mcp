@@ -113,6 +113,7 @@ public class BulkIssueRenderingTests
                 null,
                 null,
                 [],
+                null,
                 null),
             null);
 

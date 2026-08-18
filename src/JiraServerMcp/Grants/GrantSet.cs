@@ -14,6 +14,7 @@ internal sealed class GrantSet
             ["issues:write"] = Grant.IssuesWrite,
             ["comments:write"] = Grant.CommentsWrite,
             ["worklogs:write"] = Grant.WorklogsWrite,
+            ["links:write"] = Grant.LinksWrite,
         };
 
     private readonly HashSet<Grant> _granted;
@@ -24,7 +25,7 @@ internal sealed class GrantSet
     /// The grants named by every <c>--allow</c> argument, each of which may itself carry several
     /// names separated by commas.
     /// </summary>
-    /// <exception cref="ConfigurationException">A name is not one of the three.</exception>
+    /// <exception cref="ConfigurationException">A name is not one this server knows.</exception>
     public static GrantSet Parse(IReadOnlyList<string> allowed)
     {
         var granted = new HashSet<Grant>();

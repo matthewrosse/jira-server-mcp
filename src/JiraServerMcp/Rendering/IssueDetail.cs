@@ -49,6 +49,7 @@ internal static class IssueDetail
         if (expansions.Contains(Expansion.Links))
         {
             Links(body, issue.Links);
+            RemoteLinks(body, issue.RemoteLinks);
         }
 
         if (expansions.Contains(Expansion.Worklogs))
@@ -151,6 +152,44 @@ internal static class IssueDetail
             }
 
             body.AppendLine();
+        }
+    }
+
+    /// <summary>
+    /// Links out of Jira, as a section of their own rather than merged with the issue links above:
+    /// the two carry different things — a relation, key and summary against a title, URL and an
+    /// optional relationship — and one line shape for both would be the poorer of the two.
+    /// </summary>
+    /// <remarks>
+    /// A null list is the remote-link read having been refused, which is a section missing from an
+    /// issue that otherwise read fine (ADR-0007). It says so and the rest of the issue stands.
+    /// </remarks>
+    private static void RemoteLinks(StringBuilder body, IReadOnlyList<JiraRemoteLink>? remoteLinks)
+    {
+        if (remoteLinks is null)
+        {
+            body.AppendLine().AppendLine(
+                "remote links: this account may not read them, so they are not here. The rest of "
+                + "the issue is complete.");
+
+            return;
+        }
+
+        var shown = remoteLinks.Take(ResponseBudget.IssueSection).ToArray();
+
+        body.AppendLine().Append("remote links ")
+            .Append(Heading(shown.Length, remoteLinks.Count)).AppendLine(":");
+
+        foreach (var link in shown)
+        {
+            body.Append("  ");
+
+            if (link.Relationship is { Length: > 0 } relationship)
+            {
+                body.Append(relationship).Append(": ");
+            }
+
+            body.Append(Truncation.Body(link.Title)).Append(" — ").AppendLine(link.Url);
         }
     }
 
