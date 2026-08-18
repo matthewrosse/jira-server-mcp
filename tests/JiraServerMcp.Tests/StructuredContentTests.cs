@@ -503,6 +503,57 @@ public class StructuredContentTests
             + "has been added.");
     }
 
+    [Fact]
+    public void A_user_search_carries_the_usernames_a_write_must_send()
+    {
+        var structure = Structure(UserResults.Render(
+            [
+                new JiraUser("Mateusz Różański", "mrosse", "mrosse@example.invalid", true),
+                new JiraUser("A Departed Colleague", "adeparted", null, false),
+            ],
+            startAt: 0,
+            maxResults: 25,
+            includeInactive: true));
+
+        // The display name is how a person disambiguates two similar people, and it is in the
+        // prose. The email is personal data this server would be promising to carry stably.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","startAt":0,"count":2,"includeInactive":true,"users":[{"username":"mrosse","active":true},{"username":"adeparted","active":false}]}
+            """);
+
+        structure.ShouldNotContain("Różański");
+        structure.ShouldNotContain("example.invalid");
+    }
+
+    [Fact]
+    public void A_user_search_that_matched_nothing_keeps_its_shape()
+    {
+        var structure = Structure(UserResults.Render(
+            [],
+            startAt: 50,
+            maxResults: 25,
+            includeInactive: false));
+
+        // The shape does not appear and vanish with the result count, and the paging position is
+        // still what the caller asked from.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","startAt":50,"count":0,"includeInactive":false,"users":[]}
+            """);
+    }
+
+    [Fact]
+    public void The_account_carries_the_username_and_whether_it_is_active()
+    {
+        var structure = Structure(AccountDetail.Render(
+            new JiraUser("Mateusz Różański", "mrosse", "mrosse@example.invalid", true),
+            "work"));
+
+        // The username here is the value most likely to be fed straight into an assignee field.
+        structure.ShouldBe("""{"outcome":"ok","username":"mrosse","active":true}""");
+    }
+
     /// <summary>
     /// Rule 2 admits only short values, and rule 4 makes the structured half inherit the prose's
     /// budget cut, so the structure is bounded by construction. Rule 1 guarantees fields will be

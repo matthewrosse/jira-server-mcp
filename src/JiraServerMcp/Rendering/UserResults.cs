@@ -9,7 +9,7 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class UserResults
 {
-    public static string Render(
+    public static Rendered Render(
         IReadOnlyList<JiraUser> users,
         int startAt,
         int maxResults,
@@ -24,9 +24,25 @@ internal static class UserResults
                 .Append(" | ").AppendLine(user.Active ? "active" : "inactive");
         }
 
-        return UntrustedContent.Envelope(
-            Header(users.Count, startAt, maxResults, includeInactive),
-            lines.ToString().TrimEnd());
+        return new Rendered(
+            UntrustedContent.Envelope(
+                Header(users.Count, startAt, maxResults, includeInactive),
+                lines.ToString().TrimEnd()),
+            ToolOutputs.Node(new UserSearchOutput
+            {
+                Outcome = Outcomes.Ok,
+                StartAt = startAt,
+                Count = users.Count,
+                IncludeInactive = includeInactive,
+                Users =
+                [
+                    .. users.Select(user => new UserRowOutput
+                    {
+                        Username = user.Name,
+                        Active = user.Active,
+                    }),
+                ],
+            }));
     }
 
     /// <summary>
