@@ -41,6 +41,7 @@ internal static class HostProcess
     public static string[] ArgumentsFor(params string[] verb) =>
         verb is ["auth", ..] or ["serve", ..]
             or ["profile", "remove", ..] or ["profile", "refresh", ..]
+            or ["profile", "query", "add", ..]
             ? [Assembly, .. verb, "--credential-store", "file"]
             : [Assembly, .. verb];
 
