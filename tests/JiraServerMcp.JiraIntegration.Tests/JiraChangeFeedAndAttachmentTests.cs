@@ -192,7 +192,9 @@ public sealed class JiraChangeFeedAndAttachmentTests(JiraHarness harness) : IAsy
         var text = string.Join(
             "\n", result.Content.OfType<TextContentBlock>().Select(block => block.Text));
 
-        result.IsError.ShouldNotBe(true, $"{tool} answered with an error: {text}");
+        result.IsError.ShouldNotBe(
+            true,
+            $"{tool} answered with an error: {text}\n\nServer log:\n{_session.ServerLog}");
 
         return text;
     }
