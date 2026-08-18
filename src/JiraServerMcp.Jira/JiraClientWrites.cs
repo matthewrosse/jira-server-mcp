@@ -1,7 +1,7 @@
-using JiraServerMcp.Jira.Errors;
-using JiraServerMcp.Jira.Models;
 using System.Net.Http.Json;
 using System.Text.Json;
+using JiraServerMcp.Jira.Errors;
+using JiraServerMcp.Jira.Models;
 namespace JiraServerMcp.Jira;
 
 /// <summary>

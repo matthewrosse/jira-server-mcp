@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using JiraServerMcp.Jira;
-using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
