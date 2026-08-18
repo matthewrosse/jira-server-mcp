@@ -356,8 +356,16 @@ here only where the server was actually given the number — absence means unkno
 mean none. `nextStartAt` is absent on a last page and otherwise advances past the page rather than
 by the rows returned, because that API filters a page by permission after paging it.
 
-Tools whose payload is not structured yet — users — still carry the `outcome`, so a workflow can
-tell what happened even where it cannot yet read what came back.
+`jira_search_users` and `jira_whoami` carry the **username and nothing personal**. On Jira Server
+the username is what a write must send — there is no account identifier here, and anything shaped
+like one belongs to Cloud — so it is both the identifier and the value that goes into an assignee
+field. Display names and email addresses stay in the delimited region of the text half: the first
+is how a person tells two similar colleagues apart, and the second is personal data this server
+does not promise to carry. The user search reports no `total`, because Jira's does not.
+
+The two link tools, `jira_link_issues` and `jira_add_remote_link`, still carry the `outcome` alone:
+they arrived after this work was specified, and what their structured half should say has not been
+decided. A workflow can still tell whether a link landed and why it did not.
 
 ## Example prompts
 

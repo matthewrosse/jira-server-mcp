@@ -528,6 +528,52 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
         sprints.GetProperty("nextStartAt").GetInt32().ShouldBe(25);
     }
 
+    [Fact]
+    public async Task A_user_search_and_the_account_carry_usernames_and_no_personal_data()
+    {
+        _jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+                    [
+                      {
+                        "name": "ada",
+                        "displayName": "Ada Lovelace",
+                        "emailAddress": "ada@example.invalid",
+                        "active": true
+                      }
+                    ]
+                    """));
+
+        var users = await CallAsync("jira_search_users");
+
+        users.GetProperty("outcome").GetString().ShouldBe("ok");
+        users.GetProperty("includeInactive").GetBoolean().ShouldBeFalse();
+
+        var user = users.GetProperty("users").EnumerateArray().ShouldHaveSingleItem();
+
+        user.GetProperty("username").GetString().ShouldBe("ada");
+        user.GetProperty("active").GetBoolean().ShouldBeTrue();
+
+        // Neither the display name nor the email leaves the delimited region.
+        users.GetRawText().ShouldNotContain("Ada Lovelace");
+        users.GetRawText().ShouldNotContain("example.invalid");
+
+        // Jira's user search reports no total, so nothing here claims one.
+        users.TryGetProperty("total", out _).ShouldBeFalse();
+
+        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(MyselfPayload));
+
+        var account = await CallAsync("jira_whoami");
+
+        account.GetProperty("username").GetString().ShouldBe("mrosse");
+        account.GetProperty("active").GetBoolean().ShouldBeTrue();
+        account.GetRawText().ShouldNotContain("Różański");
+    }
+
     /// <summary>
     /// The structured half of a call, whether or not the call reported an error. Its presence is
     /// the promise; a result carrying only prose fails here.

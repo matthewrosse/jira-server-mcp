@@ -9,13 +9,22 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class AccountDetail
 {
-    public static string Render(JiraUser user, string profileName) =>
-        UntrustedContent.Envelope(
-            $"account on profile '{profileName}'",
-            $"""
-            display name: {user.DisplayName}
-            username: {user.Name}
-            email: {user.EmailAddress ?? "(no email)"}
-            status: {(user.Active ? "active" : "inactive")}
-            """);
+    public static Rendered Render(JiraUser user, string profileName) =>
+        new(
+            UntrustedContent.Envelope(
+                $"account on profile '{profileName}'",
+                $"""
+                display name: {user.DisplayName}
+                username: {user.Name}
+                email: {user.EmailAddress ?? "(no email)"}
+                status: {(user.Active ? "active" : "inactive")}
+                """),
+            // The display name and the email stay in the delimited region: the username is what a
+            // write sends, and it is the only thing here a workflow branches on.
+            ToolOutputs.Node(new AccountOutput
+            {
+                Outcome = Outcomes.Ok,
+                Username = user.Name,
+                Active = user.Active,
+            }));
 }

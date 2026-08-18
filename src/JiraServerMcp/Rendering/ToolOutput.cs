@@ -452,6 +452,63 @@ internal sealed record SprintRowOutput
 }
 
 /// <summary>
+/// A page of users. Jira's user search reports no total, so none is carried — what says there may
+/// be more is a full page, which the prose spells out and the paging position here supports.
+/// </summary>
+internal sealed record UserSearchOutput : ToolOutput
+{
+    [JsonPropertyName("startAt")]
+    public int? StartAt { get; init; }
+
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    /// <summary>
+    /// What was asked for, not what came back: a caller that sees only active users needs to know
+    /// whether that is the instance or its own argument.
+    /// </summary>
+    [JsonPropertyName("includeInactive")]
+    public bool? IncludeInactive { get; init; }
+
+    [JsonPropertyName("users")]
+    public IReadOnlyList<UserRowOutput>? Users { get; init; }
+}
+
+/// <summary>
+/// One user. The username is the whole point — on Jira Server it is what a write must send, and
+/// an agent that searched for a user is about to put it in an assignee field.
+/// </summary>
+/// <remarks>
+/// The display name and the email address are deliberately absent. The selection-label carve-out
+/// admits an admin-typed name only where the identifier is opaque and the name is the sole basis
+/// for choosing; neither holds here, because the username both identifies and is what the write
+/// sends. Someone disambiguating two similar people reads the prose, which is where a display name
+/// belongs — and an email address is personal data this server would be promising to carry stably.
+/// </remarks>
+internal sealed record UserRowOutput
+{
+    [JsonPropertyName("username")]
+    public required string Username { get; init; }
+
+    [JsonPropertyName("active")]
+    public required bool Active { get; init; }
+}
+
+/// <summary>
+/// The account a profile is authenticated as. Small on purpose: rule 3 puts an outcome on this
+/// result whatever else it carries, and the username is the value most likely to be fed straight
+/// into an assignee field.
+/// </summary>
+internal sealed record AccountOutput : ToolOutput
+{
+    [JsonPropertyName("username")]
+    public string? Username { get; init; }
+
+    [JsonPropertyName("active")]
+    public bool? Active { get; init; }
+}
+
+/// <summary>
 /// The envelope on its own, for a tool whose payload is not yet structured. Rule 3 of ADR-0009 is
 /// that structure is present on every result, so these still answer "did this work, and if not
 /// why" — they simply carry nothing else yet.
