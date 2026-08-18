@@ -4,6 +4,7 @@ using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Rendering;
+using JiraServerMcp.Tools;
 
 namespace JiraServerMcp.Tests;
 
@@ -37,6 +38,72 @@ public class StructuredContentTests
             """
             {"outcome":"ok","total":2,"startAt":0,"count":2,"cutByBudget":false,"issues":[{"key":"PROJ-12","statusId":"3","status":"In Progress","typeName":"Bug","assignee":"mrosse"},{"key":"PROJ-13"}]}
             """);
+    }
+
+    [Fact]
+    public void A_change_feed_page_carries_the_watermark_the_next_call_resumes_from()
+    {
+        var structure = Structure(SearchResults.Render(
+            Page(
+                startAt: 0,
+                total: 1,
+                Issue("PROJ-12", """
+                    {
+                      "summary": "Login fails with a 401",
+                      "status": { "id": "3", "name": "In Progress" },
+                      "updated": "2026-08-18T09:31:47.412+0200"
+                    }
+                    """)),
+            kept => ChangeFeed.NextSince(
+                kept,
+                new DateTimeOffset(2026, 8, 18, 9, 0, 0, TimeSpan.FromHours(2)),
+                TimeSpan.FromHours(2))));
+
+        // A watermark is a paging position by another name, so it sits beside the other one. The
+        // offset's plus arrives as \u002B: the serializer escapes it, and any JSON reader hands
+        // the caller back the timestamp this server wrote.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","total":1,"startAt":0,"count":1,"cutByBudget":false,"nextSince":"2026-08-18T09:31:00\u002B02:00","issues":[{"key":"PROJ-12","statusId":"3","status":"In Progress"}]}
+            """);
+    }
+
+    [Fact]
+    public void A_change_feed_page_cut_by_the_budget_does_not_move_the_watermark_past_the_rows_it_cut()
+    {
+        // The rows the budget dropped are rows the caller never saw. A watermark taken from the
+        // page rather than from the rows rendered would move the window past them for good.
+        var summary = new string('x', ResponseBudget.LineText);
+
+        var issues = Enumerable.Range(1, 400)
+            .Select(number => Issue(
+                $"PROJ-{number}",
+                $$"""
+                  {
+                    "summary": "{{summary}}",
+                    "updated": "2026-08-18T09:{{number % 60:00}}:00.000+0200"
+                  }
+                  """))
+            .ToArray();
+
+        var rendered = SearchResults.Render(
+            Page(startAt: 0, total: 4_000, issues),
+            kept => ChangeFeed.NextSince(
+                kept,
+                new DateTimeOffset(2026, 8, 18, 9, 0, 0, TimeSpan.FromHours(2)),
+                TimeSpan.FromHours(2)));
+
+        var page = Deserialize<IssuePageOutput>(rendered);
+        var count = page.Count.ShouldNotBeNull();
+
+        count.ShouldBeLessThan(issues.Length);
+
+        var latestRendered = issues.Take(count)
+            .Select(issue => issue.Updated.ShouldNotBeNull())
+            .Max(StringComparer.Ordinal)
+            .ShouldNotBeNull();
+
+        page.NextSince.ShouldBe($"2026-08-18T{latestRendered[11..16]}:00+02:00");
     }
 
     [Fact]

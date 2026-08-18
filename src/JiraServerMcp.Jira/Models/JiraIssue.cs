@@ -26,4 +26,8 @@ public sealed record JiraIssue(
     /// <summary>The assignee's username, which a follow-up JQL can use.</summary>
     [JsonIgnore]
     public string? Assignee => JiraFields.Assignee(Fields);
+
+    /// <summary>When Jira last touched this issue, as Jira wrote it.</summary>
+    [JsonIgnore]
+    public string? Updated => JiraFields.Updated(Fields);
 }

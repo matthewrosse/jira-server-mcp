@@ -1,0 +1,279 @@
+using System.Text.Json;
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
+using WireMock;
+using WireMock.RequestBuilders;
+using WireMock.ResponseBuilders;
+using WireMock.Server;
+
+namespace JiraServerMcp.Protocol.Tests;
+
+/// <summary>
+/// <c>jira_changed_since</c> across the protocol seam (ADR-0008): the window a tick asks Jira for,
+/// the watermark the next one gets back in both halves of the result, and what a caller sees when
+/// the moment it passed carries no offset or when Jira refuses the call.
+/// </summary>
+public sealed class ChangedSinceProtocolTests : IAsyncLifetime
+{
+    private const string Token = "s3cr3t-personal-access-token";
+
+    private const string Profile = "work";
+
+    private const string MyselfPayload = """
+        {
+          "key": "JIRAUSER10100",
+          "name": "mrosse",
+          "displayName": "Mateusz Różański",
+          "active": true
+        }
+        """;
+
+    /// <summary>An instance two hours east of UTC, which is the zone it reads a JQL date in.</summary>
+    private const string ServerInfoPayload = """
+        {
+          "version": "8.20.7",
+          "deploymentType": "Server",
+          "serverTime": "2026-08-18T09:45:12.001+0200"
+        }
+        """;
+
+    private readonly WireMockServer _jira = WireMockServer.Start();
+
+    private readonly ConfigurationHome _home = new();
+
+    private McpClient _client = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        var added = await HostProcess.RunAsync(
+            ["profile", "add", Profile, "--url", _jira.Url!],
+            TestContext.Current.CancellationToken,
+            _home.Environment);
+
+        added.ExitCode.ShouldBe(0);
+
+        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+            .RespondWith(Json(MyselfPayload));
+
+        var loggedIn = await HostProcess.RunAsync(
+            ["auth", "login", Profile],
+            TestContext.Current.CancellationToken,
+            _home.Environment,
+            standardInput: Token + "\n");
+
+        loggedIn.ExitCode.ShouldBe(0);
+
+        _jira.Reset();
+
+        _client = await McpClient.CreateAsync(
+            new StdioClientTransport(new StdioClientTransportOptions
+            {
+                Name = "jira-server-mcp",
+                Command = HostProcess.Command,
+                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
+                EnvironmentVariables = _home.Environment.ToDictionary(
+                    entry => entry.Key,
+                    entry => (string?)entry.Value),
+            }),
+            cancellationToken: TestContext.Current.CancellationToken);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _client.DisposeAsync();
+        _jira.Stop();
+        _home.Dispose();
+    }
+
+    [Fact]
+    public async Task The_client_sees_a_read_only_tool_whose_one_required_argument_is_the_moment()
+    {
+        var tools = await _client.ListToolsAsync(
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var tool = tools.Single(entry => entry.Name is "jira_changed_since");
+
+        tool.ProtocolTool.Annotations.ShouldNotBeNull().ReadOnlyHint.ShouldBe(true);
+
+        var properties = tool.JsonSchema.GetProperty("properties");
+
+        properties.TryGetProperty("project", out _).ShouldBeTrue();
+        properties.TryGetProperty("startAt", out _).ShouldBeTrue();
+
+        tool.JsonSchema.GetProperty("required").EnumerateArray()
+            .Select(required => required.GetString())
+            .ShouldBe(["since"]);
+    }
+
+    [Fact]
+    public async Task The_window_is_asked_for_in_the_instances_own_zone_oldest_change_first()
+    {
+        StubServerInfo();
+        StubSearch(Json(SearchPayload(("PROJ-12", "2026-08-18T09:31:47.412+0200"))));
+
+        // 07:20 UTC is 09:20 where this Jira is, and Jira reads the literal in its own zone.
+        var text = await ChangedSinceAsync(
+            new Dictionary<string, object?> { ["since"] = "2026-08-18T07:20:00Z" });
+
+        var expected = """updated >= "2026/08/18 09:20" ORDER BY updated ASC""";
+
+        text.ShouldContain($"jql: {expected}");
+
+        SearchRequest().Query.ShouldNotBeNull()["jql"].ShouldHaveSingleItem().ShouldBe(expected);
+    }
+
+    [Fact]
+    public async Task The_watermark_reaches_the_caller_in_the_prose_and_in_the_structured_half()
+    {
+        StubServerInfo();
+        StubSearch(Json(SearchPayload(("PROJ-12", "2026-08-18T09:31:47.412+0200"))));
+
+        var result = await CallAsync(
+            new Dictionary<string, object?> { ["since"] = "2026-08-18T09:00:00+02:00" });
+
+        result.IsError.ShouldNotBe(true);
+
+        var structure = result.StructuredContent.ShouldNotBeNull();
+
+        // The start of the last-seen minute, not the moment of the last change: the feed repeats
+        // rather than skips.
+        structure.GetProperty("nextSince").GetString().ShouldBe("2026-08-18T09:31:00+02:00");
+        structure.GetProperty("outcome").GetString().ShouldBe("ok");
+        structure.GetProperty("issues").EnumerateArray()
+            .Select(issue => issue.GetProperty("key").GetString())
+            .ShouldBe(["PROJ-12"]);
+
+        TextOf(result).ShouldContain("nextSince: 2026-08-18T09:31:00+02:00");
+    }
+
+    [Fact]
+    public async Task A_tick_on_which_nothing_changed_still_hands_back_a_watermark()
+    {
+        StubServerInfo();
+        StubSearch(Json(SearchPayload()));
+
+        var result = await CallAsync(
+            new Dictionary<string, object?> { ["since"] = "2026-08-18T09:14:32+02:00" });
+
+        result.IsError.ShouldNotBe(true);
+
+        // The quiet tick is the common one, and a loop that lost its watermark on it would have
+        // to remember a timestamp itself — which is the work this tool exists to take off it.
+        result.StructuredContent.ShouldNotBeNull()
+            .GetProperty("nextSince").GetString().ShouldBe("2026-08-18T09:14:00+02:00");
+    }
+
+    [Fact]
+    public async Task A_project_narrows_the_window_without_changing_what_it_means()
+    {
+        StubServerInfo();
+        StubSearch(Json(SearchPayload(("PROJ-12", "2026-08-18T09:31:00.000+0200"))));
+
+        await ChangedSinceAsync(new Dictionary<string, object?>
+        {
+            ["since"] = "2026-08-18T09:00:00+02:00",
+            ["project"] = "PROJ",
+        });
+
+        SearchRequest().Query.ShouldNotBeNull()["jql"].ShouldHaveSingleItem().ShouldBe(
+            """project = PROJ AND updated >= "2026/08/18 09:00" ORDER BY updated ASC""");
+    }
+
+    [Fact]
+    public async Task A_moment_with_no_offset_is_refused_before_anything_reaches_jira()
+    {
+        var result = await CallAsync(
+            new Dictionary<string, object?> { ["since"] = "2026-08-18T09:00:00" });
+
+        TextOf(result).ShouldContain("is not a timestamp with an offset");
+        result.StructuredContent.ShouldNotBeNull()
+            .GetProperty("outcome").GetString().ShouldBe("refused");
+
+        _jira.LogEntries.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_jira_that_refuses_the_search_says_so_and_carries_no_watermark()
+    {
+        StubServerInfo();
+
+        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(403)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""{"errorMessages":["You do not have permission"],"errors":{}}"""));
+
+        var result = await CallAsync(
+            new Dictionary<string, object?> { ["since"] = "2026-08-18T09:00:00+02:00" });
+
+        result.IsError.ShouldBe(true);
+
+        var structure = result.StructuredContent.ShouldNotBeNull();
+
+        structure.GetProperty("outcome").GetString().ShouldBe("jira_api");
+        structure.GetProperty("statusCode").GetInt32().ShouldBe(403);
+
+        // Nothing to resume from: a watermark on a call that read nothing would move the window
+        // past a window that was never read.
+        structure.TryGetProperty("nextSince", out _).ShouldBeFalse();
+    }
+
+    private async Task<CallToolResult> CallAsync(IReadOnlyDictionary<string, object?> arguments) =>
+        await _client.CallToolAsync(
+            "jira_changed_since",
+            arguments,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+    private async Task<string> ChangedSinceAsync(IReadOnlyDictionary<string, object?> arguments)
+    {
+        var result = await CallAsync(arguments);
+
+        result.IsError.ShouldNotBe(true);
+
+        return TextOf(result);
+    }
+
+    private static string TextOf(CallToolResult result) =>
+        result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
+
+    private static string SearchPayload(params (string Key, string Updated)[] issues)
+    {
+        var rendered = issues.Select(issue => $$"""
+            {
+              "key": "{{issue.Key}}",
+              "fields": {
+                "summary": "Login fails with a 401",
+                "status": { "id": "3", "name": "In Progress" },
+                "issuetype": { "name": "Bug" },
+                "updated": "{{issue.Updated}}"
+              }
+            }
+            """);
+
+        return JsonSerializer.Serialize(new
+        {
+            startAt = 0,
+            maxResults = 25,
+            total = issues.Length,
+        }).TrimEnd('}')
+           + ",\"issues\":[" + string.Join(",", rendered) + "]}";
+    }
+
+    private static IResponseBuilder Json(string body) =>
+        Response.Create().WithStatusCode(200)
+            .WithHeader("Content-Type", "application/json")
+            .WithBody(body);
+
+    private IRequestMessage SearchRequest() =>
+        _jira.LogEntries
+            .Select(entry => entry.RequestMessage)
+            .OfType<IRequestMessage>()
+            .Single(request => request.Path is "/rest/api/2/search");
+
+    private void StubServerInfo() =>
+        _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
+            .RespondWith(Json(ServerInfoPayload));
+
+    private void StubSearch(IResponseBuilder response) =>
+        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+            .RespondWith(response);
+}

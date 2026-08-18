@@ -115,6 +115,32 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_canned_jql_is_a_line_above_the_page_rather_than_a_wrapper_around_it()
+    {
+        StubSearch(Json(SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));
+
+        var result = await _client.CallToolAsync(
+            "jira_my_open_issues",
+            new Dictionary<string, object?>(),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var text = result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
+
+        // The renderer answers with a text-and-structure pair (ADR-0009, rule 4). Putting the
+        // whole pair where the text belongs prints the record's own shape into the prose and
+        // leaves the structured half behind.
+        text.ShouldNotContain("Rendered {");
+        text.ShouldNotContain("Structure =");
+
+        var structure = result.StructuredContent.ShouldNotBeNull();
+
+        structure.GetProperty("total").GetInt32().ShouldBe(1);
+        structure.GetProperty("issues").EnumerateArray()
+            .Select(issue => issue.GetProperty("key").GetString())
+            .ShouldBe(["PROJ-12"]);
+    }
+
+    [Fact]
     public async Task A_project_is_prefixed_onto_the_canned_jql()
     {
         StubSearch(Json(SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));

@@ -60,7 +60,9 @@ internal sealed class MyOpenIssuesTool(JiraClient jira, ServedProfile profile)
                     FieldProjection.Widen(fields),
                     cancellationToken);
 
-                return $"jql: {jql}\n{SearchResults.Render(page)}";
+                var rendered = SearchResults.Render(page);
+
+                return new Rendered($"jql: {jql}\n{rendered.Text}", rendered.Structure);
             },
             cancellationToken);
     }
