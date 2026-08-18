@@ -174,6 +174,7 @@ internal static class VerbDispatcher
             cancellationToken));
 
         profile.Subcommands.Add(AliasCommand());
+        profile.Subcommands.Add(QueryCommand());
         profile.Subcommands.Add(add);
         profile.Subcommands.Add(list);
         profile.Subcommands.Add(refresh);
@@ -256,6 +257,94 @@ internal static class VerbDispatcher
         alias.Subcommands.Add(remove);
 
         return alias;
+    }
+
+    /// <summary>
+    /// `profile query add|list|remove`. A declared query becomes a tool of its own, under a fixed
+    /// prefix so an operator's name can never collide with a built-in one.
+    /// </summary>
+    private static Command QueryCommand()
+    {
+        var query = new Command("query", "Declare canned queries this deployment offers as tools.");
+
+        var addProfile = new Argument<string>("profile")
+        {
+            Description = "The profile the query belongs to.",
+        };
+
+        var addName = new Argument<string>("query")
+        {
+            Description = "The query's name. The tool is called jira_q_<query>.",
+        };
+
+        var jql = new Option<string>("--jql")
+        {
+            Description = "The JQL to run. Checked against Jira before it is stored.",
+            Required = true,
+        };
+
+        var description = new Option<string>("--description")
+        {
+            Description = "What the query is for. An agent reads this when choosing a tool.",
+            Required = true,
+        };
+
+        var addCredentialStore = CredentialStoreOption();
+
+        var add = new Command("add", "Declare a query, or replace one of the same name.")
+        {
+            addProfile,
+            addName,
+            jql,
+            description,
+            addCredentialStore,
+        };
+
+        add.SetAction((parseResult, cancellationToken) => ProfileVerbs.AddQueryAsync(
+            parseResult.GetValue(addProfile)!,
+            parseResult.GetValue(addName)!,
+            parseResult.GetValue(jql)!,
+            parseResult.GetValue(description)!,
+            parseResult.GetValue(addCredentialStore),
+            cancellationToken));
+
+        var listProfile = new Argument<string>("profile")
+        {
+            Description = "The profile whose queries are listed.",
+        };
+
+        var list = new Command("list", "List a profile's canned queries.") { listProfile };
+
+        list.SetAction((parseResult, cancellationToken) => ProfileVerbs.ListQueriesAsync(
+            parseResult.GetValue(listProfile)!,
+            cancellationToken));
+
+        var removeProfile = new Argument<string>("profile")
+        {
+            Description = "The profile the query belongs to.",
+        };
+
+        var removeName = new Argument<string>("query")
+        {
+            Description = "The query to remove.",
+        };
+
+        var remove = new Command("remove", "Remove a canned query.")
+        {
+            removeProfile,
+            removeName,
+        };
+
+        remove.SetAction((parseResult, cancellationToken) => ProfileVerbs.RemoveQueryAsync(
+            parseResult.GetValue(removeProfile)!,
+            parseResult.GetValue(removeName)!,
+            cancellationToken));
+
+        query.Subcommands.Add(add);
+        query.Subcommands.Add(list);
+        query.Subcommands.Add(remove);
+
+        return query;
     }
 
     private static Command AuthCommand()

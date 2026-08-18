@@ -122,6 +122,14 @@ all when the first timed out and nobody knows. The record lasts as long as the s
 no longer, which is a bound the tools state rather than hide.
 _Avoid_: request id, transaction id, deduplication token.
 
+**Operator-defined query** — a canned query an operator declares on a profile rather than one this
+repository ships: a name, a fixed JQL, and a description, registering as `jira_q_<name>`. The prefix
+is what keeps an operator's name from colliding with a built-in tool. Subject to the same grant
+gating, rendering and response budget as any other tool, and capped, because every registered tool
+costs an agent context in every conversation.
+_Avoid_: custom tool, user-defined query, saved filter — the last is Jira's own concept and a
+different thing.
+
 **Untrusted content** — free text authored inside Jira: descriptions, comments, custom field
 values, project names, transition names, and the text Jira returns when it refuses a request —
 a field validator's message is as admin-authored as a description is. It reaches a model, so it
