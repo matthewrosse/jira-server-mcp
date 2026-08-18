@@ -12,7 +12,9 @@ internal sealed class GetSprintIssuesTool(JiraClient jira, ServedProfile profile
 {
     private const string Name = "jira_get_sprint_issues";
 
-    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(IssuePageOutput))]
     [Description(
         "The issues in one sprint, one line per issue, the issue key first — the same shape "
         + "jira_search returns, with the total number of issues and where to resume from. The "

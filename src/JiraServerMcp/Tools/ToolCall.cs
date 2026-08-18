@@ -1,6 +1,7 @@
 using JiraServerMcp.Errors;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
 
 namespace JiraServerMcp.Tools;
@@ -9,6 +10,11 @@ namespace JiraServerMcp.Tools;
 /// What happens when a tool call fails. The agent cannot read this server's log, so a failure has
 /// to say which failure it was in the result itself, or an expired token looks the same as a
 /// wrong base URL. Owning the three arms here is what lets that vocabulary change in one place.
+///
+/// It owns the same three arms in the structured half (ADR-0009, rule 3): every result carries an
+/// outcome, so "was this a permissions problem or a dead network" is a field to read rather than a
+/// sentence to parse. A renderer's own structure rides beside it; a renderer that has none yet
+/// still answers with the envelope.
 /// </summary>
 internal static class ToolCall
 {
@@ -30,7 +36,7 @@ internal static class ToolCall
         string operation,
         string whenUnreachable,
         string whenTimedOut,
-        Func<Task<string>> work,
+        Func<Task<Rendered>> work,
         CancellationToken cancellationToken,
         Func<JiraApiException, string>? describeApiFailure = null)
     {
@@ -68,27 +74,67 @@ internal static class ToolCall
         catch (JiraApiException exception)
         {
             return Step<T>.Fail(
-                Error(describeApiFailure?.Invoke(exception)
-                    ?? JiraToolError.Describe(exception, profile.Name, operation)));
+                Failed(
+                    describeApiFailure?.Invoke(exception)
+                        ?? JiraToolError.Describe(exception, profile.Name, operation),
+                    Outcomes.JiraApi,
+                    (int)exception.StatusCode));
         }
         catch (HttpRequestException exception)
         {
-            return Step<T>.Fail(Error($"Could not reach Jira{whenUnreachable}: {exception.Message}"));
+            return Step<T>.Fail(
+                Failed(
+                    $"Could not reach Jira{whenUnreachable}: {exception.Message}",
+                    Outcomes.Unreachable));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             // The client's own timeout, not the caller hanging up: the caller's cancellation is
             // left to propagate, because there is nobody waiting for an answer to it.
             return Step<T>.Fail(
-                Error($"Jira did not answer for profile '{profile.Name}' in time{whenTimedOut}"));
+                Failed(
+                    $"Jira did not answer for profile '{profile.Name}' in time{whenTimedOut}",
+                    Outcomes.TimedOut));
         }
     }
 
-    public static CallToolResult Text(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }] };
+    /// <summary>
+    /// A successful result: the renderer's prose, and its structure where it has one. A renderer
+    /// that does not yet build a structured half still answers with the outcome, because rule 3
+    /// promises structure on every result rather than on some of them.
+    /// </summary>
+    public static CallToolResult Text(Rendered rendered) =>
+        new()
+        {
+            Content = [new TextContentBlock { Text = rendered.Text }],
+            StructuredContent = rendered.Structure ?? ToolOutputs.Outcome(Outcomes.Ok),
+        };
 
-    public static CallToolResult Error(string text) =>
-        new() { Content = [new TextContentBlock { Text = text }], IsError = true };
+    /// <summary>
+    /// A call this server refused before anything reached Jira: an empty comment, a duration Jira
+    /// could not read, a key cap exceeded. Nothing was attempted, which is what the outcome says.
+    /// </summary>
+    public static CallToolResult Error(string text) => Failed(text, Outcomes.Refused);
+
+    /// <summary>
+    /// A refusal that carries the renderer's own structure — the bulk read's, whose shape must not
+    /// appear and vanish with the number of bad keys.
+    /// </summary>
+    public static CallToolResult Error(Rendered rendered) =>
+        new()
+        {
+            Content = [new TextContentBlock { Text = rendered.Text }],
+            StructuredContent = rendered.Structure ?? ToolOutputs.Outcome(Outcomes.Refused),
+            IsError = true,
+        };
+
+    private static CallToolResult Failed(string text, string outcome, int? statusCode = null) =>
+        new()
+        {
+            Content = [new TextContentBlock { Text = text }],
+            StructuredContent = ToolOutputs.Outcome(outcome, statusCode),
+            IsError = true,
+        };
 
     /// <summary>
     /// The outcome of one <see cref="StepAsync{T}"/> call: the work's value, or a finished result

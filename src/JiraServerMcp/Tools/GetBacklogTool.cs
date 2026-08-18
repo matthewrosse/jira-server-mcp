@@ -12,7 +12,9 @@ internal sealed class GetBacklogTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_get_backlog";
 
-    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(IssuePageOutput))]
     [Description(
         "A board's backlog: the issues on the board that no sprint has taken, one line per issue "
         + "and the issue key first — the same shape jira_search returns. The board identifier "

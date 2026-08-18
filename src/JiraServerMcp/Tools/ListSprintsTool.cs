@@ -12,7 +12,9 @@ internal sealed class ListSprintsTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_list_sprints";
 
-    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(OutcomeOutput))]
     [Description(
         "List a board's sprints: identifier, name, state — active, closed, or future — and the "
         + "start and end dates a sprint has once it is planned. The board identifier comes from "

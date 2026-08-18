@@ -12,7 +12,9 @@ internal sealed class GetProjectTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_get_project";
 
-    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(OutcomeOutput))]
     [Description(
         "Read one Jira Server project: its details, its issue types with the statuses each can be "
         + "in, its components, and its versions — everything needed to prepare a valid create "

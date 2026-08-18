@@ -12,7 +12,9 @@ internal sealed class WhoamiTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_whoami";
 
-    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(OutcomeOutput))]
     [Description("The Jira Server account this server is authenticated as.")]
     public Task<CallToolResult> WhoamiAsync(CancellationToken cancellationToken) =>
         ToolCall.RunAsync(

@@ -15,12 +15,14 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class BulkIssueDetail
 {
-    public static string Render(
+    public static Rendered Render(
         IReadOnlyList<BulkIssueResult> results,
         IReadOnlyList<Expansion> expansions)
     {
         var entries = new List<string>();
         var outcomes = new List<string>();
+        var rows = new List<IssueRowOutput>();
+        var failures = new List<BulkFailureOutput>();
         var used = 0;
         var budgetExhausted = false;
         var returned = 0;
@@ -39,6 +41,12 @@ internal static class BulkIssueDetail
                     outcomes.Add(
                         $"{result.Key}: did not fit the response budget — ask for it on its own");
 
+                    failures.Add(new BulkFailureOutput
+                    {
+                        Key = result.Key,
+                        Outcome = Outcomes.Budget,
+                    });
+
                     continue;
                 }
 
@@ -46,10 +54,19 @@ internal static class BulkIssueDetail
                 used += body.Length + 2;
                 returned++;
 
+                rows.Add(new IssueRowOutput
+                {
+                    Key = issue.Key.Length is 0 ? result.Key : issue.Key,
+                    StatusId = issue.StatusId,
+                    Status = issue.Status,
+                    TypeName = issue.TypeName,
+                });
+
                 continue;
             }
 
             outcomes.Add($"{result.Key}: {Outcome(result.Failure!)}");
+            failures.Add(Failure(result.Key, result.Failure!));
 
             if (JiraWords(result.Failure!) is { Length: > 0 } words)
             {
@@ -57,10 +74,41 @@ internal static class BulkIssueDetail
             }
         }
 
-        return UntrustedContent.Envelope(
-            Header(results.Count, returned, outcomes),
-            string.Join("\n\n", entries));
+        // One shape whether or not isError is set: a partial success is not an error, and a
+        // caller must not see the structure appear and vanish with the number of bad keys.
+        return new Rendered(
+            UntrustedContent.Envelope(
+                Header(results.Count, returned, outcomes),
+                string.Join("\n\n", entries)),
+            ToolOutputs.Node(new BulkIssuesOutput
+            {
+                Outcome = Outcomes.Ok,
+                Asked = results.Count,
+                Returned = returned,
+                Issues = rows,
+                Failures = failures,
+            }));
     }
+
+    /// <summary>
+    /// One key's failure in the outcome vocabulary. A 404 is its own outcome because Jira answers
+    /// that way for an issue that does not exist and for one this account cannot see, and neither
+    /// is worth retrying; anything else keeps the status code so a caller can tell a 403 from a
+    /// 500 without reading the prose.
+    /// </summary>
+    private static BulkFailureOutput Failure(string key, Exception failure) => failure switch
+    {
+        JiraApiException { StatusCode: HttpStatusCode.NotFound } =>
+            new() { Key = key, Outcome = Outcomes.NotFound },
+        OperationCanceledException => new() { Key = key, Outcome = Outcomes.TimedOut },
+        JiraApiException exception => new()
+        {
+            Key = key,
+            Outcome = Outcomes.JiraApi,
+            StatusCode = (int)exception.StatusCode,
+        },
+        _ => new() { Key = key, Outcome = Outcomes.Unreachable },
+    };
 
     private static string Header(int asked, int returned, IReadOnlyList<string> outcomes)
     {

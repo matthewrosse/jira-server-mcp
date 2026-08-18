@@ -303,6 +303,43 @@ context learning that it is forbidden.
 Deliberately absent: issue deletion, comment editing and deletion, attachments, unlinking,
 sprint mutation, watchers, and votes. See [Known limitations](#known-limitations).
 
+## Structured content
+
+Every tool answers twice: the prose above, and a machine-shaped half in the result's
+`structuredContent`, with the shape declared in the tool's `outputSchema`. The prose is for a model
+to read; the structure is for a workflow to branch on, so that "is this issue still open?" or
+"which of these twenty keys failed?" is a field to look at rather than English to re-parse. The
+decision and its reasoning are [ADR-0009](docs/adr/0009-structured-content-beside-the-prose.md).
+
+What it promises:
+
+- **It is a contract.** A field may be added. None will be removed, and none will change type. The
+  prose keeps its freedom to be reworded — nothing is promised to depend on it, which is the whole
+  reason the structured half exists.
+- **It is there on every result**, success and failure alike. Every one carries an `outcome`:
+  `ok`, `jira_api` (with `statusCode`), `unreachable`, `timed_out`, or `refused` for a call this
+  server rejected before reaching Jira. A bulk read keeps one shape whether or not `isError` is
+  set, with its per-key failures in `failures`.
+- **It carries identifiers and the values Jira enumerates.** Issue keys and ids, status ids and
+  names, issue type names, transition ids, usernames, paging positions, counts. **Never issue
+  prose** — no summaries, descriptions, comment bodies, or display names. Those live in the
+  delimited region of the text half and nowhere else.
+- **It is not a mirror of the text.** Where the response budget cuts a page, both halves are cut
+  together and the structure carries the position to resume from, so the two can never disagree on
+  what they contain.
+
+Two things to know before depending on it. **The structured half is untrusted content too**: a
+status name or an issue type name is admin-authored, and it is declared untrusted here, once,
+rather than marked field by field — the line is drawn at prose, not at provenance. And **no tool
+echoes its structured content as JSON in a text block**, which the MCP specification suggests for
+clients that ignore `structuredContent`: honouring it would make you pay for every fact twice
+against a server whose whole premise is what a response costs. A client that ignores the structure
+still gets a complete, readable answer as prose.
+
+Tools whose payload is not structured yet — projects, users, boards, sprints, the create screen —
+still carry the `outcome`, so a workflow can tell what happened even where it cannot yet read what
+came back.
+
 ## Example prompts
 
 These are prompts you type at the agent, not commands you run — the server exposes no prompt of its

@@ -12,7 +12,9 @@ internal sealed class GetCreateFieldsTool(JiraClient jira, ServedProfile profile
 {
     private const string Name = "jira_get_create_fields";
 
-    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(OutcomeOutput))]
     [Description(
         "Discover what Jira Server will accept when an issue of one type is created in one "
         + "project: every field with its identifier — custom field identifiers included — its "

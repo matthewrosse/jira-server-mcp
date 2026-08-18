@@ -30,7 +30,16 @@ public sealed record JiraIssueDetail(
     JiraComments? Comments,
     IReadOnlyList<JiraIssueLink> Links,
     IReadOnlyList<JiraRemoteLink>? RemoteLinks,
-    JiraWorklogs? Worklogs);
+    JiraWorklogs? Worklogs)
+{
+    /// <summary>The status id, which survives an admin renaming the workflow.</summary>
+    public string? StatusId => JiraFields.StatusId(Fields);
+
+    /// <summary>The status name, which is the field "is this still open?" turns on.</summary>
+    public string? Status => JiraFields.StatusName(Fields);
+
+    public string? TypeName => JiraFields.TypeName(Fields);
+}
 
 /// <summary>
 /// A transition this account can make on this issue right now, and what its screen will ask for

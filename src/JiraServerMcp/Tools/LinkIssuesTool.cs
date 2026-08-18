@@ -21,7 +21,9 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_link_issues";
 
-    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = false, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(OutcomeOutput))]
     [Description(
         "Link one issue to another, naming the relation the way Jira words it — "
         + "jira_link_issues(from: \"PROJ-1\", to: \"PROJ-2\", relation: \"blocks\") reads as the "

@@ -19,7 +19,9 @@ internal sealed class GetIssuesTool(JiraClient jira, ServedProfile profile)
     /// </summary>
     private const int KeyCap = 20;
 
-    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false)]
+    [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(BulkIssuesOutput))]
     [Description(
         "Read up to 20 Jira Server issues in one call — the way to look at several related "
         + "issues without one jira_get_issues call per key. Returns the default field projection "
