@@ -288,7 +288,8 @@ public class IssueRenderingTests
         JiraComments? comments = null,
         IReadOnlyList<JiraIssueLink>? links = null,
         IReadOnlyList<JiraRemoteLink>? remoteLinks = null,
-        JiraWorklogs? worklogs = null) =>
+        JiraWorklogs? worklogs = null,
+        IReadOnlyList<JiraAttachment>? attachments = null) =>
         new(
             "PROJ-12",
             JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fields)!,
@@ -297,5 +298,6 @@ public class IssueRenderingTests
             comments,
             links ?? [],
             remoteLinks,
-            worklogs);
+            worklogs,
+            attachments ?? []);
 }

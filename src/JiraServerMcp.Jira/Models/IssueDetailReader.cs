@@ -14,7 +14,8 @@ internal static class IssueDetailReader
     /// The projected fields Jira answers with as a collection rather than a value. Each becomes a
     /// section, and none is left in the projection, where it would render as a JSON blob.
     /// </summary>
-    private static readonly string[] _collectionFields = ["comment", "issuelinks", "worklog"];
+    private static readonly string[] _collectionFields =
+        ["comment", "issuelinks", "worklog", "attachment"];
 
     public static JiraIssueDetail Read(JsonElement root)
     {
@@ -31,7 +32,8 @@ internal static class IssueDetailReader
             Comments: Comments(fields),
             Links: Links(fields),
             RemoteLinks: null,
-            Worklogs: Worklogs(fields));
+            Worklogs: Worklogs(fields),
+            Attachments: Attachments(fields));
     }
 
     private static IReadOnlyDictionary<string, JsonElement> Projection(JsonElement fields)
@@ -154,6 +156,51 @@ internal static class IssueDetailReader
         return new JiraComments(Total(comment, comments.Length), comments);
     }
 
+    /// <summary>
+    /// The files on the issue. One with no identifier is dropped: the identifier is the whole
+    /// point of listing it, since a fetch has nothing else to name it by.
+    /// </summary>
+    private static IReadOnlyList<JiraAttachment> Attachments(JsonElement fields)
+    {
+        if (fields.ValueKind is not JsonValueKind.Object
+            || !TryArray(fields, "attachment", out var attachments))
+        {
+            return [];
+        }
+
+        return
+        [
+            .. attachments
+                .Select(attachment => Identifier(attachment) is { Length: > 0 } id
+                    ? new JiraAttachment(
+                        Id: id,
+                        FileName: String(attachment, "filename") ?? "(unnamed)",
+                        Size: attachment.TryGetProperty("size", out var size)
+                              && size.ValueKind is JsonValueKind.Number
+                            ? size.GetInt64()
+                            : 0,
+                        MimeType: String(attachment, "mimeType"),
+                        Content: String(attachment, "content"))
+                    : null)
+                .OfType<JiraAttachment>(),
+        ];
+    }
+
+    /// <summary>
+    /// An attachment's identifier, quoted or numbered. Jira's own two shapes for the same value
+    /// disagree — the issue field carries it as a string and the attachment endpoint as a number —
+    /// so neither is assumed, and a file is never dropped from a listing over its spelling.
+    /// </summary>
+    private static string? Identifier(JsonElement attachment) =>
+        attachment.TryGetProperty("id", out var id)
+            ? id.ValueKind switch
+            {
+                JsonValueKind.String => id.GetString(),
+                JsonValueKind.Number => id.GetRawText(),
+                _ => null,
+            }
+            : null;
+
     private static IReadOnlyList<JiraIssueLink> Links(JsonElement fields)
     {
         if (fields.ValueKind is not JsonValueKind.Object
@@ -193,6 +240,22 @@ internal static class IssueDetailReader
                 ? String(otherFields, "summary")
                 : null);
     }
+
+    /// <summary>
+    /// The attachment endpoint's answer, which carries the same properties an issue's attachment
+    /// field does — except that it numbers the identifier rather than quoting it, so the one the
+    /// caller asked by is the one carried back.
+    /// </summary>
+    public static JiraAttachment ReadAttachment(JsonElement root, string id) =>
+        new(
+            Id: id,
+            FileName: String(root, "filename") ?? "(unnamed)",
+            Size: root.TryGetProperty("size", out var size)
+                  && size.ValueKind is JsonValueKind.Number
+                ? size.GetInt64()
+                : 0,
+            MimeType: String(root, "mimeType"),
+            Content: String(root, "content"));
 
     /// <summary>
     /// The remote-link endpoint's answer: a bare array, each entry carrying the link's target

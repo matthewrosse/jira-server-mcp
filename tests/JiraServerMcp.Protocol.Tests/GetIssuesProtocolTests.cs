@@ -282,7 +282,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
             new Dictionary<string, object?>
             {
                 ["keys"] = new[] { "PROJ-12" },
-                ["include"] = new[] { "attachments" },
+                ["include"] = new[] { "subtasks" },
             },
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -290,7 +290,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
 
         var text = TextOf(result);
 
-        text.ShouldContain("attachments");
+        text.ShouldContain("subtasks");
         text.ShouldContain("comments");
 
         // Refused before Jira was troubled with it.

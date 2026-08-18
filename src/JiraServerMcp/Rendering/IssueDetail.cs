@@ -57,6 +57,11 @@ internal static class IssueDetail
             Worklogs(body, issue.Worklogs);
         }
 
+        if (expansions.Contains(Expansion.Attachments))
+        {
+            Attachments(body, issue.Attachments);
+        }
+
         return body.ToString().TrimEnd();
     }
 
@@ -89,6 +94,33 @@ internal static class IssueDetail
             }
 
             body.AppendLine();
+        }
+    }
+
+    /// <summary>
+    /// The files on the issue, named with the identifier a fetch takes. The media type is Jira's
+    /// claim and is marked as such — nothing here or in the fetch branches on it, and an agent
+    /// that treated it as a fact would skip the log file some browser uploaded as an octet stream.
+    /// </summary>
+    private static void Attachments(StringBuilder body, IReadOnlyList<JiraAttachment> attachments)
+    {
+        var shown = attachments.Take(ResponseBudget.IssueSection).ToArray();
+
+        body.AppendLine().Append("attachments ")
+            .Append(Heading(shown.Length, attachments.Count)).AppendLine(":");
+
+        foreach (var attachment in shown)
+        {
+            body.Append("  ").Append(attachment.FileName)
+                .Append(" (id ").Append(attachment.Id)
+                .Append(", ").Append(attachment.Size).Append(" bytes");
+
+            if (attachment.MimeType is { Length: > 0 } claimed)
+            {
+                body.Append(", claims ").Append(claimed);
+            }
+
+            body.AppendLine(") — read it with jira_get_attachment");
         }
     }
 

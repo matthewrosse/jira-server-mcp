@@ -284,7 +284,8 @@ context learning that it is forbidden.
 | `jira_search` | — | JQL search. 25 results by default, 100 at most, projected fields, and the total. |
 | `jira_my_open_issues` | — | The caller's own unresolved issues, most recently updated first — the start-of-session work queue, with no JQL to author. |
 | `jira_changed_since` | — | Issues that changed at or after a moment, oldest change first, with the watermark for the next call — the feed a scheduled workflow wakes on. |
-| `jira_get_issues` | — | Up to 20 issues in one call, with `include` opting into `comments`, `transitions`, `changelog`, `links` and `worklogs` for each. Each key succeeds or fails on its own, and the transition list arrives with the issue the agent is about to transition. |
+| `jira_get_issues` | — | Up to 20 issues in one call, with `include` opting into `comments`, `transitions`, `changelog`, `links`, `worklogs` and `attachments` for each. Each key succeeds or fails on its own, and the transition list arrives with the issue the agent is about to transition. |
+| `jira_get_attachment` | — | One attachment read as text, a window at a time, with the position to resume from. Whether a file is readable is decided by its bytes, not by the media type Jira claims. A file that is not text is listed and described — never inlined, and never read. |
 | `jira_list_projects` | — | Key, name, id and type for every project the account can see. |
 | `jira_get_project` | — | One project with its issue types, statuses, components and versions — everything a create needs, in one response. |
 | `jira_get_create_fields` | — | What Jira will accept for a create: every field with its identifier, its type, whether it is required, and its allowed values. Read this before creating, or a required custom field rejects the create by identifier alone. |
@@ -514,6 +515,34 @@ which is what makes "and their comments" cost one call instead of twenty.
   `include: ["worklogs"]`.
 - *"For PROJ-123, PROJ-124 and PROJ-125, give me a table of summary, assignee, status and last
   comment date."* — one `jira_get_issues` call with `include: ["comments"]`.
+
+### Attachments
+
+On a legacy Jira the specification is regularly a file on the ticket rather than the description
+field. Listing the files is an expansion; reading one is a tool of its own, because a file is worth
+far more context than a section of an issue read should ever spend.
+
+- *"PROJ-123 says 'see attached'. What does the attachment actually say?"* — `jira_get_issues` with
+  `include: ["attachments"]` for the name, size and identifier, then `jira_get_attachment` with
+  that identifier.
+- *"Read the 400 KB server log on PROJ-123 and find the first stack trace."* —
+  `jira_get_attachment`, then again with the `nextOffset` it returned, and again, until there is no
+  `nextOffset` left. Each call is one window of the file. Where Jira reports no size for an
+  attachment — some instances do not — a full window is reported as "probably more" rather than as
+  the end of the file, and `size` and `bytesRemaining` are absent rather than zero.
+
+Two things this deliberately does not do. It does not trust the media type: whether a file is
+readable is decided by inspecting its bytes, because instances of the vintage this project targets
+label plain text as `application/octet-stream` and binaries as `text/plain` often enough that a
+rule built on the label fails exactly where it matters. Jira's claim is still reported, marked as a
+claim. And it never inlines a binary — a screenshot or a ZIP is described, with its name, size and
+claimed type, because its bytes would cost an agent its context to learn nothing. The whole of a
+window is checked rather than a sample of its front, so a file that is text for a page and binary
+after it is not half inlined.
+
+An attachment is the least trustworthy text on a ticket: anyone with a Jira account can put a file
+there. It is delimited as untrusted content on the way out, always, with no case analysis about
+where it came from.
 
 ### Boards, sprints and the backlog
 

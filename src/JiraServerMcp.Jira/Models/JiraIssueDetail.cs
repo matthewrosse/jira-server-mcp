@@ -22,6 +22,7 @@ namespace JiraServerMcp.Jira.Models;
 /// even where the issue itself was readable.
 /// </param>
 /// <param name="Worklogs">Logged time, null unless expanded.</param>
+/// <param name="Attachments">The files on the issue, empty unless expanded.</param>
 public sealed record JiraIssueDetail(
     string Key,
     IReadOnlyDictionary<string, JsonElement> Fields,
@@ -30,7 +31,8 @@ public sealed record JiraIssueDetail(
     JiraComments? Comments,
     IReadOnlyList<JiraIssueLink> Links,
     IReadOnlyList<JiraRemoteLink>? RemoteLinks,
-    JiraWorklogs? Worklogs)
+    JiraWorklogs? Worklogs,
+    IReadOnlyList<JiraAttachment> Attachments)
 {
     /// <summary>The status id, which survives an admin renaming the workflow.</summary>
     public string? StatusId => JiraFields.StatusId(Fields);
@@ -109,6 +111,29 @@ public sealed record JiraRemoteLink(string Title, string Url, string? Relationsh
 /// <param name="Inward">The wording for the end the link points at — "is blocked by".</param>
 /// <param name="Outward">The wording for the end the link points from — "blocks".</param>
 public sealed record JiraIssueLinkType(string Name, string Inward, string Outward);
+
+/// <summary>
+/// One file on an issue. On a legacy Jira the specification is regularly the attachment rather
+/// than the description, so this is what tells an agent whether there is one worth reading and
+/// which identifier to read it by.
+/// </summary>
+/// <param name="Id">What a fetch must send. Jira's own, opaque, and unique across the instance.</param>
+/// <param name="FileName">The name whoever uploaded it chose, which is all an agent has to go on.</param>
+/// <param name="Size">The file's size in bytes, as Jira records it.</param>
+/// <param name="MimeType">
+/// The media type Jira claims. Advisory only: legacy instances report it wrongly often enough that
+/// nothing may branch on it, and whether the bytes are readable is decided by reading them.
+/// </param>
+/// <param name="Content">
+/// Where Jira serves the bytes. An absolute URL Jira composes from its own configured base, which
+/// is not always the base this server was pointed at.
+/// </param>
+public sealed record JiraAttachment(
+    string Id,
+    string FileName,
+    long Size,
+    string? MimeType,
+    string? Content);
 
 /// <summary>The issue's logged time. <see cref="Total"/> is Jira's own count.</summary>
 public sealed record JiraWorklogs(int Total, IReadOnlyList<JiraWorklog> Worklogs);
