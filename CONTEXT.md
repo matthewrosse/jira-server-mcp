@@ -115,6 +115,13 @@ can carry instructions aimed at that model. The term marks provenance, not suspi
 particular string, and provenance does not change because the text arrived on a failure.
 _Avoid_: user input, which suggests the tool's caller wrote it.
 
+**Workflow prompt** — an MCP prompt this server owns: a multi-step procedure a human picks in
+their client, most often as a slash command, to hand a whole unit of work to an agent. Attended by
+the protocol's own design, since nothing an agent does mid-loop can fetch one, and static text, so
+it reads nothing and can go nowhere stale. See ADR-0011.
+_Avoid_: prompt used bare, which in this project also means asking the operator for a token at the
+terminal; command; workflow, which names the Jira concept a transition belongs to.
+
 **Structured content** — the machine-shaped half of a tool result, carried beside the prose: issue
 keys, status ids and names, transition ids, usernames, paging positions, per-key outcomes. Narrower
 than MCP's own term, and narrower on purpose — it carries identifiers and the values Jira

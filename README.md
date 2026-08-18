@@ -367,6 +367,26 @@ The two link tools, `jira_link_issues` and `jira_add_remote_link`, still carry t
 they arrived after this work was specified, and what their structured half should say has not been
 decided. A workflow can still tell whether a link landed and why it did not.
 
+## Workflow prompts
+
+Beside its tools the server carries one **workflow prompt** — a procedure your client surfaces for
+you to pick, usually as a slash command. Prompts are user-initiated by the protocol: an agent
+already in mid-loop cannot fetch one for itself, so what a prompt saves is typing at the start of a
+session, not a step in an unattended run. That is the whole of what it claims (ADR-0011).
+
+| Prompt | Argument | Requires | What it does |
+|---|---|---|---|
+| `implement_issue` | `key`, optional | `jira_get_issues`, `jira_transition_issue`, `jira_add_comment` | Hands one issue to the agent end to end: read it, take it by whichever transition this workflow uses for work in progress, do the work, comment the outcome. Without `key` it starts from `jira_my_open_issues`. |
+
+A prompt is registered only where every tool its procedure names is registered, so a read-only
+client sees no prompts at all — it could not follow this one. The gate is derived from the tool
+surface rather than declared again, which is why the table above names tools and not grants.
+
+The procedure names no status. Status vocabulary is per-team and this server does not know yours,
+so the agent is told to read the issue's own transitions and take the one that means work started.
+Nothing in the message is fetched from Jira: it is static text, so it cannot go stale and carries
+no Jira-authored content.
+
 ## Example prompts
 
 These are prompts you type at the agent, not commands you run — the server exposes no prompt of its
