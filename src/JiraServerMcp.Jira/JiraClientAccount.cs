@@ -1,9 +1,9 @@
+using System.Globalization;
+using System.Net;
+using System.Net.Http.Json;
 using JiraServerMcp.Jira.Capabilities;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
-using System.Globalization;
-using System.Net.Http.Json;
-using System.Net;
 namespace JiraServerMcp.Jira;
 
 /// <summary>

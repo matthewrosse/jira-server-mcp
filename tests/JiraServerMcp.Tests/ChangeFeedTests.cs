@@ -16,7 +16,7 @@ public class ChangeFeedTests
     /// Two hours east of UTC, which is what the fixtures below call the zone Jira reads this
     /// account's queries in.
     /// </summary>
-    private static readonly TimeSpan Zone = TimeSpan.FromHours(2);
+    private static readonly TimeSpan _zone = TimeSpan.FromHours(2);
 
     [Fact]
     public void A_moment_carrying_an_offset_is_read_as_that_moment()
@@ -95,7 +95,7 @@ public class ChangeFeedTests
         // literal that decides which issues come back.
         var jql = ChangeFeed.Jql(
             new DateTimeOffset(2026, 8, 18, 7, 20, 0, TimeSpan.Zero),
-            Zone,
+            _zone,
             project: null);
 
         jql.ShouldBe("""updated >= "2026/08/18 09:20" ORDER BY updated ASC""");
@@ -105,8 +105,8 @@ public class ChangeFeedTests
     public void A_project_narrows_the_window_without_changing_what_it_means()
     {
         var jql = ChangeFeed.Jql(
-            new DateTimeOffset(2026, 8, 18, 9, 20, 0, Zone),
-            Zone,
+            new DateTimeOffset(2026, 8, 18, 9, 20, 0, _zone),
+            _zone,
             project: "PROJ");
 
         jql.ShouldBe("""project = PROJ AND updated >= "2026/08/18 09:20" ORDER BY updated ASC""");
@@ -122,8 +122,8 @@ public class ChangeFeedTests
                 Changed("PROJ-1", "2026-08-18T09:30:11.000+0200"),
                 Changed("PROJ-2", "2026-08-18T09:31:47.412+0200"),
             ],
-            new DateTimeOffset(2026, 8, 18, 9, 0, 0, Zone),
-            Zone);
+            new DateTimeOffset(2026, 8, 18, 9, 0, 0, _zone),
+            _zone);
 
         next.ShouldBe("2026-08-18T09:31:00+02:00");
     }
@@ -133,8 +133,8 @@ public class ChangeFeedTests
     {
         var next = ChangeFeed.NextSince(
             [Changed("PROJ-1", "2026-08-18T07:31:47.412Z")],
-            new DateTimeOffset(2026, 8, 18, 9, 0, 0, Zone),
-            Zone);
+            new DateTimeOffset(2026, 8, 18, 9, 0, 0, _zone),
+            _zone);
 
         next.ShouldBe("2026-08-18T09:31:00+02:00");
     }
@@ -144,8 +144,8 @@ public class ChangeFeedTests
     {
         var next = ChangeFeed.NextSince(
             [],
-            new DateTimeOffset(2026, 8, 18, 9, 14, 32, Zone),
-            Zone);
+            new DateTimeOffset(2026, 8, 18, 9, 14, 32, _zone),
+            _zone);
 
         // Floored for the same reason a seen change is: the loop's window is always a whole minute.
         next.ShouldBe("2026-08-18T09:14:00+02:00");
@@ -159,8 +159,8 @@ public class ChangeFeedTests
                 Changed("PROJ-1", "not a timestamp"),
                 new JiraIssue("PROJ-2", new Dictionary<string, JsonElement>()),
             ],
-            new DateTimeOffset(2026, 8, 18, 9, 0, 0, Zone),
-            Zone);
+            new DateTimeOffset(2026, 8, 18, 9, 0, 0, _zone),
+            _zone);
 
         next.ShouldBe("2026-08-18T09:00:00+02:00");
     }
@@ -173,8 +173,8 @@ public class ChangeFeedTests
         // tick re-read everything since, forever.
         var next = ChangeFeed.NextSince(
             [Changed("PROJ-1", "2026-08-18T08:00:00+02:00")],
-            new DateTimeOffset(2026, 8, 18, 9, 0, 0, Zone),
-            Zone);
+            new DateTimeOffset(2026, 8, 18, 9, 0, 0, _zone),
+            _zone);
 
         next.ShouldBe("2026-08-18T09:00:00+02:00");
     }
