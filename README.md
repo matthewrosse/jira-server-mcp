@@ -444,18 +444,31 @@ ticks is one timestamp.
 
   ```
   tick 1  jira_changed_since(since: "2026-08-18T09:00:00+02:00", project: "PROJ")
-          → nextSince: "2026-08-18T09:14:00+02:00"
+          → PROJ-12 changed at 09:14 — nextSince: "2026-08-18T09:14:00+02:00"
   tick 2  jira_changed_since(since: "2026-08-18T09:14:00+02:00", project: "PROJ")
-          → nextSince: "2026-08-18T09:29:00+02:00"
+          → nothing newer — PROJ-12 again, nextSince: "2026-08-18T09:14:00+02:00"
+  tick 3  jira_changed_since(since: "2026-08-18T09:14:00+02:00", project: "PROJ")
+          → PROJ-13 changed at 09:41 — nextSince: "2026-08-18T09:41:00+02:00"
   ```
+
+  The watermark tracks the last change seen, not the clock. It does not advance on a quiet tick, so
+  the most recent change is reported again until something newer arrives — a non-empty result is not
+  by itself news, and an agent deciding whether to act compares the keys against the ones it has
+  already handled.
 
   `nextSince` is the start of the last-seen minute, not the exact moment of the last change, because
   Jira Server records update times to the minute on some versions. The feed therefore repeats rather
-  than skips: a tick can report an issue the previous one already did. An agent holding the keys it
-  has seen can recognise a repeat; nothing can recognise a change that never arrived.
+  than skips. An agent holding the keys it has seen can recognise a repeat; nothing can recognise a
+  change that never arrived.
 
-  `since` must carry an offset. One without is refused rather than read in this server's zone, which
-  is not the zone Jira reads a query in — the mistake this tool exists to take off the caller.
+  Where a result carries `nextStartAt`, this window holds more than one page — a bulk edit puts
+  hundreds of issues in one minute. Read it out with `startAt` before moving on to `nextSince`,
+  which does not advance past a window still being read.
+
+  `since` must carry an offset. One without is refused rather than read in this server's zone. The
+  window itself is stated in the time zone of the Jira account this server is authenticated as,
+  because that is the zone Jira reads a date in a JQL clause in — the mistake this tool exists to
+  take off the caller.
 
 ### Searching
 

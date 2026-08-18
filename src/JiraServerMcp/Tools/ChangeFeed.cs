@@ -11,9 +11,10 @@ namespace JiraServerMcp.Tools;
 internal static class ChangeFeed
 {
     /// <summary>
-    /// Jira reads a date literal in a JQL clause in its own zone and offers no way to write an
-    /// offset into one, so the moment the caller gave is restated in the instance's offset before
-    /// it is written. This format is the one Jira Server documents for a JQL date.
+    /// Jira reads a date literal in a JQL clause in the zone of the account running the query and
+    /// offers no way to write an offset into one, so the moment the caller gave is restated in
+    /// that offset before it is written. This format is the one Jira Server documents for a JQL
+    /// date.
     /// </summary>
     private const string JqlMoment = "yyyy/MM/dd HH:mm";
 
@@ -55,12 +56,32 @@ internal static class ChangeFeed
     }
 
     /// <summary>
-    /// The query for everything visible that changed at or after <paramref name="since"/>, read in
-    /// the instance's own zone.
+    /// The offset Jira will read this account's date literals in: the account's own zone at the
+    /// moment in question, so that a window spanning a daylight-saving change is stated in the
+    /// offset that was actually in force. False where Jira named a zone this machine cannot
+    /// resolve, which leaves the caller to fall back to something it can.
     /// </summary>
-    public static string Jql(DateTimeOffset since, TimeSpan instanceOffset, string? project)
+    public static bool TryZoneOffset(string? timeZone, DateTimeOffset at, out TimeSpan offset)
     {
-        var moment = Floor(since, instanceOffset).ToString(JqlMoment, CultureInfo.InvariantCulture);
+        offset = default;
+
+        if (timeZone is null || !TimeZoneInfo.TryFindSystemTimeZoneById(timeZone, out var zone))
+        {
+            return false;
+        }
+
+        offset = zone.GetUtcOffset(at);
+
+        return true;
+    }
+
+    /// <summary>
+    /// The query for everything visible that changed at or after <paramref name="since"/>, stated
+    /// in the offset Jira reads this account's queries in.
+    /// </summary>
+    public static string Jql(DateTimeOffset since, TimeSpan zoneOffset, string? project)
+    {
+        var moment = Floor(since, zoneOffset).ToString(JqlMoment, CultureInfo.InvariantCulture);
         var changed = $"updated >= \"{moment}\"";
 
         return project is null
@@ -69,8 +90,8 @@ internal static class ChangeFeed
     }
 
     /// <summary>
-    /// The watermark to pass to the next call: the start of the last-seen minute, in the
-    /// instance's offset. Jira Server records <c>updated</c> to the minute on some versions, so a
+    /// The watermark to pass to the next call: the start of the last-seen minute, in the same
+    /// offset the window was asked in. Jira Server records <c>updated</c> to the minute on some versions, so a
     /// watermark taken from the timestamp itself would exclude every other change made in that
     /// same minute. Flooring makes the feed repeat rather than skip — a caller holds the keys it
     /// has already seen and can recognise a repeat, and cannot recognise something it never got.
@@ -83,9 +104,9 @@ internal static class ChangeFeed
     public static string NextSince(
         IReadOnlyList<JiraIssue> issues,
         DateTimeOffset since,
-        TimeSpan instanceOffset)
+        TimeSpan zoneOffset)
     {
-        var next = Floor(since, instanceOffset);
+        var next = Floor(since, zoneOffset);
 
         foreach (var issue in issues)
         {
@@ -99,7 +120,7 @@ internal static class ChangeFeed
                 continue;
             }
 
-            var floored = Floor(parsed, instanceOffset);
+            var floored = Floor(parsed, zoneOffset);
 
             if (floored > next)
             {
@@ -110,10 +131,10 @@ internal static class ChangeFeed
         return next.ToString(Watermark, CultureInfo.InvariantCulture);
     }
 
-    private static DateTimeOffset Floor(DateTimeOffset moment, TimeSpan instanceOffset)
+    private static DateTimeOffset Floor(DateTimeOffset moment, TimeSpan zoneOffset)
     {
-        var inInstanceZone = moment.ToOffset(instanceOffset);
+        var inZone = moment.ToOffset(zoneOffset);
 
-        return inInstanceZone.AddTicks(-(inInstanceZone.Ticks % TimeSpan.TicksPerMinute));
+        return inZone.AddTicks(-(inZone.Ticks % TimeSpan.TicksPerMinute));
     }
 }

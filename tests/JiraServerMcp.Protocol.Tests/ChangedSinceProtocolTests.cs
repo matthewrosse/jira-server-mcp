@@ -19,21 +19,28 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
 
     private const string Profile = "work";
 
-    private const string MyselfPayload = """
+    /// <summary>
+    /// The account this server is authenticated as, in a zone two hours east of UTC — the zone
+    /// Jira reads its JQL date literals in.
+    /// </summary>
+    private static string MyselfPayload(string? timeZone = "Europe/Warsaw") => $$"""
         {
           "key": "JIRAUSER10100",
           "name": "mrosse",
           "displayName": "Mateusz Różański",
-          "active": true
+          "active": true{{(timeZone is null ? "" : $",\n  \"timeZone\": \"{timeZone}\"")}}
         }
         """;
 
-    /// <summary>An instance two hours east of UTC, which is the zone it reads a JQL date in.</summary>
+    /// <summary>
+    /// The instance's own clock, one hour east of UTC — deliberately not the account's zone, so
+    /// that a test asserting a window can only pass on one of the two.
+    /// </summary>
     private const string ServerInfoPayload = """
         {
           "version": "8.20.7",
           "deploymentType": "Server",
-          "serverTime": "2026-08-18T09:45:12.001+0200"
+          "serverTime": "2026-08-18T08:45:12.001+0100"
         }
         """;
 
@@ -53,7 +60,7 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
         added.ExitCode.ShouldBe(0);
 
         _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(MyselfPayload));
+            .RespondWith(Json(MyselfPayload()));
 
         var loggedIn = await HostProcess.RunAsync(
             ["auth", "login", Profile],
@@ -64,6 +71,8 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
         loggedIn.ExitCode.ShouldBe(0);
 
         _jira.Reset();
+
+        StubMyself();
 
         _client = await McpClient.CreateAsync(
             new StdioClientTransport(new StdioClientTransportOptions
@@ -106,9 +115,8 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_window_is_asked_for_in_the_instances_own_zone_oldest_change_first()
+    public async Task The_window_is_asked_for_in_the_accounts_own_zone_oldest_change_first()
     {
-        StubServerInfo();
         StubSearch(Json(SearchPayload(("PROJ-12", "2026-08-18T09:31:47.412+0200"))));
 
         // 07:20 UTC is 09:20 where this Jira is, and Jira reads the literal in its own zone.
@@ -125,7 +133,6 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
     [Fact]
     public async Task The_watermark_reaches_the_caller_in_the_prose_and_in_the_structured_half()
     {
-        StubServerInfo();
         StubSearch(Json(SearchPayload(("PROJ-12", "2026-08-18T09:31:47.412+0200"))));
 
         var result = await CallAsync(
@@ -149,7 +156,6 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_tick_on_which_nothing_changed_still_hands_back_a_watermark()
     {
-        StubServerInfo();
         StubSearch(Json(SearchPayload()));
 
         var result = await CallAsync(
@@ -166,7 +172,6 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_project_narrows_the_window_without_changing_what_it_means()
     {
-        StubServerInfo();
         StubSearch(Json(SearchPayload(("PROJ-12", "2026-08-18T09:31:00.000+0200"))));
 
         await ChangedSinceAsync(new Dictionary<string, object?>
@@ -177,6 +182,60 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
 
         SearchRequest().Query.ShouldNotBeNull()["jql"].ShouldHaveSingleItem().ShouldBe(
             """project = PROJ AND updated >= "2026/08/18 09:00" ORDER BY updated ASC""");
+    }
+
+    [Fact]
+    public async Task The_window_is_stated_in_the_accounts_zone_not_the_instances()
+    {
+        // Jira evaluates a bare date literal in the zone of the account running the query. This
+        // account sits four hours west of UTC while the instance's own clock runs one hour east,
+        // so a window built from the instance's offset would be five hours out — and a window
+        // shifted forward skips changes with nothing in the response to show for it.
+        StubMyself("America/New_York");
+        StubServerInfo();
+        StubSearch(Json(SearchPayload(("PROJ-12", "2026-08-18T03:31:00.000-0400"))));
+
+        await ChangedSinceAsync(
+            new Dictionary<string, object?> { ["since"] = "2026-08-18T07:20:00Z" });
+
+        SearchRequest().Query.ShouldNotBeNull()["jql"].ShouldHaveSingleItem().ShouldBe(
+            """updated >= "2026/08/18 03:20" ORDER BY updated ASC""");
+    }
+
+    [Fact]
+    public async Task A_zone_this_machine_cannot_resolve_falls_back_to_the_instances_own_clock()
+    {
+        StubMyself(timeZone: null);
+        StubServerInfo();
+        StubSearch(Json(SearchPayload(("PROJ-12", "2026-08-18T08:31:00.000+0100"))));
+
+        await ChangedSinceAsync(
+            new Dictionary<string, object?> { ["since"] = "2026-08-18T07:20:00Z" });
+
+        // The instance's clock runs one hour east, which is the closest thing to the account's
+        // zone that Jira will state.
+        SearchRequest().Query.ShouldNotBeNull()["jql"].ShouldHaveSingleItem().ShouldBe(
+            """updated >= "2026/08/18 08:20" ORDER BY updated ASC""");
+    }
+
+    [Fact]
+    public async Task A_window_holding_more_than_one_page_does_not_move_the_watermark_past_it()
+    {
+        // Every row in the same minute as the window's start — a bulk edit or an import — with
+        // more behind it. Advancing the watermark here would strand every row the page did not
+        // carry, so it stays put and the caller is told to page.
+        StubSearch(Json(SearchPayload(
+            total: 400,
+            ("PROJ-1", "2026-08-18T09:14:10.000+0200"),
+            ("PROJ-2", "2026-08-18T09:14:55.000+0200"))));
+
+        var result = await CallAsync(
+            new Dictionary<string, object?> { ["since"] = "2026-08-18T09:14:00+02:00" });
+
+        var structure = result.StructuredContent.ShouldNotBeNull();
+
+        structure.GetProperty("nextSince").GetString().ShouldBe("2026-08-18T09:14:00+02:00");
+        structure.GetProperty("nextStartAt").GetInt32().ShouldBe(2);
     }
 
     [Fact]
@@ -195,8 +254,6 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_jira_that_refuses_the_search_says_so_and_carries_no_watermark()
     {
-        StubServerInfo();
-
         _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(403)
                 .WithHeader("Content-Type", "application/json")
@@ -235,7 +292,10 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
     private static string TextOf(CallToolResult result) =>
         result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
 
-    private static string SearchPayload(params (string Key, string Updated)[] issues)
+    private static string SearchPayload(params (string Key, string Updated)[] issues) =>
+        SearchPayload(issues.Length, issues);
+
+    private static string SearchPayload(int total, params (string Key, string Updated)[] issues)
     {
         var rendered = issues.Select(issue => $$"""
             {
@@ -253,7 +313,7 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
         {
             startAt = 0,
             maxResults = 25,
-            total = issues.Length,
+            total,
         }).TrimEnd('}')
            + ",\"issues\":[" + string.Join(",", rendered) + "]}";
     }
@@ -272,6 +332,10 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
     private void StubServerInfo() =>
         _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(Json(ServerInfoPayload));
+
+    private void StubMyself(string? timeZone = "Europe/Warsaw") =>
+        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+            .RespondWith(Json(MyselfPayload(timeZone)));
 
     private void StubSearch(IResponseBuilder response) =>
         _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())

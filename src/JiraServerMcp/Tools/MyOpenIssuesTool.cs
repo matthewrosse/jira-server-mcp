@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Text.RegularExpressions;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
@@ -14,8 +13,6 @@ internal sealed class MyOpenIssuesTool(JiraClient jira, ServedProfile profile)
     private const string Name = "jira_my_open_issues";
 
     private const string BaseJql = "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC";
-
-    private static readonly Regex ProjectKeyGrammar = new("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
     [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
         UseStructuredContent = true,
@@ -44,11 +41,9 @@ internal sealed class MyOpenIssuesTool(JiraClient jira, ServedProfile profile)
                 + "jira_search with a project filter narrows it further.",
             async () =>
             {
-                if (project is not null && !ProjectKeyGrammar.IsMatch(project))
+                if (project is not null && !ProjectKey.IsValid(project))
                 {
-                    return $"'{project}' is not a valid Jira project key — a project key starts "
-                        + "with a letter and contains only letters, digits and underscores. Use "
-                        + "jira_search for anything else.";
+                    return ProjectKey.Rejected(project);
                 }
 
                 var jql = project is null ? BaseJql : $"project = {project} AND {BaseJql}";
