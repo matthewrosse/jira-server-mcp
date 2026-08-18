@@ -35,7 +35,7 @@ public sealed class JiraIssueTests : IDisposable
               "comments": [
                 {
                   "id": "10100",
-                  "author": { "name": "mrosse", "displayName": "Mateusz Różański" },
+                  "author": { "name": "ada", "displayName": "Ada Lovelace" },
                   "body": "Reproduced on staging.",
                   "created": "2026-08-01T09:15:00.000+0000"
                 },
@@ -71,7 +71,7 @@ public sealed class JiraIssueTests : IDisposable
               "total": 4,
               "worklogs": [
                 {
-                  "author": { "name": "mrosse", "displayName": "Mateusz Różański" },
+                  "author": { "name": "ada", "displayName": "Ada Lovelace" },
                   "timeSpent": "3h 30m",
                   "started": "2026-08-01T08:00:00.000+0000"
                 }
@@ -102,7 +102,7 @@ public sealed class JiraIssueTests : IDisposable
             "histories": [
               {
                 "id": "30100",
-                "author": { "name": "mrosse", "displayName": "Mateusz Różański" },
+                "author": { "name": "ada", "displayName": "Ada Lovelace" },
                 "created": "2026-08-01T09:00:00.000+0000",
                 "items": [
                   {
@@ -120,7 +120,7 @@ public sealed class JiraIssueTests : IDisposable
                   {
                     "field": "assignee",
                     "fromString": null,
-                    "toString": "Mateusz Różański"
+                    "toString": "Ada Lovelace"
                   }
                 ]
               }
@@ -253,7 +253,7 @@ public sealed class JiraIssueTests : IDisposable
 
         var first = comments.Comments[0];
 
-        first.Author.ShouldBe("Mateusz Różański");
+        first.Author.ShouldBe("Ada Lovelace");
         first.Created.ShouldBe("2026-08-01T09:15:00.000+0000");
         first.Body.ShouldBe("Reproduced on staging.");
     }
@@ -297,7 +297,7 @@ public sealed class JiraIssueTests : IDisposable
 
         var first = changelog.Histories[0];
 
-        first.Author.ShouldBe("Mateusz Różański");
+        first.Author.ShouldBe("Ada Lovelace");
         first.Created.ShouldBe("2026-08-01T09:00:00.000+0000");
 
         var item = first.Items.ShouldHaveSingleItem();
@@ -338,7 +338,7 @@ public sealed class JiraIssueTests : IDisposable
 
         var entry = worklogs.Worklogs.ShouldHaveSingleItem();
 
-        entry.Author.ShouldBe("Mateusz Różański");
+        entry.Author.ShouldBe("Ada Lovelace");
         entry.TimeSpent.ShouldBe("3h 30m");
         entry.Started.ShouldBe("2026-08-01T08:00:00.000+0000");
     }

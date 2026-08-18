@@ -10,7 +10,7 @@ public sealed class PrivateCertificateAuthorityVerbTests : IDisposable
     private const string Token = "s3cr3t-personal-access-token";
 
     private const string MyselfPayload =
-        """{"key":"JIRAUSER10100","name":"mrosse","displayName":"Mateusz Różański","active":true}""";
+        """{"key":"JIRAUSER10100","name":"ada","displayName":"Ada Lovelace","active":true}""";
 
     private readonly ConfigurationHome _home = new();
     private readonly TlsTestServer _jira =
@@ -30,7 +30,7 @@ public sealed class PrivateCertificateAuthorityVerbTests : IDisposable
         var result = await RunAsync(["auth", "login", "work"], standardInput: Token + "\n");
 
         result.ExitCode.ShouldBe(0);
-        result.StandardOutput.ShouldContain("Mateusz Różański");
+        result.StandardOutput.ShouldContain("Ada Lovelace");
 
         File.Exists(_home.CredentialsFile).ShouldBeTrue();
     }
@@ -46,7 +46,7 @@ public sealed class PrivateCertificateAuthorityVerbTests : IDisposable
         var result = await RunAsync(["auth", "status", "work"]);
 
         result.ExitCode.ShouldBe(0);
-        result.StandardOutput.ShouldContain("Mateusz Różański");
+        result.StandardOutput.ShouldContain("Ada Lovelace");
     }
 
     private async Task AddProfileAsync()

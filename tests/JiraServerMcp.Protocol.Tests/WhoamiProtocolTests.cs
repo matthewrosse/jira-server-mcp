@@ -19,11 +19,11 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
 
     private const string MyselfPayload = """
         {
-          "self": "http://localhost/rest/api/2/user?username=mrosse",
+          "self": "http://localhost/rest/api/2/user?username=ada",
           "key": "JIRAUSER10100",
-          "name": "mrosse",
-          "emailAddress": "mrosse@example.com",
-          "displayName": "Mateusz Różański",
+          "name": "ada",
+          "emailAddress": "ada@example.com",
+          "displayName": "Ada Lovelace",
           "active": true
         }
         """;
@@ -112,9 +112,9 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
 
         var text = result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
 
-        text.ShouldContain("Mateusz Różański");
-        text.ShouldContain("mrosse");
-        text.ShouldContain("mrosse@example.com");
+        text.ShouldContain("Ada Lovelace");
+        text.ShouldContain("ada");
+        text.ShouldContain("ada@example.com");
         text.ShouldContain("active");
         text.ShouldContain("<jira-data");
     }

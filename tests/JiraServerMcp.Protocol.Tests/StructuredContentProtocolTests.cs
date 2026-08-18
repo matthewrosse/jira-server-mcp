@@ -21,8 +21,8 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     private const string MyselfPayload = """
         {
           "key": "JIRAUSER10100",
-          "name": "mrosse",
-          "displayName": "Mateusz Różański",
+          "name": "ada",
+          "displayName": "Ada Lovelace",
           "active": true
         }
         """;
@@ -259,7 +259,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
                             "summary": "Login fails with a 401",
                             "status": { "id": "3", "name": "In Progress" },
                             "issuetype": { "name": "Bug" },
-                            "assignee": { "name": "mrosse", "displayName": "Mateusz Różański" }
+                            "assignee": { "name": "ada", "displayName": "Ada Lovelace" }
                           }
                         }
                       ]
@@ -277,7 +277,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
 
         row.GetProperty("key").GetString().ShouldBe("PROJ-12");
         row.GetProperty("status").GetString().ShouldBe("In Progress");
-        row.GetProperty("assignee").GetString().ShouldBe("mrosse");
+        row.GetProperty("assignee").GetString().ShouldBe("ada");
 
         // The summary is prose. It is in the text half, where the delimiters are, and nowhere else.
         row.TryGetProperty("summary", out _).ShouldBeFalse();
@@ -430,7 +430,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
                       "key": "PROJ",
                       "name": "Platform",
                       "id": "10100",
-                      "lead": { "name": "mrosse", "displayName": "Mateusz Różański" },
+                      "lead": { "name": "ada", "displayName": "Ada Lovelace" },
                       "description": "Prose, which the structured half does not carry."
                     }
                     """));
@@ -570,9 +570,9 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
 
         var account = await CallAsync("jira_whoami");
 
-        account.GetProperty("username").GetString().ShouldBe("mrosse");
+        account.GetProperty("username").GetString().ShouldBe("ada");
         account.GetProperty("active").GetBoolean().ShouldBeTrue();
-        account.GetRawText().ShouldNotContain("Różański");
+        account.GetRawText().ShouldNotContain("Lovelace");
     }
 
     /// <summary>
