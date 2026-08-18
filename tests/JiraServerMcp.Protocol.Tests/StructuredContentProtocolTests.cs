@@ -399,6 +399,77 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
             .ShouldBe(["Blocker", "Major"]);
     }
 
+    [Fact]
+    public async Task A_project_listing_carries_the_keys_and_a_project_carries_its_names()
+    {
+        _jira.Given(Request.Create().WithPath("/rest/api/2/project").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+                    [
+                      { "key": "PROJ", "name": "Platform", "id": "10100", "projectTypeKey": "software" }
+                    ]
+                    """));
+
+        var listing = await CallAsync("jira_list_projects");
+
+        listing.GetProperty("outcome").GetString().ShouldBe("ok");
+        listing.GetProperty("cutByCap").GetBoolean().ShouldBeFalse();
+
+        var row = listing.GetProperty("projects").EnumerateArray().ShouldHaveSingleItem();
+
+        row.GetProperty("key").GetString().ShouldBe("PROJ");
+        row.GetProperty("name").GetString().ShouldBe("Platform");
+
+        _jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+                    {
+                      "key": "PROJ",
+                      "name": "Platform",
+                      "id": "10100",
+                      "lead": { "name": "mrosse", "displayName": "Mateusz Różański" },
+                      "description": "Prose, which the structured half does not carry."
+                    }
+                    """));
+
+        // A project read is four calls: the project, its issue types' statuses, its components,
+        // and its versions.
+        _jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ/components").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""[{ "id": "100", "name": "api" }]"""));
+
+        _jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ/versions").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+                    [{ "id": "200", "name": "1.4.0", "released": true, "archived": false }]
+                    """));
+
+        _jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ/statuses").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+                    [{ "id": "1", "name": "Bug", "subtask": false, "statuses": [] }]
+                    """));
+
+        var project = await CallAsync("jira_get_project");
+
+        project.GetProperty("key").GetString().ShouldBe("PROJ");
+        project.GetProperty("versionNames").EnumerateArray().ShouldHaveSingleItem()
+            .GetString().ShouldBe("1.4.0");
+        project.GetProperty("componentNames").EnumerateArray().ShouldHaveSingleItem()
+            .GetString().ShouldBe("api");
+        project.GetProperty("issueTypeNames").EnumerateArray().ShouldHaveSingleItem()
+            .GetString().ShouldBe("Bug");
+
+        // The description is prose and the lead is a field nothing branches on.
+        project.GetRawText().ShouldNotContain("Prose, which");
+        project.TryGetProperty("lead", out _).ShouldBeFalse();
+    }
+
     /// <summary>
     /// The structured half of a call, whether or not the call reported an error. Its presence is
     /// the promise; a result carrying only prose fails here.

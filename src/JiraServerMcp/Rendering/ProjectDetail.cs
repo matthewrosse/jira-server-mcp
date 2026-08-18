@@ -10,7 +10,7 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class ProjectDetail
 {
-    public static string Render(JiraProjectDetail project)
+    public static Rendered Render(JiraProjectDetail project)
     {
         var body = new StringBuilder();
 
@@ -33,14 +33,37 @@ internal static class ProjectDetail
             body.Append("description: ").AppendLine(Truncation.Body(description));
         }
 
-        IssueTypes(body, project.IssueTypes);
-        Components(body, project.Components);
-        Versions(body, project.Versions);
+        var issueTypes = IssueTypes(body, project.IssueTypes);
+        var components = Components(body, project.Components);
+        var versions = Versions(body, project.Versions);
 
-        return UntrustedContent.Envelope(project.Project.Key, body.ToString().TrimEnd());
+        return new Rendered(
+            UntrustedContent.Envelope(project.Project.Key, body.ToString().TrimEnd()),
+            ToolOutputs.Node(new ProjectDetailOutput
+            {
+                Outcome = Outcomes.Ok,
+                Key = project.Project.Key,
+                Id = project.Project.Id,
+                Name = project.Project.Name,
+                IssueTypeNames = [.. issueTypes.Select(type => type.Name)],
+                IssueTypeCount = project.IssueTypes.Count,
+                IssueTypesTruncated = issueTypes.Count < project.IssueTypes.Count,
+                VersionNames = [.. versions.Select(version => version.Name)],
+                VersionCount = project.Versions.Count,
+                VersionsTruncated = versions.Count < project.Versions.Count,
+                ComponentNames = [.. components.Select(component => component.Name)],
+                ComponentCount = project.Components.Count,
+                ComponentsTruncated = components.Count < project.Components.Count,
+            }));
     }
 
-    private static void IssueTypes(StringBuilder body, IReadOnlyList<JiraIssueTypeStatuses> types)
+    /// <summary>
+    /// The section, and the entries it showed — which is what the structured half carries, so the
+    /// two halves cannot cut differently.
+    /// </summary>
+    private static IReadOnlyList<JiraIssueTypeStatuses> IssueTypes(
+        StringBuilder body,
+        IReadOnlyList<JiraIssueTypeStatuses> types)
     {
         var shown = types.Take(ResponseBudget.ProjectSectionCap).ToArray();
 
@@ -61,9 +84,13 @@ internal static class ProjectDetail
                     ? "(none)"
                     : string.Join(", ", type.Statuses.Select(status => status.Name)));
         }
+
+        return shown;
     }
 
-    private static void Components(StringBuilder body, IReadOnlyList<JiraProjectComponent> components)
+    private static IReadOnlyList<JiraProjectComponent> Components(
+        StringBuilder body,
+        IReadOnlyList<JiraProjectComponent> components)
     {
         var shown = components.Take(ResponseBudget.ProjectSectionCap).ToArray();
 
@@ -81,9 +108,13 @@ internal static class ProjectDetail
 
             body.AppendLine();
         }
+
+        return shown;
     }
 
-    private static void Versions(StringBuilder body, IReadOnlyList<JiraProjectVersion> versions)
+    private static IReadOnlyList<JiraProjectVersion> Versions(
+        StringBuilder body,
+        IReadOnlyList<JiraProjectVersion> versions)
     {
         // Jira orders versions oldest first, so a project with a long release history would be cut
         // down to versions released years ago — and the unreleased ones at the end are the only
@@ -112,6 +143,8 @@ internal static class ProjectDetail
 
             body.AppendLine(")");
         }
+
+        return shown;
     }
 
     private static string Heading(int shown, int total, string which = "first") =>

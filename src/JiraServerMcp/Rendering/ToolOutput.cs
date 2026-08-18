@@ -285,6 +285,103 @@ internal sealed record CreateFieldOutput
 }
 
 /// <summary>
+/// The projects an account can see. Jira's project endpoint has no page of its own, so what bounds
+/// this is a cap rather than a position, and there is nothing to resume from.
+/// </summary>
+internal sealed record ProjectListOutput : ToolOutput
+{
+    /// <summary>
+    /// The rows in <see cref="Projects"/>, as the page output means it: what is carried here, not
+    /// what Jira has. <see cref="TotalCount"/> is the second number.
+    /// </summary>
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    /// <summary>Every project Jira answered with, including the ones the cap left out.</summary>
+    [JsonPropertyName("totalCount")]
+    public int? TotalCount { get; init; }
+
+    /// <summary>
+    /// Whether the cap left projects out. There is no next page to ask for: a project outside the
+    /// cap is reached by naming its key, or by narrowing with a search.
+    /// </summary>
+    [JsonPropertyName("cutByCap")]
+    public bool? CutByCap { get; init; }
+
+    [JsonPropertyName("projects")]
+    public IReadOnlyList<ProjectRowOutput>? Projects { get; init; }
+}
+
+/// <summary>
+/// One project as a row. The key leads because the key is what every other tool takes as input,
+/// and an agent listing projects is almost always looking for one to pass on.
+/// </summary>
+internal sealed record ProjectRowOutput
+{
+    [JsonPropertyName("key")]
+    public required string Key { get; init; }
+
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; init; }
+}
+
+/// <summary>
+/// One project: what a create call may name in it. The names are selection labels under ADR-0009's
+/// amended rule 2 — a version name is what <c>fixVersions</c> must be given verbatim, and its id
+/// is opaque.
+/// </summary>
+/// <remarks>
+/// The project lead is deliberately absent. It is a username, which rule 2 admits on its face, but
+/// nothing branches on it — and rule 1 makes carrying a field permanent while leaving it out stays
+/// reversible. The description is prose and is not carried at all.
+/// </remarks>
+internal sealed record ProjectDetailOutput : ToolOutput
+{
+    [JsonPropertyName("key")]
+    public string? Key { get; init; }
+
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; init; }
+
+    [JsonPropertyName("issueTypeNames")]
+    public IReadOnlyList<string>? IssueTypeNames { get; init; }
+
+    [JsonPropertyName("issueTypeCount")]
+    public int? IssueTypeCount { get; init; }
+
+    [JsonPropertyName("issueTypesTruncated")]
+    public bool? IssueTypesTruncated { get; init; }
+
+    /// <summary>
+    /// The most recent versions, which are the ones a create would name — Jira orders them oldest
+    /// first, so a cut taken from the front would carry only releases from years ago.
+    /// </summary>
+    [JsonPropertyName("versionNames")]
+    public IReadOnlyList<string>? VersionNames { get; init; }
+
+    [JsonPropertyName("versionCount")]
+    public int? VersionCount { get; init; }
+
+    [JsonPropertyName("versionsTruncated")]
+    public bool? VersionsTruncated { get; init; }
+
+    [JsonPropertyName("componentNames")]
+    public IReadOnlyList<string>? ComponentNames { get; init; }
+
+    [JsonPropertyName("componentCount")]
+    public int? ComponentCount { get; init; }
+
+    [JsonPropertyName("componentsTruncated")]
+    public bool? ComponentsTruncated { get; init; }
+}
+
+/// <summary>
 /// The envelope on its own, for a tool whose payload is not yet structured. Rule 3 of ADR-0009 is
 /// that structure is present on every result, so these still answer "did this work, and if not
 /// why" — they simply carry nothing else yet.

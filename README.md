@@ -345,8 +345,13 @@ unfamiliar string against the prose, but you cannot detect a wrong one. `hasAllo
 beside `allowedValues` so that "constrained, but the list was cut" stays distinguishable from
 "unconstrained", and `allowedValuesTruncated` says which happened.
 
-Tools whose payload is not structured yet — projects, users, boards, sprints — still carry the
-`outcome`, so a workflow can tell what happened even where it cannot yet read what came back.
+`jira_list_projects` carries `cutByCap` rather than a resume position. Jira's project endpoint has
+no page of its own — it answers with every project at once, and this server caps what it renders —
+so a cut listing is narrowed with `jira_search`, or the project is named directly by its key to
+`jira_get_project`. There is no next page to ask for, so no field pretends there is one.
+
+Tools whose payload is not structured yet — users, boards, sprints — still carry the `outcome`, so
+a workflow can tell what happened even where it cannot yet read what came back.
 
 ## Example prompts
 

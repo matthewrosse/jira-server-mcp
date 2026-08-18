@@ -9,7 +9,7 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class ProjectList
 {
-    public static string Render(IReadOnlyList<JiraProject> projects)
+    public static Rendered Render(IReadOnlyList<JiraProject> projects)
     {
         var shown = projects.Take(ResponseBudget.ProjectListCap).ToArray();
         var lines = new StringBuilder();
@@ -27,9 +27,27 @@ internal static class ProjectList
             lines.AppendLine();
         }
 
-        return UntrustedContent.Envelope(
-            Header(shown.Length, projects.Count),
-            lines.ToString().TrimEnd());
+        // The rows the cap admitted are the rows the structure carries, off the one traversal.
+        return new Rendered(
+            UntrustedContent.Envelope(
+                Header(shown.Length, projects.Count),
+                lines.ToString().TrimEnd()),
+            ToolOutputs.Node(new ProjectListOutput
+            {
+                Outcome = Outcomes.Ok,
+                Count = shown.Length,
+                TotalCount = projects.Count,
+                CutByCap = shown.Length < projects.Count,
+                Projects =
+                [
+                    .. shown.Select(project => new ProjectRowOutput
+                    {
+                        Key = project.Key,
+                        Id = project.Id,
+                        Name = project.Name,
+                    }),
+                ],
+            }));
     }
 
     private static string Header(int shown, int total) =>
