@@ -90,6 +90,17 @@ internal static class ServeVerb
             server.WithTools([toolType]);
         }
 
+        // The profile's own queries, which are values rather than types: one tool class cannot
+        // carry ten names. Registered on the builder like every other tool, because Build()
+        // freezes what is registered — and what they resolve from is the container Build()
+        // produces, which is why they close over a reference to it rather than over a client.
+        var queryServices = new LateBoundServices();
+
+        foreach (var queryTool in ProfileQuerySurface.ToolsToRegister(profile, queryServices))
+        {
+            server.WithTools([queryTool]);
+        }
+
         // Same one-call-per-type caution as the tools above: WithPrompts takes a batch, and the
         // tool equivalent is known to mis-register one.
         foreach (var promptType in PromptSurface.PromptsToRegister(grants, profile.Capabilities))
@@ -99,7 +110,11 @@ internal static class ServeVerb
 
         await ToolSurface.WarnAboutTheProbeAsync(profileName, profile);
 
-        await builder.Build().RunAsync(cancellationToken);
+        var host = builder.Build();
+
+        queryServices.Bound = host.Services;
+
+        await host.RunAsync(cancellationToken);
 
         return 0;
     }

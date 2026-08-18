@@ -599,6 +599,42 @@ fails by absence rather than by a permission error.
   `jira_get_sprint_issues`, then one `jira_transition_issue` per issue. There is no bulk write, so
   ask the agent to list what it will change before it changes it.
 
+### Canned queries of your own
+
+Every team has three or four queries of its own — this team's bugs in the current sprint, the
+release-blocking issues, the tickets waiting on review — and none of them belong in this
+repository. A profile can carry them, and each becomes a tool:
+
+```
+jira-server-mcp profile query add work sprint_bugs \
+  --jql "project = PROJ AND type = Bug AND sprint in openSprints()" \
+  --description "This team's bugs in the current sprint."
+
+jira-server-mcp profile query list work
+jira-server-mcp profile query remove work sprint_bugs
+```
+
+The agent then calls `jira_q_sprint_bugs` and spends no context authoring the query.
+
+- **The `jira_q_` prefix is fixed.** An operator-supplied name can never shadow or collide with a
+  built-in tool, and an agent can see at a glance which tools belong to this deployment rather than
+  to this server. The cost is a longer name in every call, which is the cheaper half of that trade.
+- **The JQL is checked when you declare it.** `profile query add` runs it against Jira and refuses
+  to store one Jira rejects, so a mistake lands in front of the person who wrote it. A query that
+  goes bad later — a project deleted, a field removed — fails at call time like any other refused
+  request.
+- **A description is required.** It is what an agent reads when choosing between tools, and a
+  generated one would be a lie about intent only you know.
+- **No parameters.** A query whose meaning changes with an argument is `jira_search`'s job. These
+  take paging and a field projection, and nothing else.
+- **Ten per profile, and that is a limit rather than advice.** Every registered tool costs an agent
+  context in *every* conversation it takes part in — the tool list is sent whether or not any tool
+  is called. This is the one place a deployment could quietly spend the budget this whole project
+  exists to protect, so the eleventh is refused with the reason.
+
+A query result is rendered by the same module, under the same response budget, and carries the same
+structured half as a built-in page of issues.
+
 ### Field aliases
 
 A custom field is named only by identifier everywhere an agent touches it: `customfield_10010` in a

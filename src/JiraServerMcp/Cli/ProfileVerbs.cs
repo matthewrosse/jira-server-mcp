@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using JiraServerMcp.Credentials;
 using JiraServerMcp.Profiles;
+using JiraServerMcp.Tools;
 
 namespace JiraServerMcp.Cli;
 
@@ -295,6 +296,177 @@ internal static class ProfileVerbs
             profile with
             {
                 FieldAliases = aliases,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+
+    /// <summary>
+    /// `profile query add`. The JQL is sent to Jira before it is stored: the moment a human is
+    /// looking at the query they wrote is the moment a mistake is cheap to fix, and a query that
+    /// only fails months later fails in front of an agent instead.
+    /// </summary>
+    /// <remarks>
+    /// This asks Jira at declaration time, not at startup. ADR-0005's rule is that `serve` does no
+    /// network input or output before it is ready — the CLI already talks to Jira for token
+    /// validation and the capability probe, so nothing new is implied here.
+    /// </remarks>
+    public static async Task<int> AddQueryAsync(
+        string name,
+        string queryName,
+        string jql,
+        string description,
+        CredentialStoreChoice storeChoice,
+        CancellationToken cancellationToken)
+    {
+        if (await ProfileResolution.FindAsync(name) is not { } profile)
+        {
+            return 1;
+        }
+
+        if (!ProfileQueryName.IsValid(queryName))
+        {
+            await Console.Error.WriteLineAsync(
+                $"'{queryName}' cannot name a query. A name starts with a letter and contains "
+                + "only lowercase letters, digits and underscores, because it becomes part of the "
+                + $"tool name '{ProfileQuerySurface.Prefix}{queryName}'.");
+
+            return 1;
+        }
+
+        if (description.Trim().Length is 0)
+        {
+            await Console.Error.WriteLineAsync(
+                "A query needs a description. It is what an agent reads when it chooses between "
+                + "tools, and only you know what this query is for.");
+
+            return 1;
+        }
+
+        // Jira accepts an empty JQL and answers with every issue on the instance, so this one
+        // slip — a shell quoting mistake, a variable that expanded to nothing — would ship a tool
+        // that pages through the whole of Jira.
+        if (jql.Trim().Length is 0)
+        {
+            await Console.Error.WriteLineAsync(
+                "A query needs JQL. Jira reads an empty query as every issue on the instance, "
+                + "which is not something worth offering as a tool.");
+
+            return 1;
+        }
+
+        var declared = profile.Queries ?? [];
+
+        if (declared.Count >= ProfileQuerySurface.Cap
+            && !declared.Any(query => query.Name == queryName))
+        {
+            await Console.Error.WriteLineAsync(
+                $"Profile '{name}' already declares {ProfileQuerySurface.Cap} queries, which is "
+                + "the limit. Every registered tool costs an agent context in every conversation, "
+                + $"so remove one first with 'jira-server-mcp profile query remove {name} <query>'.");
+
+            return 1;
+        }
+
+        var credentials = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
+
+        var token = await ProfileToken.ResolveAsync(name, credentials, cancellationToken);
+
+        if (token is not { } held)
+        {
+            await Console.Error.WriteLineAsync(
+                $"No personal access token is stored for profile '{name}', and the query is run "
+                + $"against Jira before it is stored. Store one with 'jira-server-mcp auth login "
+                + $"{name}'.");
+
+            return 1;
+        }
+
+        if (!await ProfileQueryCheck.RunsAsync(profile, held.Value, jql, cancellationToken))
+        {
+            return 1;
+        }
+
+        var queries = declared.Where(query => query.Name != queryName).ToList();
+
+        queries.Add(new ProfileQuery(queryName, jql.Trim(), description.Trim()));
+
+        StoreQueries(name, profile, queries);
+
+        await Console.Out.WriteLineAsync(
+            $"Profile '{name}' now offers '{ProfileQuerySurface.Prefix}{queryName}'.");
+
+        return 0;
+    }
+
+    /// <summary>`profile query list`.</summary>
+    public static async Task<int> ListQueriesAsync(string name, CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+
+        if (await ProfileResolution.FindAsync(name) is not { } profile)
+        {
+            return 1;
+        }
+
+        if (profile.Queries is not { Count: > 0 } queries)
+        {
+            await Console.Out.WriteLineAsync(
+                $"Profile '{name}' declares no queries. Add one with 'jira-server-mcp profile "
+                + $"query add {name} <query> --jql \"...\" --description \"...\"'.");
+
+            return 0;
+        }
+
+        foreach (var query in queries)
+        {
+            await Console.Out.WriteLineAsync(
+                $"{ProfileQuerySurface.Prefix}{query.Name}: {query.Description}");
+            await Console.Out.WriteLineAsync($"  {query.Jql}");
+        }
+
+        return 0;
+    }
+
+    /// <summary>`profile query remove`.</summary>
+    public static async Task<int> RemoveQueryAsync(
+        string name,
+        string queryName,
+        CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+
+        if (await ProfileResolution.FindAsync(name) is not { } profile)
+        {
+            return 1;
+        }
+
+        var queries = (profile.Queries ?? []).Where(query => query.Name != queryName).ToList();
+
+        if (queries.Count == (profile.Queries?.Count ?? 0))
+        {
+            await Console.Error.WriteLineAsync(
+                $"Profile '{name}' declares no query '{queryName}'. List what it does declare "
+                + $"with 'jira-server-mcp profile query list {name}'.");
+
+            return 1;
+        }
+
+        StoreQueries(name, profile, queries);
+
+        await Console.Out.WriteLineAsync(
+            $"Profile '{name}' no longer offers '{ProfileQuerySurface.Prefix}{queryName}'.");
+
+        return 0;
+    }
+
+    private static void StoreQueries(
+        string name,
+        Profile profile,
+        IReadOnlyList<ProfileQuery> queries) =>
+        ProfileStore.InConfigurationDirectory().Add(
+            name,
+            profile with
+            {
+                Queries = queries,
                 UpdatedAt = DateTimeOffset.UtcNow,
             });
 
