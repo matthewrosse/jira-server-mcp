@@ -122,6 +122,33 @@ public sealed class JiraCapabilityProbeTests : IDisposable
     }
 
     [Fact]
+    public async Task The_server_time_is_read_with_the_offset_jira_wrote_it_in()
+    {
+        // Jira Server writes the offset as +0200, which System.Text.Json will not read: ISO 8601-1
+        // requires the colon. A client that could not read this would have no instance zone to put
+        // a JQL date literal in.
+        StubServerInfo("2026-08-18T09:20:31.417+0200");
+
+        var serverTime = await CreateClient().GetServerTimeAsync(TestContext.Current.CancellationToken);
+
+        serverTime.Offset.ShouldBe(TimeSpan.FromHours(2));
+        serverTime.ShouldBe(
+            new DateTimeOffset(2026, 8, 18, 9, 20, 31, 417, TimeSpan.FromHours(2)));
+    }
+
+    [Fact]
+    public async Task A_server_time_this_client_cannot_read_is_a_failure_rather_than_a_guess()
+    {
+        StubServerInfo("the day before yesterday");
+
+        var reading = async () => await CreateClient()
+            .GetServerTimeAsync(TestContext.Current.CancellationToken);
+
+        (await reading.ShouldThrowAsync<InvalidOperationException>())
+            .Message.ShouldContain("the day before yesterday");
+    }
+
+    [Fact]
     public async Task A_revoked_token_fails_the_probe_rather_than_being_read_as_jira_core()
     {
         _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
@@ -139,11 +166,14 @@ public sealed class JiraCapabilityProbeTests : IDisposable
     private Task<JiraCapabilities> ProbeAsync() =>
         CreateClient().ProbeCapabilitiesAsync(TestContext.Current.CancellationToken);
 
-    private void StubServerInfo() =>
+    private void StubServerInfo(string? serverTime = null) =>
         _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
-                .WithBody(ServerInfoPayload));
+                .WithBody(serverTime is null
+                    ? ServerInfoPayload
+                    : ServerInfoPayload.TrimEnd().TrimEnd('}')
+                      + $",\n  \"serverTime\": \"{serverTime}\"\n}}"));
 
     private void StubBoard(HttpStatusCode status, string payload, string contentType) =>
         _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())

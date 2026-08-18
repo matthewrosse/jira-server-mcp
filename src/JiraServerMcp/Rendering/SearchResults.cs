@@ -11,7 +11,16 @@ namespace JiraServerMcp.Rendering;
 /// </summary>
 internal static class SearchResults
 {
-    public static Rendered Render(JiraSearchPage page)
+    /// <param name="page">The page Jira answered with.</param>
+    /// <param name="watermark">
+    /// The change feed's <c>nextSince</c>, computed from the rows this render kept rather than
+    /// from the page Jira sent — a budget cut moves the watermark back with the rows, or the next
+    /// call would resume past a change the caller never saw. Absent for every other page of
+    /// issues, none of which is a feed.
+    /// </param>
+    public static Rendered Render(
+        JiraSearchPage page,
+        Func<IReadOnlyList<JiraIssue>, string>? watermark = null)
     {
         var lines = new List<string>();
         var used = 0;
@@ -37,16 +46,21 @@ internal static class SearchResults
             UntrustedContent.Envelope(
                 Header(page, lines.Count, cutByBudget),
                 string.Join("\n", lines)),
-            ToolOutputs.Node(Structure(page, lines.Count, cutByBudget)));
+            ToolOutputs.Node(Structure(page, lines.Count, cutByBudget, watermark)));
     }
 
     /// <summary>
     /// The page's structured half. <c>nextStartAt</c> is where the caller resumes — the position
     /// after the last row actually rendered, which a budget cut moves back from Jira's own.
     /// </summary>
-    private static IssuePageOutput Structure(JiraSearchPage page, int rendered, bool cutByBudget)
+    private static IssuePageOutput Structure(
+        JiraSearchPage page,
+        int rendered,
+        bool cutByBudget,
+        Func<IReadOnlyList<JiraIssue>, string>? watermark)
     {
         var resumeAt = page.StartAt + rendered;
+        var kept = page.Issues.Take(rendered).ToArray();
 
         // A page whose first row did not fit has nowhere to resume from: offering startAt back
         // would send the caller to fetch the page it just asked for, forever. The prose says
@@ -61,9 +75,10 @@ internal static class SearchResults
             Count = rendered,
             NextStartAt = more ? resumeAt : null,
             CutByBudget = cutByBudget,
+            NextSince = watermark?.Invoke(kept),
             Issues =
             [
-                .. page.Issues.Take(rendered).Select(issue => new IssueRowOutput
+                .. kept.Select(issue => new IssueRowOutput
                 {
                     Key = issue.Key,
                     StatusId = issue.StatusId,

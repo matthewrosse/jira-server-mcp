@@ -30,6 +30,17 @@ internal static class JiraFields
     public static string? Assignee(IReadOnlyDictionary<string, JsonElement> fields) =>
         Nested(fields, "assignee", "name");
 
+    /// <summary>
+    /// When Jira last touched the issue, as Jira wrote it — an offset timestamp in the instance's
+    /// own zone. Left as the string Jira sent, because what reads it is a watermark that has to
+    /// hand the same moment back, and a round trip through a parsed value is where an offset gets
+    /// quietly restated in someone else's zone.
+    /// </summary>
+    public static string? Updated(IReadOnlyDictionary<string, JsonElement> fields) =>
+        fields.TryGetValue("updated", out var value) && value.ValueKind is JsonValueKind.String
+            ? value.GetString()
+            : null;
+
     private static string? Nested(
         IReadOnlyDictionary<string, JsonElement> fields,
         string field,

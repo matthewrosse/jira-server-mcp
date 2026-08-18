@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -54,6 +55,30 @@ public sealed class JiraClient(HttpClient httpClient)
             serverInfo.DeploymentType,
             await IsSoftwareLicensedAsync(cancellationToken).ConfigureAwait(false),
             DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// The instance's own clock, whose offset is the zone a JQL date literal is read in. Asked at
+    /// the moment it is needed rather than recorded on the capability probe: an offset is not a
+    /// property of the Jira, it is a property of the Jira and the date, and a probe taken before a
+    /// daylight-saving change would put every query an hour out.
+    /// </summary>
+    public async Task<DateTimeOffset> GetServerTimeAsync(CancellationToken cancellationToken)
+    {
+        var serverTime = await GetAsync<JiraServerTime>("rest/api/2/serverInfo", cancellationToken)
+            .ConfigureAwait(false);
+
+        // Parsed here rather than by the serializer: Jira Server writes the offset as +0200, and
+        // System.Text.Json accepts only the +02:00 that ISO 8601-1 requires.
+        return DateTimeOffset.TryParse(
+            serverTime.ServerTime,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var parsed)
+            ? parsed
+            : throw new InvalidOperationException(
+                $"Jira reported its server time as '{serverTime.ServerTime}', which is not a "
+                + "timestamp this client can read.");
     }
 
     /// <summary>

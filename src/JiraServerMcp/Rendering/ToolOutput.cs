@@ -86,6 +86,13 @@ internal sealed record IssuePageOutput : ToolOutput
     [JsonPropertyName("cutByBudget")]
     public bool? CutByBudget { get; init; }
 
+    /// <summary>
+    /// Where the change feed resumes: a paging position by another name, and so carried under the
+    /// same rule. Absent from every other page of issues, none of which is a feed.
+    /// </summary>
+    [JsonPropertyName("nextSince")]
+    public string? NextSince { get; init; }
+
     [JsonPropertyName("issues")]
     public IReadOnlyList<IssueRowOutput>? Issues { get; init; }
 }

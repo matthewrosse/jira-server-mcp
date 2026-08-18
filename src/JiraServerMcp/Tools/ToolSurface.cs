@@ -23,6 +23,7 @@ internal static class ToolSurface
         new(typeof(WhoamiTool)),
         new(typeof(SearchTool)),
         new(typeof(MyOpenIssuesTool)),
+        new(typeof(ChangedSinceTool)),
         new(typeof(GetIssuesTool)),
         new(typeof(ListProjectsTool)),
         new(typeof(GetProjectTool)),

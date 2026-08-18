@@ -283,6 +283,7 @@ context learning that it is forbidden.
 | `jira_whoami` | — | The Jira account this server is authenticated as. The first thing to check when something is forbidden. |
 | `jira_search` | — | JQL search. 25 results by default, 100 at most, projected fields, and the total. |
 | `jira_my_open_issues` | — | The caller's own unresolved issues, most recently updated first — the start-of-session work queue, with no JQL to author. |
+| `jira_changed_since` | — | Issues that changed at or after a moment, oldest change first, with the watermark for the next call — the feed a scheduled workflow wakes on. |
 | `jira_get_issues` | — | Up to 20 issues in one call, with `include` opting into `comments`, `transitions`, `changelog`, `links` and `worklogs` for each. Each key succeeds or fails on its own, and the transition list arrives with the issue the agent is about to transition. |
 | `jira_list_projects` | — | Key, name, id and type for every project the account can see. |
 | `jira_get_project` | — | One project with its issue types, statuses, components and versions — everything a create needs, in one response. |
@@ -430,6 +431,44 @@ is acting as and what it can see, which is the context every later answer depend
 - *"Which of my issues are assigned to me but sitting in a status someone else owns?"* —
   `jira_my_open_issues`, then `jira_get_issues` with `include: ["transitions"]` to see which moves
   are actually available to this account.
+
+### Waking on a change
+
+A workflow that runs on a schedule needs to know what moved since it last looked. `jira_changed_since`
+owns the query, the zone that query is read in, and the ordering; what the loop carries between
+ticks is one timestamp.
+
+- *"Every fifteen minutes, tell me what changed in PROJ and act on anything assigned to me."* —
+  `jira_changed_since` with `project: "PROJ"`, then the loop passes the `nextSince` it returned
+  back in on the next tick:
+
+  ```
+  tick 1  jira_changed_since(since: "2026-08-18T09:00:00+02:00", project: "PROJ")
+          → PROJ-12 changed at 09:14 — nextSince: "2026-08-18T09:14:00+02:00"
+  tick 2  jira_changed_since(since: "2026-08-18T09:14:00+02:00", project: "PROJ")
+          → nothing newer — PROJ-12 again, nextSince: "2026-08-18T09:14:00+02:00"
+  tick 3  jira_changed_since(since: "2026-08-18T09:14:00+02:00", project: "PROJ")
+          → PROJ-13 changed at 09:41 — nextSince: "2026-08-18T09:41:00+02:00"
+  ```
+
+  The watermark tracks the last change seen, not the clock. It does not advance on a quiet tick, so
+  the most recent change is reported again until something newer arrives — a non-empty result is not
+  by itself news, and an agent deciding whether to act compares the keys against the ones it has
+  already handled.
+
+  `nextSince` is the start of the last-seen minute, not the exact moment of the last change, because
+  Jira Server records update times to the minute on some versions. The feed therefore repeats rather
+  than skips. An agent holding the keys it has seen can recognise a repeat; nothing can recognise a
+  change that never arrived.
+
+  Where a result carries `nextStartAt`, this window holds more than one page — a bulk edit puts
+  hundreds of issues in one minute. Read it out with `startAt` before moving on to `nextSince`,
+  which does not advance past a window still being read.
+
+  `since` must carry an offset. One without is refused rather than read in this server's zone. The
+  window itself is stated in the time zone of the Jira account this server is authenticated as,
+  because that is the zone Jira reads a date in a JQL clause in — the mistake this tool exists to
+  take off the caller.
 
 ### Searching
 
