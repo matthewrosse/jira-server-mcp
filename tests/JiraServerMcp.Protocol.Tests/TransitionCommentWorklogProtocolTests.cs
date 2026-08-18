@@ -21,8 +21,8 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     private const string MyselfPayload = """
         {
           "key": "JIRAUSER10100",
-          "name": "mrosse",
-          "displayName": "Mateusz Różański",
+          "name": "ada",
+          "displayName": "Ada Lovelace",
           "active": true
         }
         """;

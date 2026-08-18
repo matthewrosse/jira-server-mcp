@@ -21,8 +21,8 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
     private const string MyselfPayload = """
         {
           "key": "JIRAUSER10100",
-          "name": "mrosse",
-          "displayName": "Mateusz Różański",
+          "name": "ada",
+          "displayName": "Ada Lovelace",
           "active": true
         }
         """;
@@ -34,7 +34,7 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
           "name": "Platform",
           "projectTypeKey": "software",
           "description": "The platform team's work",
-          "lead": { "name": "mrosse", "displayName": "Mateusz Różański" }
+          "lead": { "name": "ada", "displayName": "Ada Lovelace" }
         }
         """;
 
@@ -221,7 +221,7 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
         text.ShouldContain("PROJ");
         text.ShouldContain("Platform");
         text.ShouldContain("The platform team's work");
-        text.ShouldContain("Mateusz Różański");
+        text.ShouldContain("Ada Lovelace");
         text.ShouldContain("Bug");
         text.ShouldContain("Open");
         text.ShouldContain("In Progress");

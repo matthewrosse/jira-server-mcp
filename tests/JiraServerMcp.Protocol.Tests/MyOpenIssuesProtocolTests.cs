@@ -23,9 +23,9 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
     private const string MyselfPayload = """
         {
           "key": "JIRAUSER10100",
-          "name": "mrosse",
-          "emailAddress": "mrosse@example.com",
-          "displayName": "Mateusz Różański",
+          "name": "ada",
+          "emailAddress": "ada@example.com",
+          "displayName": "Ada Lovelace",
           "active": true
         }
         """;
@@ -216,7 +216,7 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
                 "summary": "{{issue.Summary}}",
                 "status": { "name": "In Progress" },
                 "issuetype": { "name": "Bug" },
-                "assignee": { "name": "mrosse", "displayName": "Mateusz Różański" },
+                "assignee": { "name": "ada", "displayName": "Ada Lovelace" },
                 "labels": ["api", "backend"]
               }
             }

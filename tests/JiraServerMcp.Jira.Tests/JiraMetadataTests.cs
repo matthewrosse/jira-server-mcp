@@ -38,7 +38,7 @@ public sealed class JiraMetadataTests : IDisposable
           "name": "Platform",
           "projectTypeKey": "software",
           "description": "The platform team's work",
-          "lead": { "name": "mrosse", "displayName": "Mateusz Różański" }
+          "lead": { "name": "ada", "displayName": "Ada Lovelace" }
         }
         """;
 
@@ -120,9 +120,9 @@ public sealed class JiraMetadataTests : IDisposable
         [
           {
             "key": "JIRAUSER10100",
-            "name": "mrosse",
-            "displayName": "Mateusz Różański",
-            "emailAddress": "mrosse@example.com",
+            "name": "ada",
+            "displayName": "Ada Lovelace",
+            "emailAddress": "ada@example.com",
             "active": true
           },
           {
@@ -180,7 +180,7 @@ public sealed class JiraMetadataTests : IDisposable
         project.Project.Key.ShouldBe("PROJ");
         project.Project.Name.ShouldBe("Platform");
         project.Description.ShouldBe("The platform team's work");
-        project.Lead.ShouldBe("Mateusz Różański");
+        project.Lead.ShouldBe("Ada Lovelace");
 
         project.IssueTypes.Count.ShouldBe(2);
         project.IssueTypes[0].Name.ShouldBe("Bug");
@@ -300,9 +300,9 @@ public sealed class JiraMetadataTests : IDisposable
 
         users.Count.ShouldBe(2);
 
-        users[0].Name.ShouldBe("mrosse");
-        users[0].DisplayName.ShouldBe("Mateusz Różański");
-        users[0].EmailAddress.ShouldBe("mrosse@example.com");
+        users[0].Name.ShouldBe("ada");
+        users[0].DisplayName.ShouldBe("Ada Lovelace");
+        users[0].EmailAddress.ShouldBe("ada@example.com");
         users[0].Active.ShouldBeTrue();
 
         users[1].Name.ShouldBe("jbloggs");

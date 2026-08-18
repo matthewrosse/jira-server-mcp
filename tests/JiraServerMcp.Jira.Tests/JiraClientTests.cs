@@ -19,11 +19,11 @@ public sealed class JiraClientTests : IDisposable
 
     private const string MyselfPayload = """
         {
-          "self": "http://localhost/rest/api/2/user?username=mrosse",
+          "self": "http://localhost/rest/api/2/user?username=ada",
           "key": "JIRAUSER10100",
-          "name": "mrosse",
-          "emailAddress": "mrosse@example.com",
-          "displayName": "Mateusz Różański",
+          "name": "ada",
+          "emailAddress": "ada@example.com",
+          "displayName": "Ada Lovelace",
           "active": true,
           "deleted": false,
           "timeZone": "Europe/Warsaw",
@@ -55,9 +55,9 @@ public sealed class JiraClientTests : IDisposable
 
         var user = await CreateClient().GetMyselfAsync(TestContext.Current.CancellationToken);
 
-        user.DisplayName.ShouldBe("Mateusz Różański");
-        user.Name.ShouldBe("mrosse");
-        user.EmailAddress.ShouldBe("mrosse@example.com");
+        user.DisplayName.ShouldBe("Ada Lovelace");
+        user.Name.ShouldBe("ada");
+        user.EmailAddress.ShouldBe("ada@example.com");
         user.Active.ShouldBeTrue();
     }
 

@@ -30,8 +30,8 @@ public sealed class AuthVerbTests : IDisposable
         var result = await RunAsync(["auth", "login", "work"], standardInput: Token + "\n");
 
         result.ExitCode.ShouldBe(0);
-        result.StandardOutput.ShouldContain("Mateusz Różański");
-        result.StandardOutput.ShouldContain("mrosse");
+        result.StandardOutput.ShouldContain("Ada Lovelace");
+        result.StandardOutput.ShouldContain("ada");
         result.StandardOutput.ShouldNotContain(Token);
         result.StandardError.ShouldNotContain(Token);
 
@@ -81,8 +81,8 @@ public sealed class AuthVerbTests : IDisposable
         var result = await RunAsync(["auth", "status", "work"]);
 
         result.ExitCode.ShouldBe(0);
-        result.StandardOutput.ShouldContain("Mateusz Różański");
-        result.StandardOutput.ShouldContain("mrosse");
+        result.StandardOutput.ShouldContain("Ada Lovelace");
+        result.StandardOutput.ShouldContain("ada");
         result.StandardOutput.ShouldNotContain(Token);
     }
 
@@ -129,7 +129,7 @@ public sealed class AuthVerbTests : IDisposable
             });
 
         result.ExitCode.ShouldBe(0);
-        result.StandardOutput.ShouldContain("mrosse");
+        result.StandardOutput.ShouldContain("ada");
         result.StandardOutput.ShouldContain("JIRA_SERVER_MCP__WORK__TOKEN");
 
         _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull()
@@ -184,7 +184,7 @@ public sealed class AuthVerbTests : IDisposable
                 .WithHeader("Authorization", "Bearer " + Token))
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
-                .WithBody("""{"name":"mrosse","displayName":"Mateusz Różański","active":true}"""));
+                .WithBody("""{"name":"ada","displayName":"Ada Lovelace","active":true}"""));
 
     private Task<HostProcessResult> AddProfileAsync() =>
         RunAsync(["profile", "add", "work", "--url", _jira.Url!]);

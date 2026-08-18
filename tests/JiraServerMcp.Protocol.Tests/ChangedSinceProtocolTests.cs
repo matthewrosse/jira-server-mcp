@@ -26,8 +26,8 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
     private static string MyselfPayload(string? timeZone = "Europe/Warsaw") => $$"""
         {
           "key": "JIRAUSER10100",
-          "name": "mrosse",
-          "displayName": "Mateusz Różański",
+          "name": "ada",
+          "displayName": "Ada Lovelace",
           "active": true{{(timeZone is null ? "" : $",\n  \"timeZone\": \"{timeZone}\"")}}
         }
         """;

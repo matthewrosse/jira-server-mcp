@@ -27,7 +27,7 @@ public class StructuredContentTests
                   "summary": "Login fails with a 401",
                   "status": { "id": "3", "name": "In Progress" },
                   "issuetype": { "name": "Bug" },
-                  "assignee": { "name": "mrosse", "displayName": "Mateusz Różański" }
+                  "assignee": { "name": "ada", "displayName": "Ada Lovelace" }
                 }
                 """),
             Issue("PROJ-13", """{ "summary": "Rotate the signing key" }"""))));
@@ -36,7 +36,7 @@ public class StructuredContentTests
         // identifier a follow-up JQL can use, so it is.
         structure.ShouldBe(
             """
-            {"outcome":"ok","total":2,"startAt":0,"count":2,"cutByBudget":false,"issues":[{"key":"PROJ-12","statusId":"3","status":"In Progress","typeName":"Bug","assignee":"mrosse"},{"key":"PROJ-13"}]}
+            {"outcome":"ok","total":2,"startAt":0,"count":2,"cutByBudget":false,"issues":[{"key":"PROJ-12","statusId":"3","status":"In Progress","typeName":"Bug","assignee":"ada"},{"key":"PROJ-13"}]}
             """);
     }
 
@@ -376,7 +376,7 @@ public class StructuredContentTests
         var structure = Structure(ProjectDetail.Render(new JiraProjectDetail(
             new JiraProject("PROJ", "Platform", "10100", "software"),
             Description: "A description, which is prose and is not carried.",
-            Lead: "mrosse",
+            Lead: "ada",
             IssueTypes:
             [
                 new JiraIssueTypeStatuses("1", "Bug", false, [new JiraStatus("3", "In Progress")]),
@@ -575,7 +575,7 @@ public class StructuredContentTests
     {
         var structure = Structure(UserResults.Render(
             [
-                new JiraUser("Mateusz Różański", "mrosse", "mrosse@example.invalid", true),
+                new JiraUser("Ada Lovelace", "ada", "ada@example.invalid", true),
                 new JiraUser("A Departed Colleague", "adeparted", null, false),
             ],
             startAt: 0,
@@ -586,10 +586,10 @@ public class StructuredContentTests
         // prose. The email is personal data this server would be promising to carry stably.
         structure.ShouldBe(
             """
-            {"outcome":"ok","startAt":0,"count":2,"includeInactive":true,"users":[{"username":"mrosse","active":true},{"username":"adeparted","active":false}]}
+            {"outcome":"ok","startAt":0,"count":2,"includeInactive":true,"users":[{"username":"ada","active":true},{"username":"adeparted","active":false}]}
             """);
 
-        structure.ShouldNotContain("Różański");
+        structure.ShouldNotContain("Lovelace");
         structure.ShouldNotContain("example.invalid");
     }
 
@@ -614,11 +614,11 @@ public class StructuredContentTests
     public void The_account_carries_the_username_and_whether_it_is_active()
     {
         var structure = Structure(AccountDetail.Render(
-            new JiraUser("Mateusz Różański", "mrosse", "mrosse@example.invalid", true),
+            new JiraUser("Ada Lovelace", "ada", "ada@example.invalid", true),
             "work"));
 
         // The username here is the value most likely to be fed straight into an assignee field.
-        structure.ShouldBe("""{"outcome":"ok","username":"mrosse","active":true}""");
+        structure.ShouldBe("""{"outcome":"ok","username":"ada","active":true}""");
     }
 
     /// <summary>

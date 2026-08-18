@@ -22,8 +22,8 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
     private const string MyselfPayload = """
         {
           "key": "JIRAUSER10100",
-          "name": "mrosse",
-          "displayName": "Mateusz Różański",
+          "name": "ada",
+          "displayName": "Ada Lovelace",
           "active": true
         }
         """;
@@ -357,7 +357,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
             "summary": "Login fails with a 401",
             "status": { "name": "In Progress" },
             "issuetype": { "name": "Bug" },
-            "assignee": { "name": "mrosse", "displayName": "Mateusz Różański" }
+            "assignee": { "name": "ada", "displayName": "Ada Lovelace" }
             """,
         };
 
@@ -402,7 +402,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
                   "total": 1,
                   "worklogs": [
                     {
-                      "author": { "name": "mrosse", "displayName": "Mateusz Różański" },
+                      "author": { "name": "ada", "displayName": "Ada Lovelace" },
                       "timeSpent": "3h 30m",
                       "started": "2026-08-01T08:00:00.000+0000"
                     }

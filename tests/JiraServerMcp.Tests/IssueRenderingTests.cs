@@ -18,7 +18,7 @@ public class IssueRenderingTests
               "summary": "Login fails with a 401",
               "status": { "name": "In Progress" },
               "issuetype": { "name": "Bug" },
-              "assignee": { "name": "mrosse", "displayName": "Mateusz Różański" },
+              "assignee": { "name": "ada", "displayName": "Ada Lovelace" },
               "labels": ["api", "backend"]
             }
             """), []);
@@ -27,7 +27,7 @@ public class IssueRenderingTests
         rendered.ShouldContain("summary: Login fails with a 401");
         rendered.ShouldContain("status: In Progress");
         rendered.ShouldContain("issuetype: Bug");
-        rendered.ShouldContain("assignee: mrosse");
+        rendered.ShouldContain("assignee: ada");
         rendered.ShouldContain("labels: api, backend");
     }
 
@@ -68,7 +68,7 @@ public class IssueRenderingTests
     public void Comments_are_newest_first_with_their_author_and_timestamp()
     {
         var rendered = IssueDetail.Render(Issue(comments: new JiraComments(2, [
-            new JiraComment("Mateusz Różański", "2026-08-01T09:15:00.000+0000", "Reproduced."),
+            new JiraComment("Ada Lovelace", "2026-08-01T09:15:00.000+0000", "Reproduced."),
             new JiraComment("Jane Smith", "2026-08-02T11:30:00.000+0000", "Off by one."),
         ])), [Expansion.Comments]);
 
@@ -145,11 +145,11 @@ public class IssueRenderingTests
     public void The_history_is_most_recent_first_and_names_each_field_that_moved()
     {
         var rendered = IssueDetail.Render(Issue(changelog: new JiraChangelog(2, [
-            new JiraChangeGroup("Mateusz Różański", "2026-08-01T09:00:00.000+0000", [
+            new JiraChangeGroup("Ada Lovelace", "2026-08-01T09:00:00.000+0000", [
                 new JiraChangeItem("status", "Open", "In Progress"),
             ]),
             new JiraChangeGroup("Jane Smith", "2026-08-02T10:00:00.000+0000", [
-                new JiraChangeItem("assignee", null, "Mateusz Różański"),
+                new JiraChangeItem("assignee", null, "Ada Lovelace"),
             ]),
         ])), [Expansion.Changelog]);
 
@@ -198,10 +198,10 @@ public class IssueRenderingTests
     public void Worklogs_carry_their_author_duration_and_start_time()
     {
         var rendered = IssueDetail.Render(Issue(worklogs: new JiraWorklogs(1, [
-            new JiraWorklog("Mateusz Różański", "3h 30m", "2026-08-01T08:00:00.000+0000"),
+            new JiraWorklog("Ada Lovelace", "3h 30m", "2026-08-01T08:00:00.000+0000"),
         ])), [Expansion.Worklogs]);
 
-        rendered.ShouldContain("Mateusz Różański");
+        rendered.ShouldContain("Ada Lovelace");
         rendered.ShouldContain("3h 30m");
         rendered.ShouldContain("2026-08-01T08:00:00.000+0000");
     }

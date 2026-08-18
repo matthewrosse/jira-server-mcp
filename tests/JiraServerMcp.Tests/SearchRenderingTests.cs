@@ -63,7 +63,7 @@ public class SearchRenderingTests
               "status": { "name": "In Progress" },
               "issuetype": { "name": "Bug" },
               "priority": { "name": "High" },
-              "assignee": { "name": "mrosse", "displayName": "Mateusz Różański" },
+              "assignee": { "name": "ada", "displayName": "Ada Lovelace" },
               "labels": ["api", "backend"]
             }
             """)));
@@ -73,7 +73,7 @@ public class SearchRenderingTests
         line.ShouldContain("status: In Progress");
         line.ShouldContain("issuetype: Bug");
         line.ShouldContain("priority: High");
-        line.ShouldContain("assignee: mrosse");
+        line.ShouldContain("assignee: ada");
         line.ShouldContain("labels: api, backend");
         line.ShouldContain("summary: Login fails with a 401");
     }

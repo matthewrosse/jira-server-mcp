@@ -19,7 +19,7 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     public CapabilityProbeVerbTests()
     {
         _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json("""{"name":"mrosse","displayName":"Mateusz Różański","active":true}"""));
+            .RespondWith(Json("""{"name":"ada","displayName":"Ada Lovelace","active":true}"""));
 
         _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(Json("""{"version":"8.20.7","deploymentType":"Server"}"""));
@@ -73,7 +73,7 @@ public sealed class CapabilityProbeVerbTests : IDisposable
         var result = await LoginAsync("work");
 
         result.ExitCode.ShouldBe(0);
-        result.StandardOutput.ShouldContain("Mateusz Różański");
+        result.StandardOutput.ShouldContain("Ada Lovelace");
         result.StandardError.ShouldContain("profile refresh work");
 
         ProfileIn("work").TryGetProperty("capabilities", out var capabilities);
@@ -90,7 +90,7 @@ public sealed class CapabilityProbeVerbTests : IDisposable
 
         _jira.Reset();
         _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json("""{"name":"mrosse","displayName":"Mateusz Różański","active":true}"""));
+            .RespondWith(Json("""{"name":"ada","displayName":"Ada Lovelace","active":true}"""));
         _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(503));
 
