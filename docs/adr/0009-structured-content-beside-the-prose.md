@@ -1,6 +1,6 @@
 # ADR-0009: Structured content beside the prose, carrying identifiers only
 
-**Status:** Accepted (2026-08-18)
+**Status:** Accepted (2026-08-18), amended (2026-08-18)
 
 ## Context
 
@@ -95,3 +95,34 @@ what they return and a missing field must not turn a good answer into a protocol
 - Rejected: leaving the structured half undocumented and best-effort. It would move where the
   scraping happens without making anything safe to depend on, which is the problem restated rather
   than solved.
+
+## Amendment (2026-08-18): selection labels, and paging fields that were actually given
+
+From the grilling of #78–#81, which took the four renderers ADR-0009's first pass left text-only —
+boards, sprints, projects and users, and the create screen — and found rule 2 too narrow to serve
+them and one paging question unanswered. Both are recorded here rather than as a new ADR: neither
+changes the decision, and a reader of rule 2 who did not find these beside it would apply the old
+line and get the wrong answer.
+
+**Rule 2 admits a selection label.** An admin-typed name for a row of an enumerable set whose
+identifier is opaque may be carried. A board id names nothing, `customfield_10010` names nothing,
+and a sprint id names nothing; the name is the only basis an agent has for choosing between rows or
+for knowing what an identifier it must send verbatim actually is. Withholding it would leave the
+structured half unable to answer the question its rows exist to answer, and would send the agent
+back to the prose to pick a row — which is the loop the whole decision exists to close.
+
+This does **not** admit display names or issue prose. A person's display name identifies nothing a
+follow-up call can use (the username does), and a summary, description or comment body is prose by
+any reading. The distinction is the one rule 2 already draws — an enumerated value against a value
+someone typed into a text box — with the boundary now stated for the case where the enumerated
+value happens to be a name.
+
+The cost is knowingly accepted: these names are Jira-authored content living outside the delimited
+region. That was already true of the status names rule 2 admits, and the README already declares
+the whole structured half untrusted once rather than field by field.
+
+**A paging field is present only when the server was actually given the number.** The software API
+does not report a total, so `total` is absent from a board or sprint listing rather than present as
+null or as zero. Absence means unknown; zero means none, and a caller cannot be asked to tell those
+apart from the same value. The same rule governs any paging field a future endpoint declines to
+give.

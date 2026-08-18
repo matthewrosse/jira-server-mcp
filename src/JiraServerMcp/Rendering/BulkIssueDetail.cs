@@ -82,13 +82,27 @@ internal static class BulkIssueDetail
                 string.Join("\n\n", entries)),
             ToolOutputs.Node(new BulkIssuesOutput
             {
-                Outcome = Outcomes.Ok,
+                Outcome = Outcome(returned, failures),
                 Asked = results.Count,
                 Returned = returned,
                 Issues = rows,
                 Failures = failures,
             }));
     }
+
+    /// <summary>
+    /// The call's own outcome. A partial success stays <c>ok</c> — some keys came back, and the
+    /// ones that did not are in <c>failures</c> — but a call where nothing came back is the one
+    /// the tool marks as an error, and reporting that as <c>ok</c> would tell an agent branching
+    /// on the outcome that a total failure succeeded.
+    /// </summary>
+    /// <remarks>
+    /// Which failure speaks for the call is the first key's, in the caller's own order. Keys can
+    /// fail for different reasons in one call, and no single value can say so: the per-key list is
+    /// where mixed causes are read, and it carries every one of them.
+    /// </remarks>
+    private static string Outcome(int returned, IReadOnlyList<BulkFailureOutput> failures) =>
+        returned > 0 || failures.Count is 0 ? Outcomes.Ok : failures[0].Outcome;
 
     /// <summary>
     /// One key's failure in the outcome vocabulary. A 404 is its own outcome because Jira answers

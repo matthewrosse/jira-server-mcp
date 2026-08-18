@@ -342,6 +342,63 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
         whollyFailed.GetProperty("issues").EnumerateArray().ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task The_create_screen_carries_the_field_ids_a_create_must_send()
+    {
+        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/createmeta").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+                    {
+                      "projects": [
+                        {
+                          "key": "PROJ",
+                          "issuetypes": [
+                            {
+                              "name": "Bug",
+                              "fields": {
+                                "summary": {
+                                  "name": "Summary",
+                                  "required": true,
+                                  "schema": { "type": "string" }
+                                },
+                                "customfield_10010": {
+                                  "name": "Severity",
+                                  "required": true,
+                                  "schema": { "type": "option" },
+                                  "allowedValues": [
+                                    { "id": "10001", "value": "Blocker" },
+                                    { "id": "10002", "value": "Major" }
+                                  ]
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                    """));
+
+        var structure = await CallAsync("jira_get_create_fields");
+
+        structure.GetProperty("outcome").GetString().ShouldBe("ok");
+        structure.GetProperty("projectKey").GetString().ShouldBe("PROJ");
+        structure.GetProperty("issueTypeName").GetString().ShouldBe("Bug");
+
+        var severity = structure.GetProperty("fields").EnumerateArray()
+            .Single(field => field.GetProperty("id").GetString() is "customfield_10010");
+
+        // The identifier is what a create must send, and the name is what makes it actionable.
+        severity.GetProperty("name").GetString().ShouldBe("Severity");
+        severity.GetProperty("required").GetBoolean().ShouldBeTrue();
+        severity.GetProperty("type").GetString().ShouldBe("option");
+        severity.GetProperty("hasAllowedValues").GetBoolean().ShouldBeTrue();
+
+        severity.GetProperty("allowedValues").EnumerateArray()
+            .Select(value => value.GetString())
+            .ShouldBe(["Blocker", "Major"]);
+    }
+
     /// <summary>
     /// The structured half of a call, whether or not the call reported an error. Its presence is
     /// the promise; a result carrying only prose fails here.

@@ -108,6 +108,70 @@ public class StructuredContentTests
     }
 
     [Fact]
+    public void A_bulk_read_where_nothing_came_back_does_not_report_success()
+    {
+        var structure = Structure(BulkIssueDetail.Render(
+            [
+                Failure("PROJ-9", new JiraApiException(
+                    HttpStatusCode.NotFound,
+                    "/rest/api/2/issue/PROJ-9",
+                    [],
+                    new Dictionary<string, string>())),
+            ],
+            []));
+
+        // The tool marks this call an error, and an agent branching on the outcome rather than on
+        // the prose — which is the whole point of the structured half — must see the same thing.
+        structure.ShouldBe(
+            """
+            {"outcome":"not_found","asked":1,"returned":0,"issues":[],"failures":[{"key":"PROJ-9","outcome":"not_found"}]}
+            """);
+    }
+
+    [Fact]
+    public void A_bulk_read_that_partly_succeeded_still_reports_success()
+    {
+        var structure = Deserialize<BulkIssuesOutput>(BulkIssueDetail.Render(
+            [
+                Success("PROJ-1"),
+                Failure("PROJ-9", new JiraApiException(
+                    HttpStatusCode.NotFound,
+                    "/rest/api/2/issue/PROJ-9",
+                    [],
+                    new Dictionary<string, string>())),
+            ],
+            []));
+
+        // A partial answer is a useful one, and the per-key list is where the bad key is read.
+        structure.Outcome.ShouldBe("ok");
+    }
+
+    [Fact]
+    public void A_page_whose_first_row_did_not_fit_offers_nowhere_to_resume_from()
+    {
+        // One issue whose projection was widened until its single line costs more than the whole
+        // response is worth. Each field is cut to its own limit, so it takes many of them.
+        var value = new string('x', ResponseBudget.LineText);
+
+        var fields = string.Join(
+            ",",
+            Enumerable.Range(1, 400).Select(number => $"\"customfield_1{number:0000}\": \"{value}\""));
+
+        var rendered = SearchResults.Render(Page(
+            startAt: 0,
+            total: 4_000,
+            Issue("PROJ-12", $$"""{ {{fields}} }""")));
+
+        var page = Deserialize<IssuePageOutput>(rendered);
+
+        // Answering startAt: 0 here would send the caller to fetch the page it just asked for, and
+        // to keep fetching it. The prose says "nothing to show on this page" for the same reason.
+        page.Count.ShouldBe(0);
+        page.NextStartAt.ShouldBeNull();
+        rendered.Text.ShouldContain("nothing to show");
+    }
+
+    [Fact]
     public void A_bulk_read_that_wholly_succeeded_still_carries_the_failures_list()
     {
         var structure = Structure(BulkIssueDetail.Render([Success("PROJ-1")], []));
@@ -115,6 +179,96 @@ public class StructuredContentTests
         // Present and empty, not absent: a caller must not have to handle the field appearing and
         // vanishing with the number of bad keys.
         structure.ShouldContain("\"failures\":[]");
+    }
+
+    [Fact]
+    public void The_create_screen_carries_every_field_a_create_must_send()
+    {
+        var structure = Structure(CreateFields.Render(new JiraCreateFields(
+            "PROJ",
+            "Bug",
+            [
+                new JiraCreateField("summary", "Summary", "string", Required: true, []),
+                new JiraCreateField(
+                    "customfield_10010",
+                    "Severity",
+                    "option",
+                    Required: true,
+                    ["Blocker", "Major", "Minor"]),
+                new JiraCreateField("labels", "Labels", "array", Required: false, []),
+            ])));
+
+        // The name is a selection label: customfield_10010 tells an agent nothing on its own, and
+        // the allowed values are what a create must send verbatim.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","projectKey":"PROJ","issueTypeName":"Bug","fields":[{"id":"summary","name":"Summary","required":true,"type":"string","hasAllowedValues":false},{"id":"customfield_10010","name":"Severity","required":true,"type":"option","hasAllowedValues":true,"allowedValues":["Blocker","Major","Minor"],"allowedValuesTruncated":false},{"id":"labels","name":"Labels","required":false,"type":"array","hasAllowedValues":false}],"totalFields":3,"fieldsTruncated":false}
+            """);
+    }
+
+    [Fact]
+    public void A_field_whose_schema_jira_omitted_carries_no_type_rather_than_failing()
+    {
+        var structure = Structure(CreateFields.Render(new JiraCreateFields(
+            "PROJ",
+            "Bug",
+            [new JiraCreateField("summary", "Summary", Type: null, Required: true, [])])));
+
+        // Jira Server versions differ in what schema they return, and a missing one must not turn
+        // a good answer into a protocol error — so the field is absent, not null.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","projectKey":"PROJ","issueTypeName":"Bug","fields":[{"id":"summary","name":"Summary","required":true,"hasAllowedValues":false}],"totalFields":1,"fieldsTruncated":false}
+            """);
+    }
+
+    [Fact]
+    public void A_cut_list_of_allowed_values_says_it_was_cut_and_still_says_it_is_constrained()
+    {
+        var many = Enumerable.Range(1, CreateFields.ValueCap + 5)
+            .Select(number => $"Component {number}")
+            .ToArray();
+
+        var field = Deserialize<CreateFieldsOutput>(CreateFields.Render(new JiraCreateFields(
+                "PROJ",
+                "Bug",
+                [new JiraCreateField("components", "Component/s", "array", Required: true, many)])))
+            .Fields.ShouldNotBeNull()
+            .ShouldHaveSingleItem();
+
+        field.AllowedValues.ShouldNotBeNull().Count.ShouldBe(CreateFields.ValueCap);
+        field.AllowedValuesTruncated.ShouldBe(true);
+
+        // "Constrained, but the list was cut" must stay distinguishable from "unconstrained".
+        field.HasAllowedValues.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// The create screen's worst case is every field carrying a full list of allowed values, which
+    /// is the one place in this server where the structured half is the larger of the two.
+    /// </summary>
+    [Fact]
+    public void The_worst_case_structured_half_of_a_create_screen_stays_bounded()
+    {
+        var values = Enumerable.Range(1, CreateFields.ValueCap)
+            .Select(number => $"An allowed value spelled out at length {number}")
+            .ToArray();
+
+        var fields = Enumerable.Range(1, CreateFields.OptionalCap + 10)
+            .Select(number => new JiraCreateField(
+                $"customfield_1{number:0000}",
+                $"A custom field with a long administrative name {number}",
+                "option",
+                Required: false,
+                values))
+            .ToArray();
+
+        var structure = Structure(CreateFields.Render(new JiraCreateFields("PROJ", "Bug", fields)));
+
+        structure.Length.ShouldBeLessThan(
+            120_000,
+            "The create screen's structured half has grown past what the caps bound it to. Check "
+            + "the value cap and the optional-field cap, which are what make it finite.");
     }
 
     /// <summary>
