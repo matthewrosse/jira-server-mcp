@@ -32,6 +32,14 @@ internal sealed class HarnessSession : IAsyncDisposable
     /// </summary>
     public HttpClient JiraApi { get; private set; } = null!;
 
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> _serverLog = new();
+
+    /// <summary>
+    /// What the server said on standard error, for a failure whose cause is not in the answer the
+    /// client received.
+    /// </summary>
+    public string ServerLog => string.Join("\n", _serverLog);
+
     public static async Task<HarnessSession> StartAsync(
         ProvisionedJira jira, IReadOnlyList<string> grants, CancellationToken cancellationToken)
     {
@@ -83,6 +91,12 @@ internal sealed class HarnessSession : IAsyncDisposable
                 EnvironmentVariables = _home.Environment.ToDictionary(
                     entry => entry.Key,
                     entry => (string?)entry.Value),
+
+                // Kept because a tool that throws reaches the client as "an error occurred
+                // invoking", and the exception behind it goes to the server's standard error and
+                // nowhere else. Against a real Jira that is the difference between a diagnosis and
+                // a guess.
+                StandardErrorLines = _serverLog.Enqueue,
             }),
             cancellationToken: cancellationToken);
     }

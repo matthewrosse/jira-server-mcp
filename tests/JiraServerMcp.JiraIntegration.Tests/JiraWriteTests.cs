@@ -159,7 +159,13 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
             .ShouldHaveSingleItem();
 
         link.GetProperty("type").GetProperty("name").GetString().ShouldBe("Blocks");
-        link.GetProperty("inwardIssue").GetProperty("key").GetString().ShouldBe(blocker);
+
+        // Named rather than indexed: Jira puts the *other* issue under whichever end it is on, so
+        // a missing property is the interesting answer here and a KeyNotFoundException hides it.
+        link.TryGetProperty("inwardIssue", out var inward).ShouldBeTrue(
+            $"read from the blocked end, Jira described the link as: {link}");
+
+        inward.GetProperty("key").GetString().ShouldBe(blocker);
     }
 
     [Fact]

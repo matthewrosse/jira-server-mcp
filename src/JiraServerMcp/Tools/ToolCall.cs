@@ -96,6 +96,18 @@ internal static class ToolCall
                     $"Jira did not answer for profile '{profile.Name}' in time{whenTimedOut}",
                     Outcomes.TimedOut));
         }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Something no arm above expected. Left to the protocol, this reaches the agent as
+            // "an error occurred invoking <tool>" — a sentence that says nothing about whether to
+            // retry, whether anything was written, or what to tell a human. Naming it costs one
+            // arm and is the difference between a bug that can be reported and one that cannot.
+            return Step<T>.Fail(
+                Failed(
+                    $"jira-server-mcp failed while {operation}, which is a fault in this server "
+                    + $"rather than in Jira: {exception.GetType().Name}: {exception.Message}",
+                    Outcomes.Fault));
+        }
     }
 
     /// <summary>

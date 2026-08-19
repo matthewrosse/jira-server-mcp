@@ -58,11 +58,22 @@ public sealed partial class JiraClient
         int window,
         CancellationToken cancellationToken)
     {
+        // Nothing to ask for past the end of a file whose size Jira gave: a range that starts
+        // there is unsatisfiable, and asking is a round trip to be told so.
+        if (attachment.Size > 0 && offset >= attachment.Size)
+        {
+            return [];
+        }
+
         var content = Content(attachment);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, content);
 
-        request.Headers.Range = new RangeHeaderValue(offset, offset + window - 1);
+        // The range stops at the last byte of the file rather than at the width of the window.
+        // Jira's attachment servlet answers a range that overruns the file by declaring the
+        // *requested* length and then sending only what it has, which reads as a connection that
+        // died mid-response. Asking only for bytes that exist avoids provoking it.
+        request.Headers.Range = new RangeHeaderValue(offset, Last(attachment, offset, window));
 
         using var response = await httpClient
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
@@ -115,6 +126,15 @@ public sealed partial class JiraClient
     }
 
     /// <summary>
+    /// The last byte worth asking for: the end of the window, or the end of the file where Jira
+    /// said how long it is.
+    /// </summary>
+    private static long Last(JiraAttachment attachment, long offset, int window) =>
+        attachment.Size > 0
+            ? Math.Min(offset + window - 1, attachment.Size - 1)
+            : offset + window - 1;
+
+    /// <summary>
     /// Reads past bytes the caller has already seen, for a Jira that answered with the whole file
     /// where a range was asked for.
     /// </summary>
@@ -153,9 +173,21 @@ public sealed partial class JiraClient
 
         while (filled < window)
         {
-            var read = await stream
-                .ReadAsync(buffer.AsMemory(filled, window - filled), cancellationToken)
-                .ConfigureAwait(false);
+            int read;
+
+            try
+            {
+                read = await stream
+                    .ReadAsync(buffer.AsMemory(filled, window - filled), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (HttpIOException)
+            {
+                // A server that promised more bytes than it sent. The bytes that did arrive are
+                // the file, and losing them over the promise would turn a readable attachment into
+                // a failure the caller can do nothing about.
+                break;
+            }
 
             if (read is 0)
             {
