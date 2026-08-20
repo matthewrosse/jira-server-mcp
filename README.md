@@ -365,9 +365,21 @@ field. Display names and email addresses stay in the delimited region of the tex
 is how a person tells two similar colleagues apart, and the second is personal data this server
 does not promise to carry. The user search reports no `total`, because Jira's does not.
 
-The two link tools, `jira_link_issues` and `jira_add_remote_link`, still carry the `outcome` alone:
-they arrived after this work was specified, and what their structured half should say has not been
-decided. A workflow can still tell whether a link landed and why it did not.
+`jira_link_issues` carries **both the relation phrase and the type name Jira stored it under**.
+They are not the same string — `"is blocked by"` is stored under `Blocks` — and each answers a
+question the other cannot: the phrase is what reads as English and what a repeat call would send,
+the type name is what the issue panel and Jira's own payloads say. The two keys come back as you
+named them, unswapped, because the phrase is what decided the direction. A phrase this Jira does
+not publish, or one it publishes on two types, is a plain `refused` — the same answer
+`jira_transition_issue` gives an unmatched or ambiguous transition name, which is the same problem
+wearing a different hat.
+
+`jira_add_remote_link` carries **`created`**: `true` where this call made the link, `false` where
+it updated the one that was already there. That is the whole value of keying a remote link by its
+URL — an agent told `false` learns that an earlier call of its own already landed — and it is a
+field rather than a second `outcome`, so that "did this work" stays one comparison against `ok`
+rather than a set of values that grows with every tool. The URL is carried because it is the link's
+identity; the title and the relationship are text a human typed, and they are not.
 
 ## Workflow prompts
 

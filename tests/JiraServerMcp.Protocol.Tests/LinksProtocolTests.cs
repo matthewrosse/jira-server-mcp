@@ -48,6 +48,15 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         }
         """;
 
+    /// <summary>One pull request, attached twice: the arguments are the same both times.</summary>
+    private static readonly Dictionary<string, object?> _remoteLinkArguments = new()
+    {
+        ["key"] = "PROJ-42",
+        ["url"] = "https://github.com/acme/web/pull/128",
+        ["title"] = "PR #128: retry on 429",
+        ["relationship"] = "pull request",
+    };
+
     private readonly WireMockServer _jira = WireMockServer.Start();
 
     private readonly ConfigurationHome _home = new();
@@ -400,6 +409,129 @@ public sealed class LinksProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_link_carries_both_ends_the_phrase_and_the_type_jira_stored_it_under()
+    {
+        StubLinkTypes();
+        StubLink(201);
+
+        var structure = await StructureAsync(
+            await ClientAsync("links:write"),
+            "jira_link_issues",
+            new Dictionary<string, object?>
+            {
+                ["from"] = "PROJ-1",
+                ["to"] = "PROJ-2",
+                ["relation"] = "  IS BLOCKED BY  ",
+            });
+
+        // Exact equality rather than spot-checks, because rule 1 of ADR-0009 promises a contract
+        // and only the whole document catches a field that quietly changed its name or its place.
+        // The keys are the caller's, unswapped: the phrase decided the direction (ADR-0010), and
+        // reporting Jira's own slots would hand back a sentence nobody wrote. The phrase is
+        // trimmed but not recased — it is what a repeat call would send — and the type name beside
+        // it is what Jira stored, which is a different string.
+        structure.GetRawText().ShouldBe(
+            """
+            {"outcome":"ok","from":"PROJ-1","to":"PROJ-2","relation":"IS BLOCKED BY","typeName":"Blocks"}
+            """);
+    }
+
+    [Fact]
+    public async Task A_phrase_this_jira_does_not_publish_is_a_plain_refusal()
+    {
+        StubLinkTypes();
+
+        var structure = await StructureAsync(
+            await ClientAsync("links:write"),
+            "jira_link_issues",
+            new Dictionary<string, object?>
+            {
+                ["from"] = "PROJ-1",
+                ["to"] = "PROJ-2",
+                ["relation"] = "depends on",
+            },
+            failed: true);
+
+        // No branchable field beyond the outcome, and deliberately: jira_transition_issue answers
+        // an unmatched or ambiguous transition name exactly this way, and the phrases this Jira
+        // does publish are Jira-authored text, which belongs in the delimited region of the prose
+        // and nowhere else.
+        structure.GetRawText().ShouldBe("""{"outcome":"refused"}""");
+    }
+
+    [Fact]
+    public async Task A_link_jira_refused_carries_the_status_it_answered_with()
+    {
+        StubLinkTypes();
+        StubLink(403, """{ "errorMessages": ["You do not have permission"], "errors": {} }""");
+
+        var structure = await StructureAsync(
+            await ClientAsync("links:write"),
+            "jira_link_issues",
+            new Dictionary<string, object?>
+            {
+                ["from"] = "PROJ-1",
+                ["to"] = "PROJ-2",
+                ["relation"] = "blocks",
+            },
+            failed: true);
+
+        structure.GetRawText().ShouldBe("""{"outcome":"jira_api","statusCode":403}""");
+    }
+
+    [Fact]
+    public async Task A_first_attach_and_a_repeat_attach_differ_in_the_structured_half()
+    {
+        StubRemoteLinkWrite(201);
+
+        var first = await StructureAsync(
+            await ClientAsync("links:write"),
+            "jira_add_remote_link",
+            _remoteLinkArguments);
+
+        first.GetRawText().ShouldBe(
+            """
+            {"outcome":"ok","key":"PROJ-42","url":"https://github.com/acme/web/pull/128","created":true}
+            """);
+
+        _jira.Reset();
+        StubRemoteLinkWrite(200);
+
+        var repeat = await StructureAsync(
+            await ClientAsync("links:write"),
+            "jira_add_remote_link",
+            _remoteLinkArguments);
+
+        // The two answers differ in a field rather than only in a sentence, which is the loop
+        // ADR-0009 exists to close: the caller reads created and never parses the prose to find
+        // out whether an earlier call of its own already landed.
+        repeat.GetRawText().ShouldBe(
+            """
+            {"outcome":"ok","key":"PROJ-42","url":"https://github.com/acme/web/pull/128","created":false}
+            """);
+
+        // The title is what a human typed into the link panel, so it stays in the prose half.
+        repeat.GetRawText().ShouldNotContain("retry on 429");
+    }
+
+    [Fact]
+    public async Task An_attach_jira_refused_carries_the_status_and_no_created_field()
+    {
+        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/remotelink").UsingPost())
+            .RespondWith(Json(403, """{ "errorMessages": ["You do not have permission"], "errors": {} }"""));
+
+        var structure = await StructureAsync(
+            await ClientAsync("links:write"),
+            "jira_add_remote_link",
+            _remoteLinkArguments,
+            failed: true);
+
+        // A failure carries the outcome and nothing else — created would be a claim about a write
+        // that was never made.
+        structure.GetRawText().ShouldBe("""{"outcome":"jira_api","statusCode":403}""");
+    }
+
+    [Fact]
     public async Task Neither_link_tool_exists_without_the_links_write_grant()
     {
         var tools = await (await ClientAsync("issues:write")).ListToolsAsync(
@@ -488,6 +620,34 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         result.IsError.ShouldBe(true);
 
         return result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
+    }
+
+    /// <summary>
+    /// The structured half of a call, whether or not the call reported an error. Rule 3 of
+    /// ADR-0009 puts it on every result, so a result carrying only prose fails here.
+    /// </summary>
+    private async Task<JsonElement> StructureAsync(
+        McpClient client,
+        string tool,
+        IReadOnlyDictionary<string, object?> arguments,
+        bool failed = false)
+    {
+        var result = await client.CallToolAsync(
+            tool,
+            arguments,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        if (failed)
+        {
+            result.IsError.ShouldBe(true);
+        }
+        else
+        {
+            result.IsError.ShouldNotBe(true);
+        }
+
+        return result.StructuredContent.ShouldNotBeNull(
+            $"{tool} answered with prose and no structured content.");
     }
 
     /// <summary>

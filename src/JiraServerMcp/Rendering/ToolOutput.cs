@@ -227,6 +227,59 @@ internal sealed record AddedWorklogOutput : ToolOutput
 }
 
 /// <summary>
+/// A link between two issues. Both ends are named as the caller named them, because the phrase is
+/// what decided the direction (ADR-0010) and reversing them here would hand back a sentence the
+/// caller did not write.
+/// </summary>
+/// <remarks>
+/// <see cref="Relation"/> is the phrase, trimmed, and <see cref="TypeName"/> is the type Jira
+/// stored it under. They are not the same string and neither substitutes for the other: the phrase
+/// is what reads as English and what a repeat call would send, while the type name is what the
+/// issue panel and Jira's own payloads say. This is the pattern the issue row already follows with
+/// <c>statusId</c> beside <c>status</c> — the identifier and the enumerated name, both carried.
+/// </remarks>
+internal sealed record LinkedIssuesOutput : ToolOutput
+{
+    /// <summary>The issue the relation is about — "PROJ-1" in "PROJ-1 blocks PROJ-2".</summary>
+    [JsonPropertyName("from")]
+    public string? From { get; init; }
+
+    /// <summary>The issue on the other end.</summary>
+    [JsonPropertyName("to")]
+    public string? To { get; init; }
+
+    [JsonPropertyName("relation")]
+    public string? Relation { get; init; }
+
+    [JsonPropertyName("typeName")]
+    public string? TypeName { get; init; }
+}
+
+/// <summary>
+/// A URL attached to an issue. The URL is the link's identity rather than prose about it
+/// (ADR-0010), so it is carried; the title and the relationship are text a human typed and are
+/// not.
+/// </summary>
+internal sealed record AddedRemoteLinkOutput : ToolOutput
+{
+    [JsonPropertyName("key")]
+    public string? Key { get; init; }
+
+    [JsonPropertyName("url")]
+    public string? Url { get; init; }
+
+    /// <summary>
+    /// Whether this call made the link or updated the one that was there — the whole value of
+    /// keying a remote link by its URL, and the field an agent branches on to learn that an
+    /// earlier call of its own already landed. A boolean rather than a second outcome: the outcome
+    /// vocabulary answers "did this work, and if not why", and an agent must be able to read
+    /// success as one equality rather than as a set of values that grows per tool.
+    /// </summary>
+    [JsonPropertyName("created")]
+    public bool? Created { get; init; }
+}
+
+/// <summary>
 /// The create screen: what a create call must send, and what each field will accept. The most
 /// machine-shaped answer this server gives — an agent reads it to build its next call, and every
 /// value in it is one that call must send verbatim.
