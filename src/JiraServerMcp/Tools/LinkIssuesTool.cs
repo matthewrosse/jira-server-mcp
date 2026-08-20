@@ -23,7 +23,7 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
 
     [McpServerTool(Name = Name, ReadOnly = false, Destructive = false,
         UseStructuredContent = true,
-        OutputSchemaType = typeof(OutcomeOutput))]
+        OutputSchemaType = typeof(LinkedIssuesOutput))]
     [Description(
         "Link one issue to another, naming the relation the way Jira words it — "
         + "jira_link_issues(from: \"PROJ-1\", to: \"PROJ-2\", relation: \"blocks\") reads as the "
@@ -107,7 +107,7 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
             {
                 await jira.LinkIssuesAsync(type.Name, outwardKey, inwardKey, comment, cancellationToken);
 
-                return Linked(from, to, relation);
+                return Linked(from, to, relation, type);
             },
             cancellationToken,
             describeApiFailure: exception => Failed(exception, profile.Name, from, to));
@@ -156,8 +156,30 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
                 $"linking {from} to {to}",
                 advice: $"Nothing was linked: {from} and {to} are as they were.");
 
-    private static string Linked(string from, string to, string relation) =>
-        $"Linked {from} to {to}: {from} {relation.Trim()} {to}.";
+    /// <summary>
+    /// The structured half carries the phrase and the type name both. They are different strings —
+    /// "is blocked by" is stored under <c>Blocks</c> — and each answers a question the other
+    /// cannot: the phrase is what a repeat call would send and what reads as English, the type name
+    /// is what the issue panel and Jira's own payloads say. Carrying the identifier beside the
+    /// enumerated name is what the issue row already does with <c>statusId</c> and <c>status</c>.
+    /// The two keys are the caller's, unswapped: the phrase decided the direction (ADR-0010), so
+    /// reporting the ends the way Jira slots them would hand back a sentence nobody wrote.
+    /// </summary>
+    private static Rendered Linked(
+        string from,
+        string to,
+        string relation,
+        JiraIssueLinkType type) =>
+        new(
+            $"Linked {from} to {to}: {from} {relation.Trim()} {to}.",
+            ToolOutputs.Node(new LinkedIssuesOutput
+            {
+                Outcome = Outcomes.Ok,
+                From = from,
+                To = to,
+                Relation = relation.Trim(),
+                TypeName = type.Name,
+            }));
 
     /// <summary>
     /// What an agent that guessed a phrase most needs: the phrases this Jira actually publishes.

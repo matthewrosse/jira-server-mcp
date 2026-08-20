@@ -19,7 +19,7 @@ internal sealed class AddRemoteLinkTool(JiraClient jira, ServedProfile profile)
 
     [McpServerTool(Name = Name, ReadOnly = false, Destructive = false,
         UseStructuredContent = true,
-        OutputSchemaType = typeof(OutcomeOutput))]
+        OutputSchemaType = typeof(AddedRemoteLinkOutput))]
     [Description(
         "Attach a URL to an issue — a pull request, a build, a document — so it appears in Jira's "
         + "link panel rather than buried in a comment. The URL is the link's identity: attaching "
@@ -70,11 +70,21 @@ internal sealed class AddRemoteLinkTool(JiraClient jira, ServedProfile profile)
                     cancellationToken);
 
                 // Which of the two it was is the whole value of keying the link by its URL: an
-                // agent told "updated" learns that an earlier call of its own already landed.
-                return created
-                    ? $"Attached {url.Trim()} to {key}."
-                    : $"{url.Trim()} was already attached to {key}; its title and relationship "
-                      + "were updated. There is one link, not two.";
+                // agent told "updated" learns that an earlier call of its own already landed. It
+                // is a field rather than a second outcome, so that "did this work" stays one
+                // equality against ok and the vocabulary does not grow a value per tool.
+                return new Rendered(
+                    created
+                        ? $"Attached {url.Trim()} to {key}."
+                        : $"{url.Trim()} was already attached to {key}; its title and relationship "
+                          + "were updated. There is one link, not two.",
+                    ToolOutputs.Node(new AddedRemoteLinkOutput
+                    {
+                        Outcome = Outcomes.Ok,
+                        Key = key.Trim(),
+                        Url = url.Trim(),
+                        Created = created,
+                    }));
             },
             cancellationToken);
     }
