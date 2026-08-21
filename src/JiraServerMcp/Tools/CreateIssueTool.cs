@@ -44,12 +44,7 @@ internal sealed class CreateIssueTool(
             "Every other field, keyed by Jira's field identifier: \"description\", \"labels\", "
             + "\"customfield_10010\". Values take Jira's own shape.")]
         IReadOnlyDictionary<string, JsonElement>? fields = null,
-        [Description(
-            "An optional idempotency key of the caller's choosing. A second call carrying a key "
-            + "this server has already seen writes nothing and reports what became of the first, "
-            + "which is what makes a retry after a timeout safe. The record lasts as long as this "
-            + "server process and no longer, so a restarted loop is back to reading Jira to find "
-            + "out. A key names one attempt: a corrected call after a rejection needs a new one.")]
+        [Description(RetrySafeWrite.KeyDescription)]
         string? idempotencyKey = null,
         CancellationToken cancellationToken = default)
     {
@@ -58,21 +53,14 @@ internal sealed class CreateIssueTool(
             return ToolCall.Error(Collided(collided!));
         }
 
-        // Claimed before anything is sent: a key that arrives twice must find the first attempt
-        // recorded even when that attempt is what timed out.
-        WriteAttempt? attempt = null;
-
-        if (!string.IsNullOrWhiteSpace(idempotencyKey))
-        {
-            if (!attempts.TryBegin(Name, idempotencyKey, out var claimed))
-            {
-                return Replayed(claimed);
-            }
-
-            attempt = claimed;
-        }
-
-        return await ToolCall.RunAsync(
+        return await RetrySafeWrite.RunAsync(
+            attempts,
+            Name,
+            idempotencyKey,
+            noun: "create",
+            howToCheck:
+                "The issue may or may not exist: search for the summary with jira_search before "
+                + "sending it again under a new key.",
             profile,
             "creating an issue",
             whenUnreachable: ", and the issue was not created",
@@ -83,14 +71,12 @@ internal sealed class CreateIssueTool(
                 + "exist: search for the summary with jira_search before sending it again.",
             async () =>
             {
-                var created = await WriteAttempts.SendAsync(
-                    attempt,
-                    () => jira.CreateIssueAsync(
-                        projectKey,
-                        issueType,
-                        summary,
-                        resolved,
-                        cancellationToken));
+                var created = await jira.CreateIssueAsync(
+                    projectKey,
+                    issueType,
+                    summary,
+                    resolved,
+                    cancellationToken);
 
                 var rendered = new Rendered(
                     $"Created {created.Key} (id {created.Id}) in {projectKey}.",
@@ -102,30 +88,11 @@ internal sealed class CreateIssueTool(
                         ProjectKey = projectKey,
                     }));
 
-                attempt?.Succeeded(created.Key, rendered.Structure);
-
-                return rendered;
+                return new Written(rendered, created.Key);
             },
             cancellationToken,
             describeApiFailure: exception => Describe(exception, projectKey, issueType));
     }
-
-
-    /// <summary>
-    /// A key this process has already spent. What the caller may do next differs per ending, so
-    /// the three are told apart rather than collapsed into one refusal.
-    /// </summary>
-    private static CallToolResult Replayed(WriteAttempt prior) => prior.Outcome switch
-    {
-        WriteOutcome.Ok => ToolCall.Text(new Rendered(
-            WriteAttemptAnswers.Ok("create", prior.Detail ?? "an issue"),
-            prior.Structure)),
-        WriteOutcome.Rejected => ToolCall.Error(WriteAttemptAnswers.Rejected("create")),
-        _ => ToolCall.Error(WriteAttemptAnswers.Unknown(
-            "create",
-            "The issue may or may not exist: search for the summary with jira_search before "
-            + "sending it again under a new key.")),
-    };
 
     /// <summary>
     /// A rejected create is the one failure an agent can fix by itself, so the message says which

@@ -72,6 +72,45 @@ public sealed class ToolCallConventionTests
         offenders.Distinct().ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// The idempotency key's policy — claim before sending, replay the three endings, record the
+    /// ending — is stated once, in <see cref="RetrySafeWrite"/> (#102). A tool that reaches past
+    /// that module to <see cref="WriteAttempts"/> is a fourth copy of the ordering the whole
+    /// feature rests on. Checked as a reference rather than as a grep, as the paging case is.
+    /// </summary>
+    [Fact]
+    public void No_tool_claims_or_sends_a_keyed_write_without_going_through_the_retry_safe_module()
+    {
+        var reserved = new[] { nameof(WriteAttempts.TryBegin), nameof(WriteAttempts.SendAsync) };
+
+        var offenders =
+            from type in typeof(ToolCall).Assembly.GetTypes()
+            where type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null
+            from called in Calls(type)
+            where called.DeclaringType == typeof(WriteAttempts)
+                  && reserved.Contains(called.Name, StringComparer.Ordinal)
+            select $"{type.Name}.{called.Name}";
+
+        offenders.Distinct().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The check above passes vacuously if the walk stops seeing the calls at all, so the module
+    /// that is allowed to make them is asserted to still make both.
+    /// </summary>
+    [Fact]
+    public void The_retry_safe_module_is_what_claims_the_key_and_sends_the_write()
+    {
+        var called =
+            (from method in Calls(typeof(RetrySafeWrite))
+             where method.DeclaringType == typeof(WriteAttempts)
+             select method.Name).Distinct();
+
+        called.ShouldBe(
+            [nameof(WriteAttempts.TryBegin), nameof(WriteAttempts.SendAsync)],
+            ignoreOrder: true);
+    }
+
     /// <summary>Every method a type's own code calls, read off its compiled bodies.</summary>
     private static IEnumerable<MethodBase> Calls(Type type) =>
         from nested in WithNestedTypes(type)

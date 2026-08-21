@@ -23,6 +23,10 @@ namespace JiraServerMcp.Tools;
 /// back to reading Jira to find out what happened, which is why the tools still say so. Nothing
 /// here is ever evicted: an entry is two short strings, and forgetting one would silently turn a
 /// key back into no protection at all.
+///
+/// <see cref="RetrySafeWrite"/> is the only thing that should call <see cref="TryBegin"/> or
+/// <see cref="SendAsync{T}"/>: the claim, the send and the recording are one order, and a tool
+/// reaching past that module is a second copy of it.
 /// </remarks>
 internal sealed class WriteAttempts
 {
@@ -140,37 +144,4 @@ internal enum WriteOutcome
     Ok,
 
     Rejected,
-}
-
-/// <summary>
-/// What a caller is told when it reuses a key. The three endings differ in what they license the
-/// caller to do next, which is the only reason they are told apart at all.
-/// </summary>
-internal static class WriteAttemptAnswers
-{
-    /// <summary>
-    /// The write already happened and this process saw it happen. Answered as a success: an
-    /// unattended loop repeating a step wants "that is already done", not an error to handle.
-    /// </summary>
-    public static string Ok(string what, string detail) =>
-        $"This key was already used by a {what} that succeeded: {detail}. Nothing was written "
-        + "again.";
-
-    /// <summary>
-    /// The case the whole feature exists for. The write was sent, no answer came back, and Jira
-    /// may or may not have committed it — so a repeat would be exactly the duplicate a key is
-    /// there to prevent.
-    /// </summary>
-    public static string Unknown(string what, string howToCheck) =>
-        $"This key was already used by a {what} whose outcome is unknown: it was sent once and no "
-        + $"answer came back. Nothing was written again. {howToCheck}";
-
-    /// <summary>
-    /// Jira refused, so nothing was written then either. The key is spent all the same — it names
-    /// one attempt, not one intention — and a corrected call is a new one.
-    /// </summary>
-    public static string Rejected(string what) =>
-        $"This key was already used by a {what} that Jira rejected, so nothing was written then "
-        + "and nothing has been written now. A key names one attempt: send the corrected call "
-        + "under a new key.";
 }
