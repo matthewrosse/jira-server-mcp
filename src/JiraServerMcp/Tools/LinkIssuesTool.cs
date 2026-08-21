@@ -76,25 +76,32 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
         }
 
         var types = listed.Value;
-        var matching = Matching(types, relation);
 
-        if (matching.Count is 0)
+        // A Jira carrying custom link types can publish one phrase on two of them, and each would
+        // put a different relation on the issue panel. Picking either invents the caller's intent,
+        // so the ambiguous case is a refusal. A symmetric type — Relates publishes "relates to"
+        // from both ends — is one candidate, matched on its outward wording.
+        var resolved = Vocabulary.Resolve(
+            types,
+            candidate => new[] { candidate.Outward, candidate.Inward },
+            relation);
+
+        if (resolved is Vocabulary.Ambiguous<JiraIssueLinkType> ambiguous)
+        {
+            return ToolCall.Error(Ambiguous(relation, ambiguous.Rows));
+        }
+
+        if (resolved is not Vocabulary.Matched<JiraIssueLinkType> match)
         {
             return ToolCall.Error(Unmatched(relation, types));
         }
 
-        // A Jira carrying custom link types can publish one phrase on two of them, and each would
-        // put a different relation on the issue panel. Picking either invents the caller's intent.
-        if (matching.Count > 1)
-        {
-            return ToolCall.Error(Ambiguous(relation, matching));
-        }
+        var type = match.Row;
 
-        var (type, outward) = matching[0];
-
-        // Jira reads the link as "outwardIssue <outward wording> inwardIssue", so a phrase matched
-        // on the inward wording puts 'from' on the inward end.
-        var (outwardKey, inwardKey) = outward ? (from, to) : (to, from);
+        // Jira reads the link as "outwardIssue <outward wording> inwardIssue", and the outward
+        // wording is published first, so a phrase matched at any later index puts 'from' on the
+        // inward end.
+        var (outwardKey, inwardKey) = match.WordIndex is 0 ? (from, to) : (to, from);
 
         return await ToolCall.RunAsync(
             profile,
@@ -112,29 +119,6 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
             cancellationToken,
             describeApiFailure: exception => Failed(exception, profile.Name, from, to));
     }
-
-    /// <summary>
-    /// The types whose wording the phrase matches, each paired with the end it matched. A
-    /// symmetric type — <c>Relates</c> publishes "relates to" from both ends — matches once, on
-    /// its outward end, because there is no direction to choose between.
-    /// </summary>
-    private static IReadOnlyList<(JiraIssueLinkType Type, bool Outward)> Matching(
-        IReadOnlyList<JiraIssueLinkType> types,
-        string relation) =>
-    [
-        .. types
-            .Select(type => (Type: type, Outward: Same(type.Outward, relation)))
-            .Where(match => match.Outward || Same(match.Type.Inward, relation)),
-    ];
-
-    /// <summary>
-    /// Casing and surrounding space are forgiven, as they are on a transition name. A wording Jira
-    /// did not send is never a match: it arrives here as an empty string, and matching it would
-    /// link two issues under whichever type happened to have a gap in its payload.
-    /// </summary>
-    private static bool Same(string wording, string relation) =>
-        wording.Trim().Length > 0
-        && string.Equals(wording.Trim(), relation.Trim(), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Jira answers a key it cannot see with the same 404 it answers a key that does not exist,
@@ -189,12 +173,12 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
         types.Count is 0
             ? $"'{relation}' is not a relation this Jira publishes, and neither is anything else: "
               + "no issue link types are configured, so no issues can be linked."
-            : $"""
-               '{relation}' is not a relation this Jira publishes, so nothing was linked. The ones
-               it does follow, and either wording of a type may be used.
-               {UntrustedContent.Preamble}
-               {UntrustedContent.Delimit(Listed(types))}
-               """;
+            : UntrustedContent.Envelope(
+                $"""
+                 '{relation}' is not a relation this Jira publishes, so nothing was linked. The ones
+                 it does follow, and either wording of a type may be used.
+                 """,
+                Listed(types));
 
     /// <summary>
     /// One phrase on two types. Naming both is what lets the caller ask again with the wording of
@@ -202,13 +186,13 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
     /// </summary>
     private static string Ambiguous(
         string relation,
-        IReadOnlyList<(JiraIssueLinkType Type, bool Outward)> matching) =>
-        $"""
-         '{relation}' is the wording of {matching.Count} different link types on this Jira, so
-         nothing was linked. They follow.
-         {UntrustedContent.Preamble}
-         {UntrustedContent.Delimit(Listed([.. matching.Select(match => match.Type)]))}
-         """;
+        IReadOnlyList<JiraIssueLinkType> matching) =>
+        UntrustedContent.Envelope(
+            $"""
+             '{relation}' is the wording of {matching.Count} different link types on this Jira, so
+             nothing was linked. They follow.
+             """,
+            Listed(matching));
 
     private static string Listed(IReadOnlyList<JiraIssueLinkType> types) =>
         string.Join(

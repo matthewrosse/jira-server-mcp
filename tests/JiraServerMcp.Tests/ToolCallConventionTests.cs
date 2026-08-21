@@ -1,5 +1,6 @@
 using System.Reflection;
 using JiraServerMcp.Jira;
+using JiraServerMcp.Rendering;
 using JiraServerMcp.Tools;
 using ModelContextProtocol.Server;
 
@@ -109,6 +110,28 @@ public sealed class ToolCallConventionTests
         called.ShouldBe(
             [nameof(WriteAttempts.TryBegin), nameof(WriteAttempts.SendAsync)],
             ignoreOrder: true);
+    }
+
+    /// <summary>
+    /// A tool frames untrusted content one way: <see cref="UntrustedContent.Envelope"/>. Two of
+    /// them used to lay out the preamble and the markers by hand (#103), which is two places
+    /// the marker order can drift from what <see cref="UntrustedContent"/> intends. Read off the
+    /// source rather than off the IL, because <see cref="UntrustedContent.Preamble"/> is a
+    /// constant and the compiler leaves no call behind for the walk above to find.
+    /// </summary>
+    [Fact]
+    public void No_tool_frames_untrusted_content_by_hand()
+    {
+        var offenders =
+            from file in new DirectoryInfo(
+                    Path.Combine(RepositoryRoot.Find().FullName, "src", "JiraServerMcp", "Tools"))
+                .GetFiles("*.cs", SearchOption.AllDirectories)
+            let source = File.ReadAllText(file.FullName)
+            where source.Contains("UntrustedContent.Preamble", StringComparison.Ordinal)
+                  || source.Contains("UntrustedContent.Delimit", StringComparison.Ordinal)
+            select file.Name;
+
+        offenders.ShouldBeEmpty();
     }
 
     /// <summary>Every method a type's own code calls, read off its compiled bodies.</summary>
