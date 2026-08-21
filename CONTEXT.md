@@ -105,8 +105,8 @@ prose, issue-read expansion entries, and default and largest page sizes. Every r
 page reads these limits from one module; the cutting mechanics remain with the renderer that cuts,
 and the paging mechanics belong to the page of issues below.
 
-**Page of issues** — the answer six tools give: a JQL search, the change feed, the operator's
-canned queries, a board's backlog, a sprint. One module states the whole recipe — the floor under
+**Page of issues** — the answer six tools give: a JQL search, this account's open issues, the
+change feed, the operator's canned queries, a board's backlog, a sprint. One module states the whole recipe — the floor under
 the start position, the clamp on the page size, the widened projection, the render, and the prefix
 line a tool puts above it — and takes the fetch as a delegate, so a tool contributes the query or
 the identifier and nothing else. A board or sprint _listing_ is not one: it pages rows that are not

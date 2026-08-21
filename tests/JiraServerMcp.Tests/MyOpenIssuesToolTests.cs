@@ -76,8 +76,10 @@ public sealed class MyOpenIssuesToolTests
         result.Content.OfType<TextContentBlock>().Single().Text;
 
     /// <summary>
-    /// A socket that hangs, which is the one thing WireMock at the protocol seam cannot stage —
-    /// the same transport carve-out ADR-0008 makes for <c>WhoamiToolTests</c>.
+    /// A socket that hangs, which is the one thing WireMock at the protocol seam cannot stage.
+    /// ADR-0008 names its transport carve-out for <c>WhoamiToolTests</c> alone, so this case is
+    /// kept on the same reasoning rather than under that name: it is the transport failure mode,
+    /// and nothing about the tool's own branching is proven here.
     /// </summary>
     private sealed class NeverAnswers : HttpMessageHandler
     {

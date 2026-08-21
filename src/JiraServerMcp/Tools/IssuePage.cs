@@ -6,9 +6,9 @@ using JiraServerMcp.Rendering;
 namespace JiraServerMcp.Tools;
 
 /// <summary>
-/// One page of issues, however it was asked for. Six tools answer with one — a JQL search, the
-/// canned queries, the change feed, a board's backlog, a sprint — and what differs between them is
-/// a query or an identifier, not the paging. The floor under the start position, the clamp on the
+/// One page of issues, however it was asked for. Six tools answer with one — a JQL search, this
+/// account's open issues, the change feed, the canned queries, a board's backlog, a sprint — and
+/// what differs between them is a query or an identifier, not the paging. The floor under the start position, the clamp on the
 /// page size, the widened projection and the render are this project's central promise about what
 /// an answer costs an agent, so they are stated here once rather than in each caller.
 ///

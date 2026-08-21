@@ -56,9 +56,10 @@ public sealed class ToolCallConventionTests
                  && fetches.Contains(called.Name, StringComparer.Ordinal))
              select (Type: type, Calls: calls)).ToArray();
 
-        // The five annotated tools plus ProfileQuerySurface. Asserted so that a walk which stopped
-        // finding calls at all — a nested type the compiler moved, an opcode it stopped
-        // emitting — fails here rather than passing the check below vacuously.
+        // Six types: the five annotated tool types that page issues, plus ProfileQuerySurface,
+        // which is one type behind however many tools an operator declared. Asserted so that a
+        // walk which stopped finding calls at all — a nested type the compiler moved, an opcode it
+        // stopped emitting — fails here rather than passing the check below vacuously.
         fetching.Length.ShouldBe(6);
 
         var offenders =
@@ -71,10 +72,7 @@ public sealed class ToolCallConventionTests
         offenders.Distinct().ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// Every method a type's own code calls, read off its compiled bodies. A reference check
-    /// rather than a grep for <c>Math.Clamp</c>, which is the brittle version.
-    /// </summary>
+    /// <summary>Every method a type's own code calls, read off its compiled bodies.</summary>
     private static IEnumerable<MethodBase> Calls(Type type) =>
         from nested in WithNestedTypes(type)
         from method in nested.GetMethods(
