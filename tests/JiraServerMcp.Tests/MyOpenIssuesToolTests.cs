@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Net;
-using System.Text.Json;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Tools;
@@ -10,26 +8,30 @@ namespace JiraServerMcp.Tests;
 
 /// <summary>
 /// The JQL <c>jira_my_open_issues</c> builds, and the project-key grammar guarding the
-/// interpolation seam — both provable without a real Jira behind them.
+/// interpolation seam — both pure, and so proven here under ADR-0008 clause 3 rather than through
+/// a Jira the tool never needed to reach. What an agent observes when it calls the tool is proven
+/// at the protocol seam, in <c>MyOpenIssuesProtocolTests</c>.
 /// </summary>
 public sealed class MyOpenIssuesToolTests
 {
-    private const string BaseJql = "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC";
+    [Fact]
+    public void With_no_project_the_jql_is_the_bare_canned_query()
+    {
+        var jql = MyOpenIssues.Jql(null);
+
+        jql.ShouldBe("assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC");
+    }
 
     [Fact]
-    public async Task A_project_key_that_fails_the_grammar_is_rejected_before_any_request_is_made()
+    public void A_project_narrows_the_canned_query_rather_than_replacing_it()
     {
-        var handler = new RecordingHandler();
-        var tool = Tool(handler);
+        MyOpenIssues.Jql("PROJ").ShouldBe($"project = PROJ AND {MyOpenIssues.Jql(null)}");
+    }
 
-        var result = await tool.MyOpenIssuesAsync(
-            project: "PROJ; DROP TABLE",
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        result.IsError.ShouldNotBe(true);
-        Text(result).ShouldContain("not a valid Jira project key");
-        Text(result).ShouldContain("jira_search");
-        handler.Requests.ShouldBeEmpty();
+    [Fact]
+    public void The_feed_is_ordered_by_the_most_recently_updated_issue()
+    {
+        MyOpenIssues.Jql("PROJ").ShouldEndWith("ORDER BY updated DESC");
     }
 
     [Theory]
@@ -37,45 +39,15 @@ public sealed class MyOpenIssuesToolTests
     [InlineData("1PROJ")]
     [InlineData("PROJ KEY")]
     [InlineData("PROJ-1")]
-    public async Task Project_keys_outside_the_grammar_are_rejected(string project)
+    [InlineData("PROJ; DROP TABLE")]
+    public void A_project_key_outside_the_grammar_never_reaches_the_query(string project)
     {
-        var handler = new RecordingHandler();
-        var tool = Tool(handler);
+        ProjectKey.IsValid(project).ShouldBeFalse();
 
-        var result = await tool.MyOpenIssuesAsync(
-            project: project,
-            cancellationToken: TestContext.Current.CancellationToken);
+        var rejected = ProjectKey.Rejected(project);
 
-        Text(result).ShouldContain("not a valid Jira project key");
-        handler.Requests.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public async Task With_no_project_the_jql_is_the_bare_canned_query()
-    {
-        var handler = new RecordingHandler();
-        var tool = Tool(handler);
-
-        var result = await tool.MyOpenIssuesAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        Text(result).ShouldContain($"jql: {BaseJql}");
-        JqlFrom(handler.Requests.ShouldHaveSingleItem()).ShouldBe(BaseJql);
-    }
-
-    [Fact]
-    public async Task A_valid_project_key_is_prefixed_onto_the_canned_query()
-    {
-        var handler = new RecordingHandler();
-        var tool = Tool(handler);
-
-        var result = await tool.MyOpenIssuesAsync(
-            project: "PROJ",
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        var expected = $"project = PROJ AND {BaseJql}";
-
-        Text(result).ShouldContain($"jql: {expected}");
-        JqlFrom(handler.Requests.ShouldHaveSingleItem()).ShouldBe(expected);
+        rejected.ShouldContain("not a valid Jira project key");
+        rejected.ShouldContain("jira_search");
     }
 
     [Fact]
@@ -90,12 +62,12 @@ public sealed class MyOpenIssuesToolTests
         Text(result).ShouldContain("jira_search");
     }
 
-    private static MyOpenIssuesTool Tool(HttpMessageHandler handler, TimeSpan? timeout = null) =>
+    private static MyOpenIssuesTool Tool(HttpMessageHandler handler, TimeSpan timeout) =>
         new(
             new JiraClient(new HttpClient(handler)
             {
                 BaseAddress = new Uri("https://jira.example.com", UriKind.Absolute),
-                Timeout = timeout ?? TimeSpan.FromSeconds(30),
+                Timeout = timeout,
             }),
             new ServedProfile("work"),
             FieldAliases.None);
@@ -103,37 +75,12 @@ public sealed class MyOpenIssuesToolTests
     private static string Text(CallToolResult result) =>
         result.Content.OfType<TextContentBlock>().Single().Text;
 
-    private static string JqlFrom(Uri request) =>
-        Uri.UnescapeDataString(
-            request.Query.TrimStart('?').Split('&')
-                .Select(pair => pair.Split('=', 2))
-                .Single(pair => pair[0] == "jql")[1]);
-
-    private sealed class RecordingHandler : HttpMessageHandler
-    {
-        public List<Uri> Requests { get; } = [];
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(request.RequestUri!);
-
-            var payload = JsonSerializer.Serialize(new
-            {
-                startAt = 0,
-                maxResults = 25,
-                total = 0,
-                issues = Array.Empty<object>(),
-            });
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json"),
-            });
-        }
-    }
-
+    /// <summary>
+    /// A socket that hangs, which is the one thing WireMock at the protocol seam cannot stage.
+    /// ADR-0008 names its transport carve-out for <c>WhoamiToolTests</c> alone, so this case is
+    /// kept on the same reasoning rather than under that name: it is the transport failure mode,
+    /// and nothing about the tool's own branching is proven here.
+    /// </summary>
     private sealed class NeverAnswers : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(

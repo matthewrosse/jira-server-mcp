@@ -12,14 +12,6 @@ internal sealed class SearchUsersTool(JiraClient jira, ServedProfile profile)
 {
     private const string Name = "jira_search_users";
 
-    private const int DefaultPageSize = 25;
-
-    /// <summary>
-    /// Jira will answer with more, and a name search returning hundreds of people is a search that
-    /// wanted narrowing rather than a longer answer.
-    /// </summary>
-    private const int LargestPageSize = 100;
-
     [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
         UseStructuredContent = true,
         OutputSchemaType = typeof(UserSearchOutput))]
@@ -35,13 +27,16 @@ internal sealed class SearchUsersTool(JiraClient jira, ServedProfile profile)
         [Description("Zero-based index of the first user to return. Defaults to 0.")]
         int startAt = 0,
         [Description("How many users to return. Defaults to 25; more than 100 is clamped to 100.")]
-        int maxResults = DefaultPageSize,
+        int maxResults = ResponseBudget.DefaultPageSize,
         [Description("Whether to include deactivated accounts. Defaults to false, which is Jira's own default.")]
         bool includeInactive = false,
         CancellationToken cancellationToken = default)
     {
         var page = Math.Max(startAt, 0);
-        var size = Math.Clamp(maxResults, 1, LargestPageSize);
+        // The same limit a page of issues is held to: Jira will answer with more, and a name
+        // search returning hundreds of people is a search that wanted narrowing rather than a
+        // longer answer.
+        var size = Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize);
 
         return await ToolCall.RunAsync(
             profile,

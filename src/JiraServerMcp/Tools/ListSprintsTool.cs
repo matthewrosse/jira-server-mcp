@@ -26,7 +26,7 @@ internal sealed class ListSprintsTool(JiraClient jira, ServedProfile profile)
         [Description("Zero-based index of the first sprint to return. Defaults to 0.")]
         int startAt = 0,
         [Description("How many sprints to return. Defaults to 25; more than 100 is clamped to 100.")]
-        int maxResults = SoftwarePage.DefaultSize,
+        int maxResults = ResponseBudget.DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
         return await ToolCall.RunAsync(
@@ -40,7 +40,7 @@ internal sealed class ListSprintsTool(JiraClient jira, ServedProfile profile)
                 var page = await jira.ListSprintsAsync(
                     boardId,
                     Math.Max(startAt, 0),
-                    SoftwarePage.Clamp(maxResults),
+                    Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize),
                     cancellationToken);
 
                 return SprintList.Render(page);

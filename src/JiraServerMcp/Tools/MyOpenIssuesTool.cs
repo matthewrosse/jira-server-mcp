@@ -15,8 +15,6 @@ internal sealed class MyOpenIssuesTool(
 {
     private const string Name = "jira_my_open_issues";
 
-    private const string BaseJql = "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC";
-
     [McpServerTool(Name = Name, ReadOnly = true, Destructive = false,
         UseStructuredContent = true,
         OutputSchemaType = typeof(IssuePageOutput))]
@@ -27,11 +25,11 @@ internal sealed class MyOpenIssuesTool(
     public async Task<CallToolResult> MyOpenIssuesAsync(
         [Description("Optional single project key to scope to, such as \"PROJ\".")]
         string? project = null,
-        [Description("Zero-based index of the first result to return. Defaults to 0.")]
+        [Description(IssuePage.StartAtDescription)]
         int startAt = 0,
-        [Description("How many issues to return. Defaults to 25; more than 100 is clamped to 100.")]
+        [Description(IssuePage.MaxResultsDescription)]
         int maxResults = ResponseBudget.DefaultPageSize,
-        [Description("Extra field ids to add to the default projection, such as \"description\" or \"customfield_10010\".")]
+        [Description(IssuePage.FieldsDescription)]
         string[]? fields = null,
         CancellationToken cancellationToken = default)
     {
@@ -49,18 +47,17 @@ internal sealed class MyOpenIssuesTool(
                     return ProjectKey.Rejected(project);
                 }
 
-                var jql = project is null ? BaseJql : $"project = {project} AND {BaseJql}";
+                var jql = MyOpenIssues.Jql(project);
 
-                var page = await jira.SearchAsync(
-                    jql,
-                    Math.Max(startAt, 0),
-                    Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize),
-                    FieldProjection.Widen(fields, aliases),
-                    cancellationToken);
-
-                var rendered = SearchResults.Render(page, aliases: aliases);
-
-                return new Rendered($"jql: {jql}\n{rendered.Text}", rendered.Structure);
+                return await IssuePage.RunAsync(
+                    (start, size, projection, ct) =>
+                        jira.SearchAsync(jql, start, size, projection, ct),
+                    startAt,
+                    maxResults,
+                    fields,
+                    aliases,
+                    prefix: _ => $"jql: {jql}",
+                    cancellationToken: cancellationToken);
             },
             cancellationToken);
     }

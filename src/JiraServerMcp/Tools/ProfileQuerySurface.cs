@@ -67,11 +67,11 @@ internal static class ProfileQuerySurface
     private static McpServerTool Tool(ProfileQuery query, IServiceProvider services) =>
         McpServerTool.Create(
             (
-                [Description("Zero-based index of the first result to return. Defaults to 0.")]
+                [Description(IssuePage.StartAtDescription)]
                 int startAt = 0,
-                [Description("How many issues to return. Defaults to 25; more than 100 is clamped to 100.")]
+                [Description(IssuePage.MaxResultsDescription)]
                 int maxResults = ResponseBudget.DefaultPageSize,
-                [Description("Extra field ids to add to the default projection.")]
+                [Description(IssuePage.FieldsDescription)]
                 string[]? fields = null,
                 CancellationToken cancellationToken = default) =>
                 RunAsync(query, services, startAt, maxResults, fields, cancellationToken),
@@ -111,19 +111,15 @@ internal static class ProfileQuerySurface
             whenUnreachable: string.Empty,
             whenTimedOut:
                 ", and the request was given up. Asking for a smaller page usually helps.",
-            async () =>
-            {
-                var page = await jira.SearchAsync(
-                    query.Jql,
-                    Math.Max(startAt, 0),
-                    Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize),
-                    FieldProjection.Widen(fields, aliases),
-                    cancellationToken);
-
-                var rendered = SearchResults.Render(page, aliases: aliases);
-
-                return new Rendered($"jql: {query.Jql}\n{rendered.Text}", rendered.Structure);
-            },
+            () => IssuePage.RunAsync(
+                (start, size, projection, ct) =>
+                    jira.SearchAsync(query.Jql, start, size, projection, ct),
+                startAt,
+                maxResults,
+                fields,
+                aliases,
+                prefix: _ => $"jql: {query.Jql}",
+                cancellationToken: cancellationToken),
             cancellationToken);
     }
 }
