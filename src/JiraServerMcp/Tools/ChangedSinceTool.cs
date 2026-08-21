@@ -47,11 +47,11 @@ internal sealed class ChangedSinceTool(
         string since,
         [Description("Optional single project key to scope to, such as \"PROJ\".")]
         string? project = null,
-        [Description("Zero-based index of the first result to return. Defaults to 0.")]
+        [Description(IssuePage.StartAtDescription)]
         int startAt = 0,
-        [Description("How many issues to return. Defaults to 25; more than 100 is clamped to 100.")]
+        [Description(IssuePage.MaxResultsDescription)]
         int maxResults = ResponseBudget.DefaultPageSize,
-        [Description("Extra field ids to add to the default projection, such as \"description\" or \"customfield_10010\".")]
+        [Description(IssuePage.FieldsDescription)]
         string[]? fields = null,
         CancellationToken cancellationToken = default)
     {
@@ -90,28 +90,16 @@ internal sealed class ChangedSinceTool(
 
                 var jql = ChangeFeed.Jql(window, zoneOffset, project);
 
-                var page = await jira.SearchAsync(
-                    jql,
-                    Math.Max(startAt, 0),
-                    Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize),
-                    FieldProjection.Widen(fields, aliases),
+                return await IssuePage.RunAsync(
+                    (start, size, projection, ct) =>
+                        jira.SearchAsync(jql, start, size, projection, ct),
+                    startAt,
+                    maxResults,
+                    fields,
+                    aliases,
+                    watermark: kept => ChangeFeed.NextSince(kept, window, zoneOffset),
+                    prefix: nextSince => $"jql: {jql}\nnextSince: {nextSince}",
                     cancellationToken);
-
-                // The renderer decides which rows the budget admits, so the watermark is taken
-                // from inside it and read back out here for the prose: both halves say the same
-                // thing because there is only one thing said.
-                // Seeded with the answer an empty page gives, so that the two halves say the same
-                // thing even in the impossible case where the renderer keeps no rows at all.
-                var nextSince = ChangeFeed.NextSince([], window, zoneOffset);
-
-                var rendered = SearchResults.Render(
-                    page,
-                    kept => nextSince = ChangeFeed.NextSince(kept, window, zoneOffset),
-                    aliases);
-
-                return new Rendered(
-                    $"jql: {jql}\nnextSince: {nextSince}\n{rendered.Text}",
-                    rendered.Structure);
             },
             cancellationToken);
     }

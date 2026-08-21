@@ -25,11 +25,11 @@ internal sealed class SearchTool(
     public async Task<CallToolResult> SearchAsync(
         [Description("The JQL query, such as \"project = PROJ AND status = Open ORDER BY updated DESC\".")]
         string jql,
-        [Description("Zero-based index of the first result to return. Defaults to 0.")]
+        [Description(IssuePage.StartAtDescription)]
         int startAt = 0,
-        [Description("How many issues to return. Defaults to 25; more than 100 is clamped to 100.")]
+        [Description(IssuePage.MaxResultsDescription)]
         int maxResults = ResponseBudget.DefaultPageSize,
-        [Description("Extra field ids to add to the default projection, such as \"description\" or \"customfield_10010\".")]
+        [Description(IssuePage.FieldsDescription)]
         string[]? fields = null,
         CancellationToken cancellationToken = default)
     {
@@ -40,17 +40,14 @@ internal sealed class SearchTool(
             whenTimedOut:
                 ", and the request was given up. A broad JQL over a large instance is slow; "
                 + "narrowing it or asking for a smaller page usually helps.",
-            async () =>
-            {
-                var page = await jira.SearchAsync(
-                    jql,
-                    Math.Max(startAt, 0),
-                    Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize),
-                    FieldProjection.Widen(fields, aliases),
-                    cancellationToken);
-
-                return SearchResults.Render(page, aliases: aliases);
-            },
+            () => IssuePage.RunAsync(
+                (start, size, projection, ct) =>
+                    jira.SearchAsync(jql, start, size, projection, ct),
+                startAt,
+                maxResults,
+                fields,
+                aliases,
+                cancellationToken: cancellationToken),
             cancellationToken);
     }
 }

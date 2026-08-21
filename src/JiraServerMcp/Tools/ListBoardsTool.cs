@@ -24,7 +24,7 @@ internal sealed class ListBoardsTool(JiraClient jira, ServedProfile profile)
         [Description("Zero-based index of the first board to return. Defaults to 0.")]
         int startAt = 0,
         [Description("How many boards to return. Defaults to 25; more than 100 is clamped to 100.")]
-        int maxResults = SoftwarePage.DefaultSize,
+        int maxResults = ResponseBudget.DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
         return await ToolCall.RunAsync(
@@ -37,7 +37,7 @@ internal sealed class ListBoardsTool(JiraClient jira, ServedProfile profile)
             {
                 var page = await jira.ListBoardsAsync(
                     Math.Max(startAt, 0),
-                    SoftwarePage.Clamp(maxResults),
+                    Math.Clamp(maxResults, 1, ResponseBudget.LargestPageSize),
                     cancellationToken);
 
                 return BoardList.Render(page);

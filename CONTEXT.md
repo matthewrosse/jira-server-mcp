@@ -101,8 +101,17 @@ hundred-kilobyte payload.
 _Avoid_: filter, field selection.
 
 **Response budget** — the limits on what a response is allowed to cost an agent: text per line,
-prose, issue-read expansion entries, and default and largest page sizes. Rendering and paging
-read these limits from one module; their cutting and paging mechanics remain where they belong.
+prose, issue-read expansion entries, and default and largest page sizes. Every renderer and every
+page reads these limits from one module; the cutting mechanics remain with the renderer that cuts,
+and the paging mechanics belong to the page of issues below.
+
+**Page of issues** — the answer six tools give: a JQL search, the change feed, the operator's
+canned queries, a board's backlog, a sprint. One module states the whole recipe — the floor under
+the start position, the clamp on the page size, the widened projection, the render, and the prefix
+line a tool puts above it — and takes the fetch as a delegate, so a tool contributes the query or
+the identifier and nothing else. A board or sprint _listing_ is not one: it pages rows that are not
+issues, through a renderer of its own.
+_Avoid_: search result, which names only the first of the six.
 
 **Canned query** — a fixed JQL the server owns, exposed as a named tool, so an agent spends no
 context authoring the query. The name is the contract; a parameter that changes what the query

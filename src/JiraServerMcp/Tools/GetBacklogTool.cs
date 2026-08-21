@@ -26,11 +26,11 @@ internal sealed class GetBacklogTool(
     public async Task<CallToolResult> GetBacklogAsync(
         [Description("The board's numeric identifier, as jira_list_boards reports it.")]
         int boardId,
-        [Description("Zero-based index of the first issue to return. Defaults to 0.")]
+        [Description(IssuePage.StartAtDescription)]
         int startAt = 0,
-        [Description("How many issues to return. Defaults to 25; more than 100 is clamped to 100.")]
-        int maxResults = SoftwarePage.DefaultSize,
-        [Description("Extra field ids to add to the default projection, such as \"description\" or \"customfield_10010\".")]
+        [Description(IssuePage.MaxResultsDescription)]
+        int maxResults = ResponseBudget.DefaultPageSize,
+        [Description(IssuePage.FieldsDescription)]
         string[]? fields = null,
         CancellationToken cancellationToken = default)
     {
@@ -40,17 +40,14 @@ internal sealed class GetBacklogTool(
             whenUnreachable: string.Empty,
             whenTimedOut:
                 ", and the request was given up. Asking for a smaller page usually helps.",
-            async () =>
-            {
-                var page = await jira.GetBacklogAsync(
-                    boardId,
-                    Math.Max(startAt, 0),
-                    SoftwarePage.Clamp(maxResults),
-                    FieldProjection.Widen(fields, aliases),
-                    cancellationToken);
-
-                return SearchResults.Render(page, aliases: aliases);
-            },
+            () => IssuePage.RunAsync(
+                (start, size, projection, ct) =>
+                    jira.GetBacklogAsync(boardId, start, size, projection, ct),
+                startAt,
+                maxResults,
+                fields,
+                aliases,
+                cancellationToken: cancellationToken),
             cancellationToken);
     }
 }
