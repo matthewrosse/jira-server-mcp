@@ -89,6 +89,14 @@ document. Untyped, not a field on the issue, and identified by a `globalId` this
 from the URL, so attaching the same URL twice updates one link rather than making two.
 _Avoid_: web link, external link, attachment — the last is a file Jira stores itself.
 
+**Published vocabulary** — the words one Jira publishes for a kind of choice: the transitions
+available on this issue, the relation phrases this instance publishes. A word the caller used must
+resolve to exactly one of them, or be refused with the alternatives named — a word that names none
+and a word that names two are both refusals, because picking one of two would write something
+nobody asked for. Not every named thing Jira holds is one: an issue type, a component, a version
+or a resolution is sent as the caller wrote it and Jira refuses it.
+_Avoid_: enum, allowed values, lookup table.
+
 **Relation phrase** — the direction-specific wording Jira publishes for a link type: "blocks" and
 "is blocked by" for the one type `Blocks`. The unit this server's tools take, in place of a type
 name paired with a direction, so that which end is which can never be got wrong. A phrase may be

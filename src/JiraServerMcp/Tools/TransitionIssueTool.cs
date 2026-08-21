@@ -68,22 +68,26 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
         }
 
         var available = listed.Value;
-        var matching = Matching(available, transition);
 
-        if (matching.Count is 0)
+        // Jira lets one status offer two transitions of the same name — a global one and a local
+        // one — going to different statuses. Picking either would move the issue somewhere the
+        // agent did not ask for and report it as success, so the ambiguous case is a refusal.
+        var resolved = Vocabulary.Resolve(
+            available,
+            candidate => new[] { candidate.Name },
+            transition);
+
+        if (resolved is Vocabulary.Ambiguous<JiraTransition> ambiguous)
+        {
+            return ToolCall.Error(Ambiguous(key, transition, ambiguous.Rows));
+        }
+
+        if (resolved is not Vocabulary.Matched<JiraTransition> match)
         {
             return ToolCall.Error(Unmatched(key, transition, available));
         }
 
-        // Jira lets one status offer two transitions of the same name — a global one and a local
-        // one — going to different statuses. Picking either would move the issue somewhere the
-        // agent did not ask for and report it as success.
-        if (matching.Count > 1)
-        {
-            return ToolCall.Error(Ambiguous(key, transition, matching));
-        }
-
-        var matched = matching[0];
+        var matched = match.Row;
 
         return await ToolCall.RunAsync(
             profile,
@@ -106,17 +110,6 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
             cancellationToken);
     }
 
-    private static IReadOnlyList<JiraTransition> Matching(
-        IReadOnlyList<JiraTransition> available,
-        string transition) =>
-        [
-            .. available.Where(
-                candidate => string.Equals(
-                    candidate.Name.Trim(),
-                    transition.Trim(),
-                    StringComparison.OrdinalIgnoreCase)),
-        ];
-
     /// <summary>
     /// A workflow names its transitions, so the confirmation carries Jira-authored text and is
     /// framed as such (ADR-0005's grant is the bound on what a transition can do; the framing is
@@ -131,14 +124,11 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
     /// </remarks>
     private static Rendered Transitioned(string key, JiraTransition matched) =>
         new(
-            $"""
-             Transitioned {key}. The transition and the status it led to are named below.
-             {UntrustedContent.Preamble}
-             {UntrustedContent.Delimit(
-                 matched.ToStatus is { } status
-                     ? $"transition: {matched.Name}\nnow in: {status}"
-                     : $"transition: {matched.Name}")}
-             """,
+            UntrustedContent.Envelope(
+                $"Transitioned {key}. The transition and the status it led to are named below.",
+                matched.ToStatus is { } status
+                    ? $"transition: {matched.Name}\nnow in: {status}"
+                    : $"transition: {matched.Name}"),
             ToolOutputs.Node(new TransitionedIssueOutput
             {
                 Outcome = Outcomes.Ok,
@@ -159,11 +149,9 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
         available.Count is 0
             ? $"'{transition}' is not a transition on {key}, and neither is anything else: this "
               + "account cannot move that issue from the status it is in."
-            : $"""
-               '{transition}' is not a transition available on {key}. The ones that are follow.
-               {UntrustedContent.Preamble}
-               {UntrustedContent.Delimit(Listed(available))}
-               """;
+            : UntrustedContent.Envelope(
+                $"'{transition}' is not a transition available on {key}. The ones that are follow.",
+                Listed(available));
 
     /// <summary>
     /// Two transitions of one name, which a workflow may legitimately offer. Naming their target
@@ -174,12 +162,12 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
         string key,
         string transition,
         IReadOnlyList<JiraTransition> matching) =>
-        $"""
-         '{transition}' names {matching.Count} different transitions on {key}, going to different
-         statuses, so none was made. They follow.
-         {UntrustedContent.Preamble}
-         {UntrustedContent.Delimit(Listed(matching))}
-         """;
+        UntrustedContent.Envelope(
+            $"""
+             '{transition}' names {matching.Count} different transitions on {key}, going to different
+             statuses, so none was made. They follow.
+             """,
+            Listed(matching));
 
     private static string Listed(IReadOnlyList<JiraTransition> transitions) =>
         string.Join(
