@@ -93,7 +93,7 @@ public sealed class AuthVerbTests : IDisposable
 
         var result = await RunAsync(["auth", "status", "work"]);
 
-        result.ExitCode.ShouldNotBe(0);
+        result.ExitCode.ShouldBe(1);
         result.StandardError.ShouldContain("auth login work");
     }
 

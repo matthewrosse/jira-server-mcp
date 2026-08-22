@@ -109,29 +109,20 @@ internal static class ProfileVerbs
         CredentialStoreChoice storeChoice,
         CancellationToken cancellationToken)
     {
-        if (await ProfileResolution.FindAsync(name) is not { } profile)
+        if (await ProfileResolution.ResolveAsync(
+                name,
+                storeChoice,
+                whenNoToken: ", and the capability probe is taken as the Jira user",
+                cancellationToken)
+            is not { } resolved)
         {
-            return 1;
-        }
-
-        var credentials = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
-
-        var token = await ProfileToken.ResolveAsync(name, credentials, cancellationToken);
-
-        if (token is not { } held)
-        {
-            await Console.Error.WriteLineAsync(
-                $"No personal access token is stored for profile '{name}', and the capability "
-                + $"probe is taken as the Jira user. Store one with 'jira-server-mcp auth login "
-                + $"{name}'.");
-
             return 1;
         }
 
         var capabilities = await CapabilityProbe.TakeAsync(
             name,
-            profile,
-            held.Value,
+            resolved.Profile,
+            resolved.Token.Value,
             cancellationToken);
 
         if (capabilities is null)
@@ -353,21 +344,17 @@ internal static class ProfileVerbs
             return 1;
         }
 
-        var credentials = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
-
-        var token = await ProfileToken.ResolveAsync(name, credentials, cancellationToken);
-
-        if (token is not { } held)
+        if (await ProfileResolution.ResolveAsync(
+                name,
+                storeChoice,
+                whenNoToken: ", and the query is run against Jira before it is stored",
+                cancellationToken)
+            is not { } resolved)
         {
-            await Console.Error.WriteLineAsync(
-                $"No personal access token is stored for profile '{name}', and the query is run "
-                + $"against Jira before it is stored. Store one with 'jira-server-mcp auth login "
-                + $"{name}'.");
-
             return 1;
         }
 
-        if (!await ProfileQueryCheck.RunsAsync(profile, held.Value, jql, cancellationToken))
+        if (!await ProfileQueryCheck.RunsAsync(profile, resolved.Token.Value, jql, cancellationToken))
         {
             return 1;
         }

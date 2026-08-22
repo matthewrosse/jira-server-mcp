@@ -18,6 +18,12 @@ recorded capability probe. The unit of configuration, of credential isolation, a
 radius.
 _Avoid_: instance, connection, account, environment.
 
+**Resolved profile** — the profile and the token this run will use, or the reason there are none.
+Every CLI verb needing a token reaches it through the same sequence and the same missing-token
+sentence, with the caller supplying only the clause naming what it therefore did not do. See
+**Connected profile** for what this becomes once a client is built from it.
+_Avoid_: authenticated profile, the triple.
+
 **Connected profile** — a profile and its personal access token taken together as a working Jira
 client: the client is built, used and disposed in one place rather than assembled by hand at each
 caller. The term carries the vocabulary for what happened when using one fails — Jira refused,

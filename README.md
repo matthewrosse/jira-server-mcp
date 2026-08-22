@@ -842,6 +842,14 @@ granted at launch.
 
 ## Troubleshooting
 
+### Exit codes
+
+**`0`** — the verb did what you asked. **`1`** — the verb's answer is no; `auth status` finding no
+token *is* the answer to the question it was asked. **`2`** — this installation cannot do it at
+all, which is why every `ConfigurationException` exits `2` and why `serve` exits `2` on a missing
+token where `auth status` exits `1` on the same condition: `serve` cannot start without one, and
+`auth status` was only ever asked to check.
+
 **`401` — the token is invalid or revoked.** Tools report which profile, and
 `jira-server-mcp auth status <profile>` says the same. There is nothing to retry: create a new
 token in Jira and run `jira-server-mcp auth login <profile>`.

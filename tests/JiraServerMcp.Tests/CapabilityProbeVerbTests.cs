@@ -165,7 +165,8 @@ public sealed class CapabilityProbeVerbTests : IDisposable
 
         var result = await RunAsync(["profile", "refresh", "work"]);
 
-        result.ExitCode.ShouldNotBe(0);
+        result.ExitCode.ShouldBe(1);
+        result.StandardError.ShouldContain("the capability probe is taken as the Jira user");
         result.StandardError.ShouldContain("auth login work");
     }
 
