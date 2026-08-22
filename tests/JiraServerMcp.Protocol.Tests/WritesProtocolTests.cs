@@ -4,7 +4,6 @@ using ModelContextProtocol.Protocol;
 using WireMock;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,67 +13,20 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class WritesProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
     private const string CreatedPayload = """
         { "id": "10500", "key": "PROJ-42" }
         """;
 
-    private readonly WireMockServer _jira = WireMockServer.Start();
+    private ProtocolSeam _seam = null!;
 
-    private readonly ConfigurationHome _home = new();
+    public async ValueTask InitializeAsync() => _seam = await ProtocolSeam.StartAsync();
 
-    private readonly List<McpClient> _clients = [];
-
-    public async ValueTask InitializeAsync()
-    {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(200, MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        foreach (var client in _clients)
-        {
-            await client.DisposeAsync();
-        }
-
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task Without_a_grant_no_write_tool_is_in_the_list_at_all()
     {
-        var tools = await ToolsAsync(await ClientAsync());
+        var tools = await ToolsAsync(await _seam.ConnectAsync());
 
         // Not registered rather than refused at call time: a tool an agent cannot see is one it
         // never discovers, attempts, and burns context learning it may not have.
@@ -91,7 +43,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task The_issues_grant_registers_the_three_issue_writes_and_nothing_further()
     {
-        var tools = await ToolsAsync(await ClientAsync("issues:write"));
+        var tools = await ToolsAsync(await _seam.ConnectAsync("issues:write"));
 
         tools.ShouldContain("jira_create_issue");
         tools.ShouldContain("jira_update_issue");
@@ -105,7 +57,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Another_grant_does_not_bring_the_issue_writes_with_it()
     {
-        var tools = await ToolsAsync(await ClientAsync("comments:write,worklogs:write"));
+        var tools = await ToolsAsync(await _seam.ConnectAsync("comments:write,worklogs:write"));
 
         tools.ShouldNotContain("jira_create_issue");
         tools.ShouldNotContain("jira_update_issue");
@@ -129,7 +81,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     {
         string[] grants = granted.Length is 0 ? [] : [granted];
 
-        var tools = await ToolsAsync(await ClientAsync(grants));
+        var tools = await ToolsAsync(await _seam.ConnectAsync(grants));
 
         var issues = granted.Contains("issues:write", StringComparison.Ordinal);
         var comments = granted.Contains("comments:write", StringComparison.Ordinal);
@@ -151,7 +103,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     public async Task Nothing_in_the_server_deletes_anything_even_with_every_grant_held()
     {
         var tools = await ToolsAsync(
-            await ClientAsync("issues:write", "comments:write", "worklogs:write"));
+            await _seam.ConnectAsync("issues:write", "comments:write", "worklogs:write"));
 
         tools.Order().ShouldBe(
             [
@@ -176,7 +128,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Every_tool_says_honestly_whether_it_reads_and_whether_it_destroys()
     {
-        var client = await ClientAsync("issues:write");
+        var client = await _seam.ConnectAsync("issues:write");
 
         var tools = await client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
@@ -203,11 +155,11 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Creating_an_issue_returns_its_key_and_nothing_bulky()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
-            .RespondWith(Json(201, CreatedPayload));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(JiraResponse.Json(201, CreatedPayload));
 
         var text = await CallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_create_issue",
             new Dictionary<string, object?>
             {
@@ -236,8 +188,8 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_rejected_create_hands_back_jiras_own_message_for_each_field()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
-            .RespondWith(Json(400, """
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(JiraResponse.Json(400, """
                 {
                   "errorMessages": [],
                   "errors": {
@@ -248,7 +200,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
                 """));
 
         var text = await FailedCallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_create_issue",
             new Dictionary<string, object?>
             {
@@ -270,11 +222,11 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_create_rejected_for_permissions_carries_no_create_fields_advice()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
             .RespondWith(Response.Create().WithStatusCode(403));
 
         var text = await FailedCallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_create_issue",
             new Dictionary<string, object?>
             {
@@ -294,7 +246,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         StubUpdate(204);
 
         await CallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_update_issue",
             new Dictionary<string, object?>
             {
@@ -324,7 +276,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         StubUpdate(204);
 
         await CallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_update_issue",
             new Dictionary<string, object?>
             {
@@ -348,7 +300,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         StubUpdate(204);
 
         await CallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_update_issue",
             new Dictionary<string, object?>
             {
@@ -363,11 +315,11 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_create_jira_could_not_answer_is_asked_exactly_once()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
             .RespondWith(Response.Create().WithStatusCode(503));
 
         await FailedCallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_create_issue",
             new Dictionary<string, object?>
             {
@@ -376,7 +328,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
                 ["summary"] = "The login page returns 500",
             });
 
-        _jira.LogEntries.Count().ShouldBe(1);
+        _seam.Jira.LogEntries.Count().ShouldBe(1);
     }
 
     [Fact]
@@ -385,7 +337,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         StubUpdate(503);
 
         await FailedCallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_update_issue",
             new Dictionary<string, object?>
             {
@@ -393,18 +345,18 @@ public sealed class WritesProtocolTests : IAsyncLifetime
                 ["fields"] = new Dictionary<string, object?> { ["summary"] = "A better summary" },
             });
 
-        _jira.LogEntries.Count().ShouldBe(1);
+        _seam.Jira.LogEntries.Count().ShouldBe(1);
     }
 
     [Fact]
     public async Task An_update_naming_nothing_to_change_is_refused_without_asking_jira()
     {
         await FailedCallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_update_issue",
             new Dictionary<string, object?> { ["key"] = "PROJ-42" });
 
-        _jira.LogEntries.Count().ShouldBe(0);
+        _seam.Jira.LogEntries.Count().ShouldBe(0);
     }
 
     private static ToolAnnotations Annotations(IList<McpClientTool> tools, string name) =>
@@ -413,17 +365,12 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     private static JsonElement Body(IRequestMessage request) =>
         JsonDocument.Parse(request.Body ?? string.Empty).RootElement;
 
-    private static IResponseBuilder Json(int status, string body) =>
-        Response.Create().WithStatusCode(status)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(body);
-
     private void StubUpdate(int status) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingPut())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingPut())
             .RespondWith(Response.Create().WithStatusCode(status));
 
     private IRequestMessage SingleRequest() =>
-        _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
+        _seam.Jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
 
     private async Task<string[]> ToolsAsync(McpClient client) =>
     [
@@ -459,30 +406,5 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         result.IsError.ShouldBe(true);
 
         return result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
-    }
-
-    /// <summary>
-    /// A server launched with the grants named here, exactly as an operator's MCP configuration
-    /// would (ADR-0005).
-    /// </summary>
-    private async Task<McpClient> ClientAsync(params string[] grants)
-    {
-        string[] allow = [.. grants.SelectMany(grant => (string[])["--allow", grant])];
-
-        var client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor(["serve", "--profile", Profile, .. allow]),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        _clients.Add(client);
-
-        return client;
     }
 }

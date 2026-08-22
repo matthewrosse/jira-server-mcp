@@ -4,7 +4,6 @@ using ModelContextProtocol.Protocol;
 using WireMock;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,10 +13,6 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
     private static readonly string[] _softwareTools =
     [
         "jira_list_boards",
@@ -25,15 +20,6 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
         "jira_get_sprint_issues",
         "jira_get_backlog",
     ];
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
 
     private const string ServerInfoPayload = """
         { "version": "8.20.7", "deploymentType": "Server" }
@@ -87,39 +73,18 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
         }
         """;
 
-    private readonly WireMockServer _jira = WireMockServer.Start();
+    private ProtocolSeam _seam = null!;
 
-    private readonly ConfigurationHome _home = new();
+    public async ValueTask InitializeAsync() => _seam = await ProtocolSeam.StartAsync();
 
-    private readonly List<McpClient> _clients = [];
-
-    public async ValueTask InitializeAsync()
-    {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
-        added.ExitCode.ShouldBe(0);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        foreach (var client in _clients)
-        {
-            await client.DisposeAsync();
-        }
-
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task A_jira_core_instance_shows_no_software_tool_at_all()
     {
         await SignInAsync(softwareLicensed: false);
 
-        var tools = await ToolsAsync(await ClientAsync());
+        var tools = await ToolsAsync(await _seam.ConnectAsync());
 
         // Absent rather than present and failing: four tools that always 404 are four tools the
         // model will try.
@@ -136,7 +101,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
     {
         await SignInAsync(softwareLicensed: true);
 
-        var client = await ClientAsync();
+        var client = await _seam.ConnectAsync();
         var tools = await client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -152,26 +117,26 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
     {
         await SignInAsync(softwareLicensed: true);
 
-        _jira.Reset();
+        _seam.Jira.Reset();
 
         // A handshake and a full tool list — everything a client does before it calls anything.
-        await ToolsAsync(await ClientAsync());
+        await ToolsAsync(await _seam.ConnectAsync());
 
-        _jira.LogEntries.Count().ShouldBe(0);
+        _seam.Jira.LogEntries.Count().ShouldBe(0);
     }
 
     [Fact]
     public async Task A_profile_with_no_probe_hides_the_software_tools_and_names_the_refresh_command()
     {
         // The login succeeds and the probe does not, which is how a profile ends up without one.
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(200, MyselfPayload));
-        _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+            .RespondWith(JiraResponse.Json(200, ProtocolSeam.MyselfPayload));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(503));
 
-        (await LogInAsync()).ExitCode.ShouldBe(0);
+        await LogInAsync();
 
-        var tools = await ToolsAsync(await ClientAsync());
+        var tools = await ToolsAsync(await _seam.ConnectAsync());
 
         foreach (var name in _softwareTools)
         {
@@ -190,7 +155,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
 
         BackdateProbe(TimeSpan.FromDays(8));
 
-        var tools = await ToolsAsync(await ClientAsync());
+        var tools = await ToolsAsync(await _seam.ConnectAsync());
 
         // Stale is not an error: what was recorded is the best answer there is until someone
         // refreshes it.
@@ -211,7 +176,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
 
         Stub("/rest/agile/1.0/board", BoardsPayload);
 
-        var text = await CallAsync(await ClientAsync(), "jira_list_boards", new Dictionary<string, object?>());
+        var text = await CallAsync(await _seam.ConnectAsync(), "jira_list_boards", new Dictionary<string, object?>());
 
         text.ShouldContain("1 | Platform board | scrum");
         text.ShouldContain("2 | Operations board | kanban");
@@ -226,7 +191,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
         Stub("/rest/agile/1.0/board", BoardsPayload);
 
         var text = await CallAsync(
-            await ClientAsync(),
+            await _seam.ConnectAsync(),
             "jira_list_boards",
             new Dictionary<string, object?> { ["maxResults"] = 2 });
 
@@ -244,7 +209,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
         Stub("/rest/agile/1.0/board/1/sprint", SprintsPayload);
 
         var text = await CallAsync(
-            await ClientAsync(),
+            await _seam.ConnectAsync(),
             "jira_list_sprints",
             new Dictionary<string, object?> { ["boardId"] = 1 });
 
@@ -261,7 +226,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
         Stub("/rest/agile/1.0/sprint/12/issue", IssuesPayload);
 
         var text = await CallAsync(
-            await ClientAsync(),
+            await _seam.ConnectAsync(),
             "jira_get_sprint_issues",
             new Dictionary<string, object?> { ["sprintId"] = 12 });
 
@@ -283,7 +248,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
         Stub("/rest/agile/1.0/board/1/backlog", IssuesPayload);
 
         var text = await CallAsync(
-            await ClientAsync(),
+            await _seam.ConnectAsync(),
             "jira_get_backlog",
             new Dictionary<string, object?> { ["boardId"] = 1 });
 
@@ -298,12 +263,12 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
     {
         await SignInAsync(softwareLicensed: true);
 
-        _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(404)
                 .WithHeader("Content-Type", "text/html")
                 .WithBody("<html><body>Not found</body></html>"));
 
-        var result = await (await ClientAsync()).CallToolAsync(
+        var result = await (await _seam.ConnectAsync()).CallToolAsync(
             "jira_list_boards",
             new Dictionary<string, object?>(),
             cancellationToken: TestContext.Current.CancellationToken);
@@ -318,40 +283,38 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
     /// </summary>
     private void BackdateProbe(TimeSpan age)
     {
-        var profiles = JsonNode.Parse(_home.ReadProfiles()).ShouldNotBeNull();
+        var profiles = JsonNode.Parse(_seam.Home.ReadProfiles()).ShouldNotBeNull();
 
-        profiles["profiles"]![Profile]!["capabilities"]!["probedAt"] =
+        profiles["profiles"]![ProtocolSeam.Profile]!["capabilities"]!["probedAt"] =
             JsonValue.Create(DateTimeOffset.UtcNow - age);
 
-        File.WriteAllText(_home.ProfilesFile, profiles.ToJsonString());
+        File.WriteAllText(_seam.Home.ProfilesFile, profiles.ToJsonString());
     }
 
     private async Task SignInAsync(bool softwareLicensed)
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(200, MyselfPayload));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+            .RespondWith(JiraResponse.Json(200, ProtocolSeam.MyselfPayload));
 
-        _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
-            .RespondWith(Json(200, ServerInfoPayload));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
+            .RespondWith(JiraResponse.Json(200, ServerInfoPayload));
 
-        _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
             .RespondWith(softwareLicensed
-                ? Json(200, BoardsPayload)
+                ? JiraResponse.Json(200, BoardsPayload)
                 : Response.Create().WithStatusCode(404)
                     .WithHeader("Content-Type", "text/html")
                     .WithBody("<html><body>Not found</body></html>"));
 
-        (await LogInAsync()).ExitCode.ShouldBe(0);
+        await LogInAsync();
 
-        _jira.Reset();
+        _seam.Jira.Reset();
     }
 
-    private Task<HostProcessResult> LogInAsync() =>
-        HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
+    private Task LogInAsync() =>
+        _seam.RunAsync(
+            ["auth", "login", ProtocolSeam.Profile],
+            standardInput: ProtocolSeam.Token + "\n");
 
     /// <summary>
     /// The server started as a client starts it, but with nothing on standard input, so it serves
@@ -359,21 +322,16 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
     /// </summary>
     private Task<HostProcessResult> ServeUntilStandardInputClosesAsync() =>
         HostProcess.RunAsync(
-            ["serve", "--profile", Profile],
+            ["serve", "--profile", ProtocolSeam.Profile],
             TestContext.Current.CancellationToken,
-            _home.Environment);
+            _seam.Home.Environment);
 
     private void Stub(string path, string payload) =>
-        _jira.Given(Request.Create().WithPath(path).UsingGet())
-            .RespondWith(Json(200, payload));
-
-    private static IResponseBuilder Json(int status, string body) =>
-        Response.Create().WithStatusCode(status)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(body);
+        _seam.Jira.Given(Request.Create().WithPath(path).UsingGet())
+            .RespondWith(JiraResponse.Json(200, payload));
 
     private IRequestMessage SingleRequest() =>
-        _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
+        _seam.Jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
 
     private async Task<string[]> ToolsAsync(McpClient client) =>
     [
@@ -394,24 +352,5 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
         result.IsError.ShouldNotBe(true);
 
         return result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
-    }
-
-    private async Task<McpClient> ClientAsync()
-    {
-        var client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        _clients.Add(client);
-
-        return client;
     }
 }

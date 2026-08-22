@@ -2,7 +2,6 @@ using System.Text.Json;
 using ModelContextProtocol.Client;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,19 +13,6 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class StructuredContentProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
     /// <summary>
     /// The arguments each tool needs to get as far as talking to Jira. The values do not matter —
     /// what matters is that the call reaches the failing Jira below rather than being refused
@@ -93,82 +79,34 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
             },
         };
 
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
+    private ProtocolSeam _seam = null!;
 
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(200)
-                .WithHeader("Content-Type", "application/json")
-                .WithBody(MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
+        _seam = await ProtocolSeam.StartAsync();
 
         // Every tool is registered, licence and grants included, so the sweeps below see the whole
         // surface rather than the read-only part of it. That takes a capability probe recording a
         // Jira Software licence, which is what these two stubs are.
-        _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(200)
-                .WithHeader("Content-Type", "application/json")
-                .WithBody("""{ "version": "8.20.7", "deploymentType": "Server" }"""));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
+            .RespondWith(JiraResponse.Json(200,
+                """{ "version": "8.20.7", "deploymentType": "Server" }"""));
 
-        _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(200)
-                .WithHeader("Content-Type", "application/json")
-                .WithBody("""{ "startAt": 0, "maxResults": 1, "isLast": true, "values": [] }"""));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
+            .RespondWith(JiraResponse.Json(200,
+                """{ "startAt": 0, "maxResults": 1, "isLast": true, "values": [] }"""));
 
-        var probed = await HostProcess.RunAsync(
-            ["profile", "refresh", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
+        await _seam.RunAsync(["profile", "refresh", ProtocolSeam.Profile]);
 
-        probed.ExitCode.ShouldBe(0);
+        _seam.Jira.Reset();
 
-        _jira.Reset();
-
-        _client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor(
-                [
-                    "serve",
-                    "--profile",
-                    Profile,
-                    "--allow",
-                    "issues:write,comments:write,worklogs:write,links:write",
-                ]),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
+        _client = await _seam.ConnectAsync(
+            "issues:write,comments:write,worklogs:write,links:write");
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync();
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task Every_registered_tool_declares_an_output_schema()
@@ -194,7 +132,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     {
         // One Jira answering everything with a 403, so every tool fails the same way and the
         // sweep is about the envelope rather than about each tool's own path.
-        _jira.Given(Request.Create().WithPath("/*").UsingAnyMethod())
+        _seam.Jira.Given(Request.Create().WithPath("/*").UsingAnyMethod())
             .RespondWith(Response.Create().WithStatusCode(403)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""{ "errorMessages": ["You do not have permission"], "errors": {} }"""));
@@ -217,7 +155,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Every_registered_tool_carries_the_outcome_when_jira_cannot_be_reached()
     {
-        _jira.Stop();
+        _seam.Jira.Stop();
 
         var tools = await _client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
@@ -245,7 +183,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_search_carries_its_rows_and_its_position()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -288,7 +226,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_write_carries_the_identifiers_it_created()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
             .RespondWith(Response.Create().WithStatusCode(201)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""{ "id": "10412", "key": "PROJ-31" }"""));
@@ -304,7 +242,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_bulk_read_keeps_one_shape_whether_or_not_it_is_an_error()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -318,7 +256,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
                     }
                     """));
 
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-99").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-99").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(404)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""{ "errorMessages": ["Issue Does Not Exist"], "errors": {} }"""));
@@ -347,7 +285,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task The_create_screen_carries_the_field_ids_a_create_must_send()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/createmeta").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/createmeta").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -404,7 +342,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_project_listing_carries_the_keys_and_a_project_carries_its_names()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/project").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/project").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -423,7 +361,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
         row.GetProperty("key").GetString().ShouldBe("PROJ");
         row.GetProperty("name").GetString().ShouldBe("Platform");
 
-        _jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -438,19 +376,19 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
 
         // A project read is four calls: the project, its issue types' statuses, its components,
         // and its versions.
-        _jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ/components").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ/components").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""[{ "id": "100", "name": "api" }]"""));
 
-        _jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ/versions").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ/versions").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
                     [{ "id": "200", "name": "1.4.0", "released": true, "archived": false }]
                     """));
 
-        _jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ/statuses").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/project/PROJ/statuses").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -475,7 +413,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_board_listing_and_a_sprint_listing_carry_their_rows_and_no_total()
     {
-        _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -500,7 +438,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
         boards.TryGetProperty("total", out _).ShouldBeFalse();
         boards.TryGetProperty("nextStartAt", out _).ShouldBeFalse();
 
-        _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board/1/sprint").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/agile/1.0/board/1/sprint").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -533,7 +471,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_user_search_and_the_account_carry_usernames_and_no_personal_data()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -564,10 +502,10 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
         // Jira's user search reports no total, so nothing here claims one.
         users.TryGetProperty("total", out _).ShouldBeFalse();
 
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
-                .WithBody(MyselfPayload));
+                .WithBody(ProtocolSeam.MyselfPayload));
 
         var account = await CallAsync("jira_whoami");
 

@@ -4,7 +4,6 @@ using ModelContextProtocol.Protocol;
 using WireMock;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,69 +13,20 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
     private const string BaseJql = "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC";
 
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "emailAddress": "ada@example.com",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
+    private ProtocolSeam _seam = null!;
 
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
+        _seam = await ProtocolSeam.StartAsync();
 
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-
-        _client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
+        _client = await _seam.ConnectAsync();
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync();
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task The_client_sees_the_tool_as_read_only_with_no_required_parameters()
@@ -104,7 +54,7 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task With_no_project_the_query_is_the_bare_canned_jql()
     {
-        StubSearch(Json(SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));
+        StubSearch(JiraResponse.Json(200, SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));
 
         var text = await MyOpenIssuesAsync(new Dictionary<string, object?>());
 
@@ -117,7 +67,7 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task The_canned_jql_is_a_line_above_the_page_rather_than_a_wrapper_around_it()
     {
-        StubSearch(Json(SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));
+        StubSearch(JiraResponse.Json(200, SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));
 
         var result = await _client.CallToolAsync(
             "jira_my_open_issues",
@@ -143,7 +93,7 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_project_is_prefixed_onto_the_canned_jql()
     {
-        StubSearch(Json(SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));
+        StubSearch(JiraResponse.Json(200, SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));
 
         var expected = $"project = PROJ AND {BaseJql}";
 
@@ -167,13 +117,13 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
         result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem()
             .Text.ShouldContain("not a valid Jira project key");
 
-        _jira.LogEntries.ShouldBeEmpty();
+        _seam.Jira.LogEntries.ShouldBeEmpty();
     }
 
     [Fact]
     public async Task The_default_page_and_projection_match_search()
     {
-        StubSearch(Json(SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));
+        StubSearch(JiraResponse.Json(200, SearchPayload(total: 1, ("PROJ-12", "Login fails with a 401"))));
 
         await MyOpenIssuesAsync(new Dictionary<string, object?>());
 
@@ -188,7 +138,7 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_request_for_more_than_a_hundred_results_is_clamped_rather_than_rejected()
     {
-        StubSearch(Json(SearchPayload(total: 4_000, ("PROJ-12", "Login fails with a 401"))));
+        StubSearch(JiraResponse.Json(200, SearchPayload(total: 4_000, ("PROJ-12", "Login fails with a 401"))));
 
         await MyOpenIssuesAsync(new Dictionary<string, object?> { ["maxResults"] = 500 });
 
@@ -231,15 +181,10 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
            + ",\"issues\":[" + string.Join(",", rendered) + "]}";
     }
 
-    private static IResponseBuilder Json(string body) =>
-        Response.Create().WithStatusCode(200)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(body);
-
     private IRequestMessage SingleRequest() =>
-        _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
+        _seam.Jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
 
     private void StubSearch(IResponseBuilder response) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
             .RespondWith(response);
 }

@@ -2,7 +2,6 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -13,79 +12,18 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class WhoamiProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "self": "http://localhost/rest/api/2/user?username=ada",
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "emailAddress": "ada@example.com",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
+    private ProtocolSeam _seam = null!;
 
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
-        // The server is configured the way a user configures it: a registered profile and a
-        // stored credential, with no environment variable in sight.
-        await RegisterProfileAsync();
+        _seam = await ProtocolSeam.StartAsync();
 
-        _client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
+        _client = await _seam.ConnectAsync();
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync();
-        _jira.Stop();
-        _home.Dispose();
-    }
-
-    private async Task RegisterProfileAsync()
-    {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
-        added.ExitCode.ShouldBe(0);
-
-        // `auth login` validates the token before storing it, so Jira has to answer for the
-        // login itself. The stub and the request it logged are then cleared, leaving each test
-        // the empty slate it asserts against.
-        StubMyself(Response.Create().WithStatusCode(200)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task The_client_sees_jira_whoami_in_the_tool_list()
@@ -104,7 +42,7 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
     {
         StubMyself(Response.Create().WithStatusCode(200)
             .WithHeader("Content-Type", "application/json")
-            .WithBody(MyselfPayload));
+            .WithBody(ProtocolSeam.MyselfPayload));
 
         var result = await CallWhoamiAsync(TestContext.Current.CancellationToken);
 
@@ -124,18 +62,18 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
     {
         StubMyself(Response.Create().WithStatusCode(200)
             .WithHeader("Content-Type", "application/json")
-            .WithBody(MyselfPayload));
+            .WithBody(ProtocolSeam.MyselfPayload));
 
         await CallWhoamiAsync(TestContext.Current.CancellationToken);
 
-        var request = _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull()
+        var request = _seam.Jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull()
             .RequestMessage.ShouldNotBeNull();
 
         request.Method.ShouldBe("GET");
         request.Path.ShouldBe("/rest/api/2/myself");
         request.Headers.ShouldNotBeNull()["Authorization"]
             .ShouldHaveSingleItem()
-            .ShouldBe("Bearer " + Token);
+            .ShouldBe("Bearer " + ProtocolSeam.Token);
     }
 
     [Fact]
@@ -143,7 +81,7 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
     {
         StubMyself(Response.Create().WithStatusCode(200)
             .WithHeader("Content-Type", "application/json")
-            .WithBody(MyselfPayload)
+            .WithBody(ProtocolSeam.MyselfPayload)
             .WithDelay(TimeSpan.FromSeconds(10)));
 
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
@@ -187,7 +125,7 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
     [Fact]
     public async Task An_unreachable_jira_is_reported_as_unreachable()
     {
-        _jira.Stop();
+        _seam.Jira.Stop();
 
         var result = await CallWhoamiAsync(TestContext.Current.CancellationToken);
 
@@ -201,5 +139,5 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
         _client.CallToolAsync("jira_whoami", cancellationToken: cancellationToken);
 
     private void StubMyself(IResponseBuilder response) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet()).RespondWith(response);
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet()).RespondWith(response);
 }

@@ -1,8 +1,6 @@
-using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,19 +12,6 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class ProfileQueryProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
     private const string OnePage = """
         {
           "startAt": 0,
@@ -44,40 +29,11 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
         }
         """;
 
-    private readonly WireMockServer _jira = WireMockServer.Start();
+    private ProtocolSeam _seam = null!;
 
-    private readonly ConfigurationHome _home = new();
+    public async ValueTask InitializeAsync() => _seam = await ProtocolSeam.StartAsync();
 
-    public async ValueTask InitializeAsync()
-    {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(200, MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        _jira.Stop();
-        _home.Dispose();
-
-        return ValueTask.CompletedTask;
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task A_declared_query_is_listed_as_a_tool_carrying_the_operators_description()
@@ -86,7 +42,7 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
         (await AddQueryAsync("sprint_bugs", "type = Bug AND sprint in openSprints()",
             "This team's bugs in the current sprint.")).ExitCode.ShouldBe(0);
 
-        await using var client = await ServerAsync();
+        var client = await _seam.ConnectAsync();
 
         var tools = await client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
@@ -112,7 +68,7 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
             (await AddQueryAsync(name, $"labels = {name}", $"The {name} query.")).ExitCode.ShouldBe(0);
         }
 
-        await using var client = await ServerAsync();
+        var client = await _seam.ConnectAsync();
 
         var tools = (await client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken))
@@ -134,7 +90,7 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
         (await AddQueryAsync("sprint_bugs", "type = Bug AND sprint in openSprints()",
             "This team's bugs in the current sprint.")).ExitCode.ShouldBe(0);
 
-        await using var client = await ServerAsync();
+        var client = await _seam.ConnectAsync();
 
         var result = await client.CallToolAsync(
             "jira_q_sprint_bugs",
@@ -168,13 +124,13 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
 
         // The project is deleted after the query was declared, which is the case add-time checking
         // cannot catch and does not claim to.
-        _jira.Reset();
-        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
-            .RespondWith(Json(400, """
+        _seam.Jira.Reset();
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+            .RespondWith(JiraResponse.Json(400, """
                 {"errorMessages":["The value 'GONE' does not exist for the field 'project'."],"errors":{}}
                 """));
 
-        await using var client = await ServerAsync();
+        var client = await _seam.ConnectAsync();
 
         var result = await client.CallToolAsync(
             "jira_q_deleted_project",
@@ -192,8 +148,8 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Jql_jira_will_not_run_is_refused_when_it_is_declared()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
-            .RespondWith(Json(400, """
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+            .RespondWith(JiraResponse.Json(400, """
                 {"errorMessages":["Error in the JQL Query: Expecting operator but got 'bugs'."],"errors":{}}
                 """));
 
@@ -203,7 +159,7 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
         added.StandardError.ShouldContain("would not run that query");
 
         // Nothing was stored, so nothing is offered.
-        await using var client = await ServerAsync();
+        var client = await _seam.ConnectAsync();
 
         (await client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken))
             .Select(entry => entry.Name)
@@ -215,7 +171,7 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
     {
         // A laptop off the VPN, or an address that black-holes. The client gives up after its own
         // timeout, which arrives as a cancellation nobody asked for.
-        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody(OnePage)
@@ -239,7 +195,7 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
         added.StandardError.ShouldContain("every issue on the instance");
 
         // Refused before Jira was troubled with it, since Jira would have accepted it.
-        _jira.LogEntries.ShouldBeEmpty();
+        _seam.Jira.LogEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -265,29 +221,11 @@ public sealed class ProfileQueryProtocolTests : IAsyncLifetime
 
     private async Task<HostProcessResult> AddQueryAsync(string name, string jql, string description) =>
         await HostProcess.RunAsync(
-            ["profile", "query", "add", Profile, name, "--jql", jql, "--description", description],
+            ["profile", "query", "add", ProtocolSeam.Profile, name, "--jql", jql, "--description", description],
             TestContext.Current.CancellationToken,
-            _home.Environment);
+            _seam.Home.Environment);
 
     private void StubSearch() =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
-            .RespondWith(Json(200, OnePage));
-
-    private async Task<McpClient> ServerAsync() =>
-        await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
-
-    private static IResponseBuilder Json(int status, string payload) =>
-        Response.Create().WithStatusCode(status)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(payload);
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+            .RespondWith(JiraResponse.Json(200, OnePage));
 }

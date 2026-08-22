@@ -2,7 +2,6 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,75 +13,19 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
+    private ProtocolSeam _seam = null!;
 
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
+        _seam = await ProtocolSeam.StartAsync();
 
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(200, MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-
-        _client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor(
-                    "serve",
-                    "--profile",
-                    Profile,
-                    "--allow",
-                    "issues:write",
-                    "--allow",
-                    "comments:write",
-                    "--allow",
-                    "worklogs:write"),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
+        _client = await _seam.ConnectAsync(
+            "issues:write", "comments:write", "worklogs:write");
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync();
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task Every_write_that_takes_a_key_offers_it_and_no_other_write_does()
@@ -137,7 +80,7 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
         // The case the feature exists for. Jira drops the connection without answering, which is
         // what a timeout leaves behind too: the write may have committed, and nothing in the
         // answer says whether it did.
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
             .RespondWith(Response.Create().WithFault(FaultType.EMPTY_RESPONSE));
 
         var first = await CreateAsync("run-42-step-1");
@@ -147,7 +90,7 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
         var attempted = Posts("/rest/api/2/issue");
 
         // Jira is healthy again, so nothing but the record itself can stop a second write.
-        _jira.Reset();
+        _seam.Jira.Reset();
         StubCreate();
 
         var second = await CreateAsync("run-42-step-1");
@@ -164,14 +107,14 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_key_spent_on_a_create_jira_rejected_is_not_reusable_for_the_corrected_call()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
-            .RespondWith(Json(400, """{"errorMessages":[],"errors":{"summary":"is required"}}"""));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(JiraResponse.Json(400, """{"errorMessages":[],"errors":{"summary":"is required"}}"""));
 
         var first = await CreateAsync("run-42-step-1");
 
         first.IsError.ShouldBe(true);
 
-        _jira.Reset();
+        _seam.Jira.Reset();
         StubCreate();
 
         var second = await CreateAsync("run-42-step-1");
@@ -191,14 +134,14 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
         // A proxy in front of a Jira that has already committed the create answers 502, and from
         // here that is indistinguishable from a refusal. Recording it as one would send the next
         // call away to write again under a new key — the duplicate this feature exists to prevent.
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
-            .RespondWith(Json(502, """{"errorMessages":["Bad gateway"],"errors":{}}"""));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(JiraResponse.Json(502, """{"errorMessages":["Bad gateway"],"errors":{}}"""));
 
         var first = await CreateAsync("run-42-step-1");
 
         first.IsError.ShouldBe(true);
 
-        _jira.Reset();
+        _seam.Jira.Reset();
         StubCreate();
 
         var second = await CreateAsync("run-42-step-1");
@@ -213,8 +156,8 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_replay_carries_the_identifiers_the_first_answer_carried()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
-            .RespondWith(Json(201, """{ "id": "10200", "created": "2026-08-18T09:00:00.000+0200" }"""));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
+            .RespondWith(JiraResponse.Json(201, """{ "id": "10200", "created": "2026-08-18T09:00:00.000+0200" }"""));
 
         var first = await CommentAsync("run-42-step-2");
         var second = await CommentAsync("run-42-step-2");
@@ -251,8 +194,8 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
     {
         StubCreate();
 
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
-            .RespondWith(Json(201, """{ "id": "10200", "created": "2026-08-18T09:00:00.000+0200" }"""));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
+            .RespondWith(JiraResponse.Json(201, """{ "id": "10200", "created": "2026-08-18T09:00:00.000+0200" }"""));
 
         var created = await CreateAsync("step-1");
 
@@ -323,7 +266,7 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
         result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
 
     private int Posts(string path) =>
-        _jira.LogEntries
+        _seam.Jira.LogEntries
             .Select(entry => entry.RequestMessage)
             .OfType<WireMock.IRequestMessage>()
             .Count(request =>
@@ -331,11 +274,6 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
                 && request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase));
 
     private void StubCreate() =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
-            .RespondWith(Json(201, """{ "id": "10500", "key": "PROJ-42" }"""));
-
-    private static IResponseBuilder Json(int status, string payload) =>
-        Response.Create().WithStatusCode(status)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(payload);
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(JiraResponse.Json(201, """{ "id": "10500", "key": "PROJ-42" }"""));
 }

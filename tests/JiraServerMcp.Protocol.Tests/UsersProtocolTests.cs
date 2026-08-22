@@ -4,7 +4,6 @@ using ModelContextProtocol.Protocol;
 using WireMock;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,66 +13,18 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class UsersProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
+    private ProtocolSeam _seam = null!;
 
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
+        _seam = await ProtocolSeam.StartAsync();
 
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-
-        _client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
+        _client = await _seam.ConnectAsync();
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync();
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task The_client_sees_jira_search_users_as_a_read_only_tool_taking_a_query()
@@ -112,8 +63,8 @@ public sealed class UsersProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_search_never_hands_back_a_cloud_account_identifier()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
-            .RespondWith(Json("""
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
+            .RespondWith(JiraResponse.Json(200, """
                 [
                   {
                     "key": "JIRAUSER10100",
@@ -143,7 +94,7 @@ public sealed class UsersProtocolTests : IAsyncLifetime
         excluded.ShouldContain("Inactive users were excluded");
         excluded.ShouldContain("includeInactive");
 
-        _jira.Reset();
+        _seam.Jira.Reset();
         StubUsers(("jbloggs", "Joe Bloggs", "jbloggs@example.com", false));
 
         var included = await SearchAsync(new Dictionary<string, object?>
@@ -205,7 +156,7 @@ public sealed class UsersProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_search_jira_refuses_comes_back_as_an_error_carrying_jiras_own_wording()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(403)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -236,8 +187,8 @@ public sealed class UsersProtocolTests : IAsyncLifetime
     }
 
     private void StubUsers(params (string Name, string DisplayName, string Email, bool Active)[] users) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
-            .RespondWith(Json(JsonSerializer.Serialize(users.Select(user => new
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
+            .RespondWith(JiraResponse.Json(200, JsonSerializer.Serialize(users.Select(user => new
             {
                 key = $"JIRAUSER{user.Name.GetHashCode(StringComparison.Ordinal)}",
                 name = user.Name,
@@ -246,11 +197,6 @@ public sealed class UsersProtocolTests : IAsyncLifetime
                 active = user.Active,
             }))));
 
-    private static IResponseBuilder Json(string body) =>
-        Response.Create().WithStatusCode(200)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(body);
-
     private IRequestMessage SingleRequest() =>
-        _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
+        _seam.Jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
 }

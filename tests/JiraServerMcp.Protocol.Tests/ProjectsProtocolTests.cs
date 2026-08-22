@@ -4,7 +4,6 @@ using ModelContextProtocol.Protocol;
 using WireMock;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,19 +13,6 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class ProjectsProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
     private const string ProjectPayload = """
         {
           "id": "10000",
@@ -102,53 +88,18 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
         }
         """;
 
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
+    private ProtocolSeam _seam = null!;
 
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
+        _seam = await ProtocolSeam.StartAsync();
 
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-
-        _client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
+        _client = await _seam.ConnectAsync();
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync();
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task The_client_sees_the_three_project_tools_as_read_only()
@@ -371,7 +322,7 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_project_jira_refuses_comes_back_as_an_error_carrying_jiras_own_wording()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/project/SECRET").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/project/SECRET").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(404)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""
@@ -398,7 +349,7 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Create_metadata_jira_answers_with_a_404_never_asks_for_an_issue_key()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/createmeta").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/createmeta").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(404)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""{"errorMessages":[],"errors":{}}"""));
@@ -530,18 +481,13 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
     }
 
     private void Stub(string path, string payload) =>
-        _jira.Given(Request.Create().WithPath(path).UsingGet()).RespondWith(Json(payload));
-
-    private static IResponseBuilder Json(string body) =>
-        Response.Create().WithStatusCode(200)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(body);
+        _seam.Jira.Given(Request.Create().WithPath(path).UsingGet()).RespondWith(JiraResponse.Json(200, payload));
 
     private IRequestMessage SingleRequest() =>
-        _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
+        _seam.Jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
 
     private string[] Paths() =>
     [
-        .. _jira.LogEntries.Select(entry => entry.RequestMessage?.Path).OfType<string>(),
+        .. _seam.Jira.LogEntries.Select(entry => entry.RequestMessage?.Path).OfType<string>(),
     ];
 }

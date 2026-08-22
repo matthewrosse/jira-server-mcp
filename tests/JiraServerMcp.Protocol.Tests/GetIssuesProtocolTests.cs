@@ -4,7 +4,6 @@ using WireMock;
 using WireMock.Matchers;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -15,66 +14,18 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class GetIssuesProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
+    private ProtocolSeam _seam = null!;
 
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
+        _seam = await ProtocolSeam.StartAsync();
 
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-
-        _client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
+        _client = await _seam.ConnectAsync();
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync();
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task The_client_sees_jira_get_issues_as_a_read_only_tool_taking_an_array_of_keys()
@@ -102,7 +53,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_single_key_read_with_no_expansions_returns_only_the_default_projection()
     {
-        StubIssue("PROJ-12", Json(IssuePayload()));
+        StubIssue("PROJ-12", JiraResponse.Json(200, IssuePayload()));
 
         var text = await GetIssuesAsync(Keys("PROJ-12"));
 
@@ -128,12 +79,12 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
     {
         StubIssue(
             "PROJ-12",
-            Json(IssuePayload("comments", "transitions", "changelog", "links", "worklogs")));
+            JiraResponse.Json(200, IssuePayload("comments", "transitions", "changelog", "links", "worklogs")));
 
         // Remote links are not a field on the issue, so the links expansion alone reaches past
         // the one GET the other four ride on.
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
-            .RespondWith(Json("[]"));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
+            .RespondWith(JiraResponse.Json(200, "[]"));
 
         var text = await GetIssuesAsync(new Dictionary<string, object?>
         {
@@ -141,7 +92,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
             ["include"] = new[] { "comments", "transitions", "changelog", "links", "worklogs" },
         });
 
-        _jira.LogEntries.Count.ShouldBe(2);
+        _seam.Jira.LogEntries.Count.ShouldBe(2);
 
         text.ShouldContain("comments");
         text.ShouldContain("transitions");
@@ -149,7 +100,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
         text.ShouldContain("links");
         text.ShouldContain("worklogs");
 
-        var query = _jira.LogEntries
+        var query = _seam.Jira.LogEntries
             .Select(entry => entry.RequestMessage)
             .OfType<IRequestMessage>()
             .Single(request => request.Path is "/rest/api/2/issue/PROJ-12")
@@ -161,12 +112,12 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Several_keys_are_fetched_in_one_call_and_all_render_in_caller_order()
     {
-        StubIssue("PROJ-1", Json(IssuePayloadFor("PROJ-1")));
-        StubIssue("PROJ-2", Json(IssuePayloadFor("PROJ-2")));
+        StubIssue("PROJ-1", JiraResponse.Json(200, IssuePayloadFor("PROJ-1")));
+        StubIssue("PROJ-2", JiraResponse.Json(200, IssuePayloadFor("PROJ-2")));
 
         var text = await GetIssuesAsync(Keys("PROJ-2", "PROJ-1"));
 
-        _jira.LogEntries.Count.ShouldBe(2);
+        _seam.Jira.LogEntries.Count.ShouldBe(2);
         text.ShouldContain("2 issues asked for, 2 returned");
         text.IndexOf("PROJ-2", StringComparison.Ordinal)
             .ShouldBeLessThan(text.IndexOf("PROJ-1", StringComparison.Ordinal));
@@ -175,7 +126,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_bad_key_among_good_ones_fails_alone_and_the_call_still_succeeds()
     {
-        StubIssue("PROJ-1", Json(IssuePayloadFor("PROJ-1")));
+        StubIssue("PROJ-1", JiraResponse.Json(200, IssuePayloadFor("PROJ-1")));
         StubIssue(
             "PROJ-404",
             Response.Create().WithStatusCode(404)
@@ -228,7 +179,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
         TextOf(result).ShouldContain("20");
 
         // Refused before Jira was troubled with it.
-        _jira.LogEntries.Count.ShouldBe(0);
+        _seam.Jira.LogEntries.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -243,7 +194,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
         result.IsError.ShouldBe(true);
         TextOf(result).ShouldContain("null");
 
-        _jira.LogEntries.Count.ShouldBe(0);
+        _seam.Jira.LogEntries.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -261,7 +212,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Jira_authored_text_arrives_delimited_and_marked_as_data()
     {
-        StubIssue("PROJ-12", Json(IssuePayload("comments")));
+        StubIssue("PROJ-12", JiraResponse.Json(200, IssuePayload("comments")));
 
         var text = await GetIssuesAsync(new Dictionary<string, object?>
         {
@@ -294,13 +245,13 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
         text.ShouldContain("comments");
 
         // Refused before Jira was troubled with it.
-        _jira.LogEntries.Count.ShouldBe(0);
+        _seam.Jira.LogEntries.Count.ShouldBe(0);
     }
 
     [Fact]
     public async Task A_widened_projection_is_added_to_the_default_one()
     {
-        StubIssue("PROJ-12", Json(IssuePayload()));
+        StubIssue("PROJ-12", JiraResponse.Json(200, IssuePayload()));
 
         await GetIssuesAsync(new Dictionary<string, object?>
         {
@@ -317,11 +268,11 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Duplicate_keys_are_deduplicated_and_fetched_once()
     {
-        StubIssue("PROJ-12", Json(IssuePayload()));
+        StubIssue("PROJ-12", JiraResponse.Json(200, IssuePayload()));
 
         await GetIssuesAsync(Keys("PROJ-12", "PROJ-12"));
 
-        _jira.LogEntries.Count.ShouldBe(1);
+        _seam.Jira.LogEntries.Count.ShouldBe(1);
     }
 
     private static Dictionary<string, object?> Keys(params string[] keys) =>
@@ -453,16 +404,11 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
             """;
     }
 
-    private static IResponseBuilder Json(string body) =>
-        Response.Create().WithStatusCode(200)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(body);
-
     private IRequestMessage SingleRequest() =>
-        _jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
+        _seam.Jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();
 
     private void StubIssue(string key, IResponseBuilder response) =>
-        _jira.Given(Request.Create()
+        _seam.Jira.Given(Request.Create()
                 .WithPath(new WildcardMatcher($"/rest/api/2/issue/{key}")).UsingGet())
             .RespondWith(response);
 }

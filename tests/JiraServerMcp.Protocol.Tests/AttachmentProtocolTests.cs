@@ -2,7 +2,6 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -13,66 +12,18 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class AttachmentProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
+    private ProtocolSeam _seam = null!;
 
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
+        _seam = await ProtocolSeam.StartAsync();
 
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-
-        _client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor("serve", "--profile", Profile),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
+        _client = await _seam.ConnectAsync();
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync();
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task The_client_sees_a_read_only_tool_taking_an_identifier_and_an_offset()
@@ -191,7 +142,7 @@ public sealed class AttachmentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_jira_that_refuses_the_attachment_says_so_and_decodes_nothing()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/attachment/10100").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/attachment/10100").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(403)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""{"errorMessages":["You do not have permission"],"errors":{}}"""));
@@ -212,8 +163,8 @@ public sealed class AttachmentProtocolTests : IAsyncLifetime
     [Fact]
     public async Task The_attachments_expansion_names_the_file_and_the_identifier_to_read_it_by()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12").UsingGet())
-            .RespondWith(Json($$"""
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12").UsingGet())
+            .RespondWith(JiraResponse.Json(200, $$"""
                 {
                   "key": "PROJ-12",
                   "fields": {
@@ -224,7 +175,7 @@ public sealed class AttachmentProtocolTests : IAsyncLifetime
                         "filename": "notes.txt",
                         "size": 26,
                         "mimeType": "text/plain",
-                        "content": "{{_jira.Url}}/secure/attachment/10100/notes.txt"
+                        "content": "{{_seam.Jira.Url}}/secure/attachment/10100/notes.txt"
                       }
                     ]
                   }
@@ -248,7 +199,7 @@ public sealed class AttachmentProtocolTests : IAsyncLifetime
 
         // The expansion lists; it never reads. One issue read must not drag a megabyte of log
         // into the response because the ticket happens to carry one.
-        _jira.LogEntries.Count.ShouldBe(1);
+        _seam.Jira.LogEntries.Count.ShouldBe(1);
     }
 
     private async Task<CallToolResult> GetAttachmentAsync()
@@ -267,25 +218,20 @@ public sealed class AttachmentProtocolTests : IAsyncLifetime
         result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
 
     private void StubAttachment(long size, string mimeType) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/attachment/10100").UsingGet())
-            .RespondWith(Json($$"""
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/attachment/10100").UsingGet())
+            .RespondWith(JiraResponse.Json(200, $$"""
                 {
                   "id": 10100,
                   "filename": "notes.txt",
                   "size": {{size}},
                   "mimeType": "{{mimeType}}",
-                  "content": "{{_jira.Url}}/secure/attachment/10100/notes.txt"
+                  "content": "{{_seam.Jira.Url}}/secure/attachment/10100/notes.txt"
                 }
                 """));
 
     private void StubContent(byte[] body) =>
-        _jira.Given(Request.Create().WithPath("/secure/attachment/10100/notes.txt").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/secure/attachment/10100/notes.txt").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/octet-stream")
                 .WithBody(body));
-
-    private static IResponseBuilder Json(string payload) =>
-        Response.Create().WithStatusCode(200)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(payload);
 }
