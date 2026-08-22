@@ -55,6 +55,12 @@ internal sealed class VerbSeam : IDisposable
     /// the login itself. The stub is left standing rather than reset: the next <c>auth status</c>
     /// asks again, and a test's own stubs have to survive the login that reads them.
     /// </summary>
+    /// <remarks>
+    /// It answers any bearer with the whole account, which is what a test wanting only a stored
+    /// credential wants. A test that cares which token reached Jira, or what the account said,
+    /// stages its own answer <em>after</em> this step: WireMock takes the last mapping registered
+    /// when two score alike, so one staged before the login is the one that gets replaced.
+    /// </remarks>
     public async Task LoginAsync(string name = "work", string? token = null)
     {
         Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())

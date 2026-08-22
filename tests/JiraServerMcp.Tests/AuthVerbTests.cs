@@ -71,6 +71,12 @@ public sealed class AuthVerbTests : IDisposable
         await _seam.AddProfileAsync();
         await _seam.LoginAsync();
 
+        // The stored credential is what `auth status` has to present, so the seam's login stub —
+        // which answers any bearer — is replaced by one that answers only the right one. A status
+        // that read the wrong token, or none, gets a 404 here rather than a passing test.
+        _seam.Jira.Reset();
+        GivenTheTokenIsAccepted();
+
         var result = await _seam.RunAsync(["auth", "status", "work"]);
 
         result.ExitCode.ShouldBe(0);

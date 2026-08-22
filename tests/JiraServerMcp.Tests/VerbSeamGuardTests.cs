@@ -20,7 +20,7 @@ public class VerbSeamGuardTests
     [Fact]
     public void No_verb_test_stages_the_seam_by_hand()
     {
-        foreach (var (file, text) in FilesIn("JiraServerMcp.Tests"))
+        foreach (var (file, text) in FilesIn("JiraServerMcp.Tests").Concat(FilesIn("Shared")))
         {
             // The fixture is where the call moved to, not a file exempted from the rule. No test
             // is on an allow-list here: a verb test with no double at all and one whose Jira is a
@@ -47,9 +47,9 @@ public class VerbSeamGuardTests
     [Fact]
     public void No_test_retypes_the_account_payload()
     {
-        var projects = new[] { "JiraServerMcp.Tests", "JiraServerMcp.Protocol.Tests" };
+        var scanned = new[] { "JiraServerMcp.Tests", "JiraServerMcp.Protocol.Tests", "Shared" };
 
-        foreach (var (file, text) in projects.SelectMany(FilesIn))
+        foreach (var (file, text) in scanned.SelectMany(FilesIn))
         {
             if (!text.Contains(AccountStub))
             {
@@ -63,10 +63,16 @@ public class VerbSeamGuardTests
         }
     }
 
-    private static IEnumerable<(FileInfo File, string Text)> FilesIn(string project)
+    /// <summary>
+    /// <c>tests/Shared</c> is swept alongside each project because it is compiled into all of
+    /// them: a helper that started a double, or spelled the account, would be invisible to a guard
+    /// that only read the project directory — and this is the directory the payload was just
+    /// moved to.
+    /// </summary>
+    private static IEnumerable<(FileInfo File, string Text)> FilesIn(string directoryName)
     {
         var directory = new DirectoryInfo(
-            Path.Combine(RepositoryRoot.Find().FullName, "tests", project));
+            Path.Combine(RepositoryRoot.Find().FullName, "tests", directoryName));
 
         return directory.GetFiles("*.cs")
             .Select(file => (file, File.ReadAllText(file.FullName)));

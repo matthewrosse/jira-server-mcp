@@ -85,8 +85,9 @@ writes to standard error and returns nothing a caller could inspect. See ADR-000
 varies here is the ladder itself — unregistered, registered, logged in — so a verb that is the
 subject of a test is spelled out, and a verb that is only staging is not. The staging it
 takes — the double, a registered profile, a stored token — lives in the `VerbSeam` fixture, and a
-test in that project fails if a file stages it by hand or retypes the account payload the fixture
-answers with.
+test in that project fails if a file stages it by hand. The account payload it answers with lives
+in `tests/Shared`, guarded across both seams' projects at once, because the shape of Jira's user
+resource is one fact and the fields nothing asserts on are the ones that drift.
 _Avoid_: command, CLI test — the first already names the System.CommandLine symbol.
 
 **Expansion** — an optional extra section of an issue read: comments, transitions, changelog,
