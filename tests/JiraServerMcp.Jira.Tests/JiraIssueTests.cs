@@ -361,6 +361,13 @@ public sealed class JiraIssueTests : IDisposable
         exception.Endpoint.ShouldContain("/rest/api/2/issue/");
     }
 
+    /// <summary>
+    /// The collection fields the host names, spelled out here so this suite proves what the
+    /// reader does with the list rather than where the list comes from.
+    /// </summary>
+    private static readonly string[] _collectionFields =
+        ["comment", "issuelinks", "worklog", "attachment"];
+
     private Task<Models.JiraIssueDetail> GetIssueAsync(
         string key,
         IReadOnlyList<string> fields,
@@ -368,9 +375,7 @@ public sealed class JiraIssueTests : IDisposable
         bool remoteLinks = false) =>
         CreateClient().GetIssueAsync(
             key,
-            fields,
-            expand ?? [],
-            remoteLinks,
+            new Models.IssueRead(fields, expand ?? [], _collectionFields, remoteLinks),
             TestContext.Current.CancellationToken);
 
     private static IResponseBuilder Json(string body) =>

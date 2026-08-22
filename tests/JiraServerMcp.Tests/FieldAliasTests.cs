@@ -119,7 +119,7 @@ public class FieldAliasTests
             ["comment"] = "customfield_10050",
         });
 
-        var fields = Expansions.Fields([Expansion.Comments], widen: null, aliases);
+        var fields = Expansions.Read([Expansion.Comments], widen: null, aliases).Fields;
 
         fields.ShouldContain("comment");
         fields.ShouldNotContain("customfield_10050");

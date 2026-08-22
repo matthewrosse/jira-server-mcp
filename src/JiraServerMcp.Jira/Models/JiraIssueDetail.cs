@@ -9,7 +9,7 @@ namespace JiraServerMcp.Jira.Models;
 /// </summary>
 /// <param name="Key">The issue key, as Jira spells it.</param>
 /// <param name="Fields">
-/// The field projection, minus the three collection fields that became sections of their own.
+/// The field projection, minus the collection fields that became sections of their own.
 /// Still JSON, because the projection is open to any custom field.
 /// </param>
 /// <param name="Transitions">What this account can move the issue to, empty unless expanded.</param>

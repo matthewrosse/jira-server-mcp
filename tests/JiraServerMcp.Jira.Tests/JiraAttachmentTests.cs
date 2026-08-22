@@ -212,9 +212,7 @@ public sealed class JiraAttachmentTests : IDisposable
 
         var issue = await CreateClient().GetIssueAsync(
             "PROJ-12",
-            ["attachment"],
-            [],
-            remoteLinks: false,
+            new IssueRead(["attachment"], [], ["attachment"], RemoteLinks: false),
             TestContext.Current.CancellationToken);
 
         var attachment = issue.Attachments.ShouldHaveSingleItem();

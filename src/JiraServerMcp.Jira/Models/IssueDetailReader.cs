@@ -11,13 +11,13 @@ namespace JiraServerMcp.Jira.Models;
 internal static class IssueDetailReader
 {
     /// <summary>
-    /// The projected fields Jira answers with as a collection rather than a value. Each becomes a
-    /// section, and none is left in the projection, where it would render as a JSON blob.
+    /// Reads one issue. <paramref name="collectionFields"/> names the projected fields Jira
+    /// answers with as a collection rather than a value: each becomes a section, and none is left
+    /// in the projection, where it would render as a JSON blob. The caller names them because the
+    /// caller is what decides which sections may be asked for; a copy kept here would be the same
+    /// strings on both sides of the edge, free to drift apart.
     /// </summary>
-    private static readonly string[] _collectionFields =
-        ["comment", "issuelinks", "worklog", "attachment"];
-
-    public static JiraIssueDetail Read(JsonElement root)
+    public static JiraIssueDetail Read(JsonElement root, IReadOnlyList<string> collectionFields)
     {
         var fields = root.TryGetProperty("fields", out var element)
                      && element.ValueKind is JsonValueKind.Object
@@ -26,7 +26,7 @@ internal static class IssueDetailReader
 
         return new JiraIssueDetail(
             Key: root.TryGetProperty("key", out var key) ? key.GetString() ?? "" : "",
-            Fields: Projection(fields),
+            Fields: Projection(fields, collectionFields),
             Transitions: Transitions(root),
             Changelog: Changelog(root),
             Comments: Comments(fields),
@@ -36,7 +36,9 @@ internal static class IssueDetailReader
             Attachments: Attachments(fields));
     }
 
-    private static IReadOnlyDictionary<string, JsonElement> Projection(JsonElement fields)
+    private static IReadOnlyDictionary<string, JsonElement> Projection(
+        JsonElement fields,
+        IReadOnlyList<string> collectionFields)
     {
         var projection = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
 
@@ -47,7 +49,7 @@ internal static class IssueDetailReader
 
         foreach (var field in fields.EnumerateObject())
         {
-            if (!_collectionFields.Contains(field.Name, StringComparer.Ordinal))
+            if (!collectionFields.Contains(field.Name, StringComparer.Ordinal))
             {
                 // The document this came from is disposed before the caller reads it.
                 projection[field.Name] = field.Value.Clone();

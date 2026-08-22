@@ -38,23 +38,22 @@ public sealed partial class JiraClient
     }
 
     /// <summary>
-    /// One issue, carrying the fields asked for and the sections named in <paramref name="expand"/>.
-    /// Both are named by the caller and sent in a single request, because Jira's expand mechanism
-    /// covers every section this client needs and a second round trip buys nothing.
+    /// One issue, carrying whatever <paramref name="read"/> asks for. The projection and the
+    /// expand parameter travel in a single request, because Jira's expand mechanism covers every
+    /// section that is a field on the issue and a second round trip buys nothing; only the remote
+    /// links, which are not a field, cost one.
     /// </summary>
     public async Task<JiraIssueDetail> GetIssueAsync(
         string key,
-        IReadOnlyList<string> fields,
-        IReadOnlyList<string> expand,
-        bool remoteLinks,
+        IssueRead read,
         CancellationToken cancellationToken)
     {
         var query = $"rest/api/2/issue/{Uri.EscapeDataString(key)}"
-                    + $"?fields={Uri.EscapeDataString(string.Join(",", fields))}";
+                    + $"?fields={Uri.EscapeDataString(string.Join(",", read.Fields))}";
 
-        if (expand.Count > 0)
+        if (read.Expand.Count > 0)
         {
-            query += $"&expand={Uri.EscapeDataString(string.Join(",", expand))}";
+            query += $"&expand={Uri.EscapeDataString(string.Join(",", read.Expand))}";
         }
 
         using var response = await httpClient
@@ -69,9 +68,9 @@ public sealed partial class JiraClient
                              ?? throw new InvalidOperationException(
                                  $"Jira returned an empty body for issue {key}.");
 
-        var issue = IssueDetailReader.Read(document.RootElement);
+        var issue = IssueDetailReader.Read(document.RootElement, read.CollectionFields);
 
-        return remoteLinks
+        return read.RemoteLinks
             ? issue with { RemoteLinks = await RemoteLinksAsync(key, cancellationToken) }
             : issue;
     }
@@ -138,9 +137,7 @@ public sealed partial class JiraClient
     /// </remarks>
     public async Task<IReadOnlyList<BulkIssueResult>> GetIssuesAsync(
         IReadOnlyList<string> keys,
-        IReadOnlyList<string> fields,
-        IReadOnlyList<string> expand,
-        bool remoteLinks,
+        IssueRead read,
         CancellationToken cancellationToken)
     {
         using var gate = new SemaphoreSlim(BulkConcurrency);
@@ -151,7 +148,7 @@ public sealed partial class JiraClient
 
             try
             {
-                var issue = await GetIssueAsync(key, fields, expand, remoteLinks, cancellationToken)
+                var issue = await GetIssueAsync(key, read, cancellationToken)
                     .ConfigureAwait(false);
 
                 return new BulkIssueResult(key, issue, null);
