@@ -1,11 +1,8 @@
 using System.Net;
 using JiraServerMcp.Credentials;
-using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace JiraServerMcp.Cli;
 
@@ -41,6 +38,7 @@ internal static class AuthVerbs
             token,
             failure => $"{profile.BaseUrl} did not accept that personal access token. "
                        + $"{failure.Message} Nothing was stored.",
+            ", so the token could not be checked and was not stored",
             cancellationToken);
 
         if (user is null)
@@ -110,6 +108,9 @@ internal static class AuthVerbs
                 ? $"Credentials for profile '{profileName}' are invalid or revoked. Run "
                   + $"'jira-server-mcp auth login {profileName}'."
                 : $"{profile.BaseUrl} refused the stored personal access token. {failure.Message}",
+            // Nothing is being written here, so the login's "and was not stored" would read as if
+            // the stored token had just been thrown away.
+            ", so the stored token could not be checked",
             cancellationToken);
 
         if (user is null)
@@ -206,35 +207,18 @@ internal static class AuthVerbs
     /// The Jira account a token belongs to, or null having already said on standard error why
     /// there is none.
     /// </summary>
-    private static async Task<JiraUser?> ResolveAsync(
+    private static Task<JiraUser?> ResolveAsync(
         Profile profile,
         string token,
         Func<JiraApiException, string> describeRejection,
-        CancellationToken cancellationToken)
-    {
-        var services = new ServiceCollection();
-
-        services.AddSingleton(Options.Create(ConnectedProfile.OptionsFor(profile, token)));
-        services.AddJiraClient();
-
-        await using var provider = services.BuildServiceProvider();
-
-        try
-        {
-            return await provider.GetRequiredService<JiraClient>().GetMyselfAsync(cancellationToken);
-        }
-        catch (JiraApiException failure)
-        {
-            await Console.Error.WriteLineAsync(describeRejection(failure));
-
-            return null;
-        }
-        catch (HttpRequestException failure)
-        {
-            await Console.Error.WriteLineAsync(
-                $"{profile.BaseUrl} could not be reached: {failure.Message}");
-
-            return null;
-        }
-    }
+        string whenTimedOut,
+        CancellationToken cancellationToken) =>
+        ConnectedProfile.RunAsync(
+            profile,
+            token,
+            describeRejection,
+            whenUnreachable: string.Empty,
+            whenTimedOut,
+            client => client.GetMyselfAsync(cancellationToken),
+            cancellationToken);
 }

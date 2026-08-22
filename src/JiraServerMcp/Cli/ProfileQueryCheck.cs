@@ -1,9 +1,5 @@
-using JiraServerMcp.Jira;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace JiraServerMcp.Cli;
 
@@ -20,48 +16,20 @@ internal static class ProfileQueryCheck
         string jql,
         CancellationToken cancellationToken)
     {
-        var services = new ServiceCollection();
+        const string notChecked = ", so the query was not checked and not stored";
 
-        services.AddSingleton(Options.Create(ConnectedProfile.OptionsFor(profile, token)));
-        services.AddJiraClient();
-
-        await using var provider = services.BuildServiceProvider();
-
-        try
-        {
+        var page = await ConnectedProfile.RunAsync(
+            profile,
+            token,
+            failure => $"{profile.BaseUrl} would not run that query, so it was not stored. "
+                       + $"{failure.Message}",
+            whenUnreachable: notChecked,
+            whenTimedOut: notChecked,
             // The smallest page Jira will serve: what is being checked is whether the query parses
             // and resolves, not what it currently matches.
-            await provider.GetRequiredService<JiraClient>()
-                .SearchAsync(jql, 0, 1, FieldProjection.Default, cancellationToken);
+            client => client.SearchAsync(jql, 0, 1, FieldProjection.Default, cancellationToken),
+            cancellationToken);
 
-            return true;
-        }
-        catch (JiraApiException failure)
-        {
-            await Console.Error.WriteLineAsync(
-                $"{profile.BaseUrl} would not run that query, so it was not stored. "
-                + $"{failure.Message}");
-
-            return false;
-        }
-        catch (HttpRequestException failure)
-        {
-            await Console.Error.WriteLineAsync(
-                $"{profile.BaseUrl} could not be reached, so the query was not checked and not "
-                + $"stored: {failure.Message}");
-
-            return false;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // The client's own timeout, which arrives as a cancellation nobody asked for. A Jira
-            // that hangs — a laptop off the VPN, an address that black-holes — is a query that was
-            // not checked, not a crash in front of the operator.
-            await Console.Error.WriteLineAsync(
-                $"{profile.BaseUrl} did not answer in time, so the query was not checked and not "
-                + "stored.");
-
-            return false;
-        }
+        return page is not null;
     }
 }

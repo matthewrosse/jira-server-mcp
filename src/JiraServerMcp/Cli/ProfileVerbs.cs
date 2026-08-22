@@ -178,14 +178,8 @@ internal static class ProfileVerbs
     /// `profile alias set`. Declaring the same alias twice replaces it: an operator correcting a
     /// field identifier should not have to remove the alias first.
     /// </summary>
-    public static async Task<int> SetAliasAsync(
-        string name,
-        string alias,
-        string field,
-        CancellationToken cancellationToken)
+    public static async Task<int> SetAliasAsync(string name, string alias, string field)
     {
-        _ = cancellationToken;
-
         if (await ProfileResolution.FindAsync(name) is not { } profile)
         {
             return 1;
@@ -226,10 +220,8 @@ internal static class ProfileVerbs
     }
 
     /// <summary>`profile alias list`.</summary>
-    public static async Task<int> ListAliasesAsync(string name, CancellationToken cancellationToken)
+    public static async Task<int> ListAliasesAsync(string name)
     {
-        _ = cancellationToken;
-
         if (await ProfileResolution.FindAsync(name) is not { } profile)
         {
             return 1;
@@ -255,13 +247,8 @@ internal static class ProfileVerbs
     }
 
     /// <summary>`profile alias remove`.</summary>
-    public static async Task<int> RemoveAliasAsync(
-        string name,
-        string alias,
-        CancellationToken cancellationToken)
+    public static async Task<int> RemoveAliasAsync(string name, string alias)
     {
-        _ = cancellationToken;
-
         if (await ProfileResolution.FindAsync(name) is not { } profile)
         {
             return 1;
@@ -398,10 +385,8 @@ internal static class ProfileVerbs
     }
 
     /// <summary>`profile query list`.</summary>
-    public static async Task<int> ListQueriesAsync(string name, CancellationToken cancellationToken)
+    public static async Task<int> ListQueriesAsync(string name)
     {
-        _ = cancellationToken;
-
         if (await ProfileResolution.FindAsync(name) is not { } profile)
         {
             return 1;
@@ -427,13 +412,8 @@ internal static class ProfileVerbs
     }
 
     /// <summary>`profile query remove`.</summary>
-    public static async Task<int> RemoveQueryAsync(
-        string name,
-        string queryName,
-        CancellationToken cancellationToken)
+    public static async Task<int> RemoveQueryAsync(string name, string queryName)
     {
-        _ = cancellationToken;
-
         if (await ProfileResolution.FindAsync(name) is not { } profile)
         {
             return 1;

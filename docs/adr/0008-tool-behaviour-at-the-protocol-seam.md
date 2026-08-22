@@ -44,6 +44,14 @@ Tests are placed by seam, not by cost or by risk:
    `WorklogInput`, `ToolCall`, `JiraToolError`, profile and credential stores — is tested in
    `JiraServerMcp.Tests`, where it lives.
 
+4. **The verb seam** — what an operator observes from running a verb: what is printed, and the
+   exit code — is proven in `JiraServerMcp.Tests`, over the CLI as a separate process against
+   WireMock. *(Added 2026-08-22.)* Clause 3 shares that project, so the two are distinguished by
+   staging rather than by location: clause 3 calls a type, clause 4 starts `jira-server-mcp`.
+   The CLI's own failure ladder — `Cli/ConnectedProfile.RunAsync` — is deliberately not proven by
+   calling `RunAsync` directly: it writes to standard error and returns null, so what it does is
+   only observable where an operator observes it.
+
 Clause 3 is what makes the rule productive rather than restrictive: branch-heavy logic inside a
 tool is a signal to extract a pure helper and test it directly, not a reason to reach below the
 protocol seam with a handler double. The tool's use of that helper is then proven once at the

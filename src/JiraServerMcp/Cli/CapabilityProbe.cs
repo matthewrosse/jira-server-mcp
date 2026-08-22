@@ -1,9 +1,5 @@
-using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Capabilities;
-using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace JiraServerMcp.Cli;
 
@@ -24,45 +20,22 @@ internal static class CapabilityProbe
         string token,
         CancellationToken cancellationToken)
     {
-        var services = new ServiceCollection();
+        var capabilities = await ConnectedProfile.RunAsync(
+            profile,
+            token,
+            failure => $"{profile.BaseUrl} could not be asked what it is. {failure.Message}",
+            whenUnreachable: string.Empty,
+            whenTimedOut: ", so it could not be asked what it is",
+            client => client.ProbeCapabilitiesAsync(cancellationToken),
+            cancellationToken);
 
-        services.AddSingleton(Options.Create(ConnectedProfile.OptionsFor(profile, token)));
-        services.AddJiraClient();
-
-        await using var provider = services.BuildServiceProvider();
-
-        JiraCapabilities capabilities;
-
-        try
+        if (capabilities is null)
         {
-            capabilities = await provider.GetRequiredService<JiraClient>()
-                .ProbeCapabilitiesAsync(cancellationToken);
-        }
-        catch (JiraApiException failure)
-        {
-            await Console.Error.WriteLineAsync(
-                $"{profile.BaseUrl} could not be asked what it is. {failure.Message}");
-
-            return null;
-        }
-        catch (HttpRequestException failure)
-        {
-            await Console.Error.WriteLineAsync(
-                $"{profile.BaseUrl} could not be reached: {failure.Message}");
-
-            return null;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // The client's own timeout, which arrives as a cancellation nobody asked for. A Jira
-            // that hangs — a laptop off the VPN, an address that black-holes — is a probe that did
-            // not happen, not a crash.
-            await Console.Error.WriteLineAsync(
-                $"{profile.BaseUrl} did not answer in time, so it could not be asked what it is.");
-
             return null;
         }
 
+        // Outside the call above, so a configuration directory that cannot be written stays a
+        // configuration failure rather than being reported as a fault in talking to Jira.
         ProfileStore.InConfigurationDirectory().Add(profileName, profile with
         {
             Capabilities = capabilities,
