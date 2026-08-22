@@ -72,8 +72,24 @@ _Avoid_: scope, permission, role — all three already mean something inside Jir
 with Jira replaced by an HTTP double. Where tool-specific branching is proven. See ADR-0008.
 
 **Expansion** — an optional extra section of an issue read: comments, transitions, changelog,
-links, worklogs. Opt-in, because each one costs the agent context it may not need.
+links, worklogs, attachments. Opt-in, because each one costs the agent context it may not need.
+An expansion reaches its section by exactly one of three mechanisms — a collection field, Jira's
+own expand parameter, or a request of its own — and which one it is belongs to the expansion, not
+to the caller that asks for it.
 _Avoid_: Jira's own "expand", which names a different and overlapping mechanism.
+
+**Section** — a block of an issue read that is rendered on its own terms rather than as a line of
+the field projection: the comments, the history, the links. Every section is an expansion's
+answer, so a section nobody asked for is not rendered at all — and one that was asked for renders
+empty rather than being left out, which is the difference between "there are none" and "you did
+not ask".
+_Avoid_: block, panel, part.
+
+**Collection field** — a projected field Jira answers with as an array rather than a value:
+`comment`, `issuelinks`, `worklog`, `attachment`. It is asked for through the field projection but
+is not part of it, so it is lifted out and read into a section; left in, it renders as a JSON blob.
+Which names these are is decided where the expansions are named, not where the response is read.
+_Avoid_: array field, multi-value field, sub-resource.
 
 **Bulk read** — one call resolving several issue keys at once. Each issue is rendered whole rather
 than abridged for company, and each key succeeds or fails alone: one key that names nothing costs
