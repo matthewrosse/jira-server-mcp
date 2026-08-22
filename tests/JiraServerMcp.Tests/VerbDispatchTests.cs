@@ -62,11 +62,27 @@ public sealed class VerbDispatchTests : IDisposable
 
         var result = await RunAsync(["serve", "--profile", "work"]);
 
-        result.ExitCode.ShouldNotBe(0);
+        // 2, not 1: an installation with no token cannot serve at all, which is the same code
+        // every ConfigurationException already exits with.
+        result.ExitCode.ShouldBe(2);
         result.StandardError.ShouldContain("work");
         result.StandardError.ShouldContain("auth login work");
         result.StandardError.ShouldNotContain("Unhandled exception");
         result.StandardOutput.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Serving_with_no_credential_exits_2_where_auth_status_exits_1_on_the_same_profile()
+    {
+        // Deliberate as of the resolved-profile module: `serve` cannot start without a token, but
+        // `auth status` finding no token is the answer to the question it was asked.
+        await RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
+
+        var served = await RunAsync(["serve", "--profile", "work"]);
+        var status = await RunAsync(["auth", "status", "work"]);
+
+        served.ExitCode.ShouldBe(2);
+        status.ExitCode.ShouldBe(1);
     }
 
     [Fact]
@@ -89,7 +105,15 @@ public sealed class VerbDispatchTests : IDisposable
 
         File.Delete(bundle);
 
-        var result = await RunAsync(["serve", "--profile", "work"]);
+        // The token is resolved before the bundle is checked, so one has to be present for the
+        // bundle check to be the thing this test observes.
+        var result = await HostProcess.RunAsync(
+            ["serve", "--profile", "work"],
+            TestContext.Current.CancellationToken,
+            new Dictionary<string, string>(_home.Environment)
+            {
+                ["JIRA_SERVER_MCP__WORK__TOKEN"] = "s3cr3t-personal-access-token",
+            });
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("corporate-ca.pem");

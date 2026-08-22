@@ -84,22 +84,14 @@ internal static class AuthVerbs
         CredentialStoreChoice storeChoice,
         CancellationToken cancellationToken)
     {
-        if (await ProfileResolution.FindAsync(profileName) is not { } profile)
+        if (await ProfileResolution.ResolveAsync(
+                profileName, storeChoice, whenNoToken: string.Empty, cancellationToken)
+            is not { } resolved)
         {
             return 1;
         }
 
-        var store = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
-        var token = await ProfileToken.ResolveAsync(profileName, store, cancellationToken);
-
-        if (token is not { } held)
-        {
-            await Console.Error.WriteLineAsync(
-                $"No personal access token is stored for profile '{profileName}'. Store one with "
-                + $"'jira-server-mcp auth login {profileName}'.");
-
-            return 1;
-        }
+        var (profile, held) = resolved;
 
         var user = await ResolveAsync(
             profile,

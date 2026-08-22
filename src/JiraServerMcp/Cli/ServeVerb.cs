@@ -25,10 +25,14 @@ internal static class ServeVerb
         var grants = GrantSet.Parse(allowed);
 
         // ADR-0005: the profile is chosen here, once, and is invisible to every tool.
-        if (await ProfileResolution.FindAsync(profileName) is not { } profile)
+        if (await ProfileResolution.ResolveAsync(
+                profileName, storeChoice, whenNoToken: string.Empty, cancellationToken)
+            is not { } resolved)
         {
             return 2;
         }
+
+        var (profile, held) = resolved;
 
         // The bundle was there when the profile was added; finding out mid-tool-call that it has
         // moved since is worse than refusing to start.
@@ -38,19 +42,6 @@ internal static class ServeVerb
                 $"Profile '{profileName}' names a certificate authority bundle at "
                 + $"'{caBundlePath}', and there is nothing there. Restore the file, or point the "
                 + "profile at the bundle again with 'jira-server-mcp profile add'.");
-
-            return 2;
-        }
-
-        var store = await ProfileResolution.SelectStoreAsync(storeChoice, cancellationToken);
-
-        var token = await ProfileToken.ResolveAsync(profileName, store, cancellationToken);
-
-        if (token is not { } held)
-        {
-            await Console.Error.WriteLineAsync(
-                $"No personal access token is stored for profile '{profileName}'. Store one with "
-                + $"'jira-server-mcp auth login {profileName}'.");
 
             return 2;
         }
