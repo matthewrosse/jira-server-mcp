@@ -1,6 +1,7 @@
 using System.CommandLine;
 using JiraServerMcp.Configuration;
 using JiraServerMcp.Credentials;
+using JiraServerMcp.Grants;
 
 namespace JiraServerMcp.Cli;
 
@@ -61,9 +62,9 @@ internal static class VerbDispatcher
         var allow = new Option<string[]>("--allow")
         {
             Description =
-                "Write categories this client is granted: issues:write, comments:write, "
-                + "worklogs:write. Repeatable, or separated by commas. Tools without their grant "
-                + "are not registered.",
+                $"Write categories this client is granted: {string.Join(", ", GrantSet.Names)}. "
+                + "Repeatable, or separated by commas. Tools without their grant are not "
+                + "registered.",
             AllowMultipleArgumentsPerToken = true,
             DefaultValueFactory = _ => [],
         };

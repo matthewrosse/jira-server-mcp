@@ -1,3 +1,5 @@
+using JiraServerMcp.Grants;
+
 namespace JiraServerMcp.Tests;
 
 /// <summary>
@@ -104,9 +106,12 @@ public sealed class VerbDispatchTests : IDisposable
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("issues:delete");
-        result.StandardError.ShouldContain("issues:write");
-        result.StandardError.ShouldContain("comments:write");
-        result.StandardError.ShouldContain("worklogs:write");
+
+        foreach (var name in GrantSet.Names)
+        {
+            result.StandardError.ShouldContain(name);
+        }
+
         result.StandardError.ShouldNotContain("Unhandled exception");
         result.StandardOutput.ShouldBeEmpty();
     }
