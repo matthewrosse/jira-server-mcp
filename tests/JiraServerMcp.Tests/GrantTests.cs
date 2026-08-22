@@ -70,6 +70,22 @@ public class GrantTests
     }
 
     [Fact]
+    public void Every_grant_has_a_name_the_operator_can_write()
+    {
+        // The direct guard on the name table: a grant added to the enum without a row there fails
+        // here, rather than in the help text an operator reads and no test checks.
+        foreach (var grant in Enum.GetValues<Grant>())
+        {
+            var grants = GrantSet.Parse([GrantSet.Name(grant)]);
+
+            foreach (var other in Enum.GetValues<Grant>())
+            {
+                grants.Allows(other).ShouldBe(other == grant);
+            }
+        }
+    }
+
+    [Fact]
     public void An_empty_name_is_refused_rather_than_ignored()
     {
         // "--allow issues:write," is a typo, and treating it as the grant the operator meant to

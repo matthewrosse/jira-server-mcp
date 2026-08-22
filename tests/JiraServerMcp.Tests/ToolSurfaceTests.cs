@@ -5,46 +5,58 @@ using JiraServerMcp.Tools;
 namespace JiraServerMcp.Tests;
 
 /// <summary>
-/// The tool surface as a value: every combination of the three grants, against a licensed
-/// instance, an unlicensed one, and a profile with no probe recorded at all. None of this
-/// launches a process — <see cref="ToolSurface.ToolsToRegister"/> is a pure function of a grant
-/// set and a capability probe.
+/// The tool surface as a value: every subset of the grants, against a licensed instance, an
+/// unlicensed one, and a profile with no probe recorded at all. None of this launches a process —
+/// <see cref="ToolSurface.ToolsToRegister"/> is a pure function of a grant set and a capability
+/// probe.
+/// <para>
+/// What this narrows: both sides of every assertion here derive from <see
+/// cref="ToolSurface.Entries"/>, so these tests prove that <c>ToolsToRegister</c> filters the
+/// table correctly — not that a given tool is filed under the right requirement. That is held by
+/// <see cref="ReadmeTests"/>, which asserts every registered tool's documented grant against its
+/// row. A hand-kept list of tool names here is how that assertion rotted before.
+/// </para>
 /// </summary>
 public sealed class ToolSurfaceTests
 {
-    private static readonly string[] _readTools =
+    private static readonly IReadOnlyList<string> _readTools =
     [
-        "WhoamiTool", "SearchTool", "MyOpenIssuesTool", "GetIssuesTool", "ListProjectsTool",
-        "GetProjectTool", "GetCreateFieldsTool", "SearchUsersTool",
+        .. ToolSurface.Entries
+            .Where(entry => entry.RequiredGrant is null && !entry.RequiresSoftwareLicence)
+            .Select(entry => entry.ToolType.Name),
     ];
 
-    private static readonly string[] _softwareTools =
+    private static readonly IReadOnlyList<string> _softwareTools =
     [
-        "ListBoardsTool", "ListSprintsTool", "GetSprintIssuesTool", "GetBacklogTool",
+        .. ToolSurface.Entries
+            .Where(entry => entry.RequiresSoftwareLicence)
+            .Select(entry => entry.ToolType.Name),
     ];
 
     private static readonly JiraCapabilities _licensed = Capabilities(softwareLicensed: true);
 
     private static readonly JiraCapabilities _unlicensed = Capabilities(softwareLicensed: false);
 
+    /// <summary>
+    /// Every subset of the grants — the full power set, so a fifth grant doubles the rows with no
+    /// edit here — against each of the three probes. Each subset reaches
+    /// <see cref="GrantSet.Parse"/> through <see cref="GrantSet.Name"/>, so every row also
+    /// exercises the grant-to-name-to-grant round trip.
+    /// </summary>
     public static IEnumerable<TheoryDataRow<string[], JiraCapabilities?>> Matrix()
     {
-        string[][] combinations =
-        [
-            [],
-            ["issues:write"],
-            ["comments:write"],
-            ["worklogs:write"],
-            ["issues:write", "comments:write"],
-            ["issues:write", "worklogs:write"],
-            ["comments:write", "worklogs:write"],
-            ["issues:write", "comments:write", "worklogs:write"],
-        ];
-
+        var grants = Enum.GetValues<Grant>();
         JiraCapabilities?[] probes = [_licensed, _unlicensed, null];
 
-        foreach (var allowed in combinations)
+        for (var subset = 0; subset < 1 << grants.Length; subset++)
         {
+            string[] allowed =
+            [
+                .. grants
+                    .Where((_, index) => (subset & (1 << index)) != 0)
+                    .Select(GrantSet.Name),
+            ];
+
             foreach (var probe in probes)
             {
                 yield return new TheoryDataRow<string[], JiraCapabilities?>(allowed, probe);
@@ -82,22 +94,18 @@ public sealed class ToolSurfaceTests
 
     [Theory]
     [MemberData(nameof(Matrix))]
-    public void Each_write_grant_registers_exactly_its_own_tools(
+    public void Every_write_tool_follows_its_own_grant(
         string[] allowed,
         JiraCapabilities? capabilities)
     {
         var grants = GrantSet.Parse(allowed);
         var names = Names(ToolSurface.ToolsToRegister(grants, capabilities));
 
-        var issues = grants.Allows(Grant.IssuesWrite);
-        var comments = grants.Allows(Grant.CommentsWrite);
-        var worklogs = grants.Allows(Grant.WorklogsWrite);
-
-        names.Contains("CreateIssueTool").ShouldBe(issues);
-        names.Contains("UpdateIssueTool").ShouldBe(issues);
-        names.Contains("TransitionIssueTool").ShouldBe(issues);
-        names.Contains("AddCommentTool").ShouldBe(comments);
-        names.Contains("AddWorklogTool").ShouldBe(worklogs);
+        foreach (var entry in ToolSurface.Entries.Where(entry => entry.RequiredGrant is not null))
+        {
+            names.Contains(entry.ToolType.Name)
+                .ShouldBe(grants.Allows(entry.RequiredGrant!.Value));
+        }
     }
 
     [Fact]

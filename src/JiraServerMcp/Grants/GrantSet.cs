@@ -3,8 +3,12 @@ using JiraServerMcp.Configuration;
 namespace JiraServerMcp.Grants;
 
 /// <summary>
-/// The grants one server process was launched with. Parsed once, at startup, so a name nobody
-/// recognises is a refusal to start rather than a tool that silently never appears.
+/// The grant vocabulary and the grants one server process was launched with. The table below is
+/// the only place a grant's name is enumerated: the <c>--allow</c> help text, the refusal message
+/// and the README test's mapping all read it rather than keeping a list that goes stale. Prose
+/// that names one grant — a tool's docstring, the README — still writes it out, and is held to the
+/// table by the README test. Parsed once, at startup, so a name nobody recognises is a refusal to
+/// start rather than a tool that silently never appears.
 /// </summary>
 internal sealed class GrantSet
 {
@@ -16,6 +20,12 @@ internal sealed class GrantSet
             ["worklogs:write"] = Grant.WorklogsWrite,
             ["links:write"] = Grant.LinksWrite,
         };
+
+    /// <summary>
+    /// Every grant's name, in the enum's declaration order rather than the table's unspecified
+    /// enumeration order, so the help text and the refusal message read the same way twice.
+    /// </summary>
+    public static readonly IReadOnlyList<string> Names = [.. Enum.GetValues<Grant>().Select(Name)];
 
     private readonly HashSet<Grant> _granted;
 
@@ -38,6 +48,15 @@ internal sealed class GrantSet
         return new GrantSet(granted);
     }
 
+    /// <summary>The name the operator writes for a grant.</summary>
+    /// <exception cref="InvalidOperationException">The grant has no row in the table.</exception>
+    public static string Name(Grant grant) =>
+        _names.FirstOrDefault(row => row.Value == grant).Key
+        ?? throw new InvalidOperationException(
+            $"Grant.{grant} has no name in this server's grant table. A new grant needs a row "
+            + "there, which is what the help text, the refusal message and the README's "
+            + "catalogue all read.");
+
     public bool Allows(Grant grant) => _granted.Contains(grant);
 
     private static Grant Named(string name) =>
@@ -45,6 +64,6 @@ internal sealed class GrantSet
             ? grant
             : throw new ConfigurationException(
                 $"'{name}' is not a grant this server knows. The grants are "
-                + $"{string.Join(", ", _names.Keys)}. They are given at launch, as "
+                + $"{string.Join(", ", Names)}. They are given at launch, as "
                 + "'--allow issues:write,comments:write'.");
 }

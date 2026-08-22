@@ -161,7 +161,7 @@ public class ReadmeTests
                     $"The tool surface registers {entry.ToolType.Name}, which declares no method "
                     + "carrying an [McpServerTool] name. Every registered class must declare "
                     + "exactly one."),
-            entry => entry.RequiredGrant is { } grant ? GrantName(grant) : NoGrant);
+            entry => entry.RequiredGrant is { } grant ? GrantSet.Name(grant) : NoGrant);
     }
 
     private static IReadOnlyList<string> SoftwareTools()
@@ -175,18 +175,6 @@ public class ReadmeTests
                 .Select(entry => declared.Single(tool => tool.Value == entry.ToolType.Name).Key),
         ];
     }
-
-    /// <summary>The name the operator writes, from the grant a table row names.</summary>
-    private static string GrantName(Grant grant) => grant switch
-    {
-        Grant.IssuesWrite => "issues:write",
-        Grant.CommentsWrite => "comments:write",
-        Grant.WorklogsWrite => "worklogs:write",
-        Grant.LinksWrite => "links:write",
-        _ => throw new InvalidOperationException(
-            $"The tool surface registers a tool under Grant.{grant}, which this test does not "
-            + "know. A new grant needs a row in the README's catalogue and a name here."),
-    };
 
     /// <summary>
     /// Every tool the assembly declares, from the attributes the MCP SDK itself reads: keyed by
