@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
+using System.Text.Json;
+using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Rendering;
 using JiraServerMcp.Tools;
 
@@ -10,7 +12,8 @@ namespace JiraServerMcp.Tests;
 /// seventh expansion impossible to half-add: a row that names no mechanism reaches Jira asking for
 /// nothing, and a name the tool description never mentions is invisible to the agent that would
 /// ask for it — neither of which fails a rendering test, because both answer "there are none of
-/// those" rather than erroring.
+/// those" rather than erroring. The last two hold the rendering to the same standard: a row that
+/// names every mechanism correctly and renders no section answers "there are none of those" too.
 /// </summary>
 public class ExpansionTableTests
 {
@@ -82,4 +85,39 @@ public class ExpansionTableTests
             description.Description.ShouldContain(row.Name);
         }
     }
+
+    /// <summary>
+    /// Every section prints its heading even when Jira answered with nothing, so an issue with no
+    /// content at all is enough: what is asserted is that asking added something, not what.
+    /// Asserting the section's own text is <c>IssueRenderingTests</c>' job.
+    /// </summary>
+    [Fact]
+    public void Every_expansion_renders_a_section_when_it_is_asked_for()
+    {
+        foreach (var expansion in Enum.GetValues<Expansion>())
+        {
+            IssueDetail.Render(Empty, [expansion]).ShouldNotBe(IssueDetail.Render(Empty, []),
+                $"{expansion} renders no section, so asking for it reads as there being none.");
+        }
+    }
+
+    /// <summary>
+    /// The mirror: an arm that renders whether or not it was asked for. Asserted as the whole
+    /// body rather than expansion by expansion, because the body of an issue with no fields and
+    /// nothing asked for is the key and nothing else — which covers a seventh expansion the day
+    /// it is added without naming any of the six.
+    /// </summary>
+    [Fact]
+    public void No_expansion_renders_a_section_when_it_was_not_asked_for()
+    {
+        IssueDetail.Render(Empty, []).ShouldBe("PROJ-12");
+    }
+
+    /// <summary>
+    /// An issue Jira answered with nothing on. <c>remoteLinks</c> is empty rather than null:
+    /// null is the read having been refused (ADR-0007), which renders its own sentence, and a
+    /// guard that passed through that branch would keep passing if the ordinary one broke.
+    /// </summary>
+    private static JiraIssueDetail Empty =>
+        new("PROJ-12", new Dictionary<string, JsonElement>(), [], null, null, [], [], null, []);
 }
