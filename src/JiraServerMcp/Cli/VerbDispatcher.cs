@@ -214,11 +214,10 @@ internal static class VerbDispatcher
             setField,
         };
 
-        set.SetAction((parseResult, cancellationToken) => ProfileVerbs.SetAliasAsync(
+        set.SetAction((parseResult, _) => ProfileVerbs.SetAliasAsync(
             parseResult.GetValue(setProfile)!,
             parseResult.GetValue(setAlias)!,
-            parseResult.GetValue(setField)!,
-            cancellationToken));
+            parseResult.GetValue(setField)!));
 
         var listProfile = new Argument<string>("profile")
         {
@@ -227,9 +226,8 @@ internal static class VerbDispatcher
 
         var list = new Command("list", "List a profile's field aliases.") { listProfile };
 
-        list.SetAction((parseResult, cancellationToken) => ProfileVerbs.ListAliasesAsync(
-            parseResult.GetValue(listProfile)!,
-            cancellationToken));
+        list.SetAction((parseResult, _) => ProfileVerbs.ListAliasesAsync(
+            parseResult.GetValue(listProfile)!));
 
         var removeProfile = new Argument<string>("profile")
         {
@@ -247,10 +245,9 @@ internal static class VerbDispatcher
             removeAlias,
         };
 
-        remove.SetAction((parseResult, cancellationToken) => ProfileVerbs.RemoveAliasAsync(
+        remove.SetAction((parseResult, _) => ProfileVerbs.RemoveAliasAsync(
             parseResult.GetValue(removeProfile)!,
-            parseResult.GetValue(removeAlias)!,
-            cancellationToken));
+            parseResult.GetValue(removeAlias)!));
 
         alias.Subcommands.Add(set);
         alias.Subcommands.Add(list);
@@ -315,9 +312,8 @@ internal static class VerbDispatcher
 
         var list = new Command("list", "List a profile's canned queries.") { listProfile };
 
-        list.SetAction((parseResult, cancellationToken) => ProfileVerbs.ListQueriesAsync(
-            parseResult.GetValue(listProfile)!,
-            cancellationToken));
+        list.SetAction((parseResult, _) => ProfileVerbs.ListQueriesAsync(
+            parseResult.GetValue(listProfile)!));
 
         var removeProfile = new Argument<string>("profile")
         {
@@ -335,10 +331,9 @@ internal static class VerbDispatcher
             removeName,
         };
 
-        remove.SetAction((parseResult, cancellationToken) => ProfileVerbs.RemoveQueryAsync(
+        remove.SetAction((parseResult, _) => ProfileVerbs.RemoveQueryAsync(
             parseResult.GetValue(removeProfile)!,
-            parseResult.GetValue(removeName)!,
-            cancellationToken));
+            parseResult.GetValue(removeName)!));
 
         query.Subcommands.Add(add);
         query.Subcommands.Add(list);

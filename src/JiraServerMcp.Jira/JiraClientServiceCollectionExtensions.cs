@@ -54,7 +54,9 @@ public static class JiraClientServiceCollectionExtensions
 
     private static void ConfigureClient(IServiceProvider provider, HttpClient client)
     {
-        var baseUrl = provider.GetRequiredService<IOptions<JiraClientOptions>>().Value.BaseUrl
+        var options = provider.GetRequiredService<IOptions<JiraClientOptions>>().Value;
+
+        var baseUrl = options.BaseUrl
             ?? throw new InvalidOperationException("No Jira base URL is configured.");
 
         // The token is a bearer secret with nothing else protecting it in transit. Loopback is
@@ -68,7 +70,7 @@ public static class JiraClientServiceCollectionExtensions
 
         // The whole call, retries included, is bounded here: a hung Jira must not hold an agent's
         // tool call open indefinitely.
-        client.Timeout = TimeSpan.FromSeconds(30);
+        client.Timeout = options.Timeout;
 
         // Relative request URIs only combine with a base address whose path ends in a slash.
         // The slash goes on the path through UriBuilder: appending it to the whole URI would

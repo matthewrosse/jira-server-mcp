@@ -15,4 +15,10 @@ public sealed class JiraClientOptions
     /// whose certificate authority is the organisation's own.
     /// </summary>
     public string? CaBundlePath { get; set; }
+
+    /// <summary>
+    /// How long a whole call may take, retries included. A hung Jira must not hold an agent's
+    /// tool call — or an operator's verb — open indefinitely.
+    /// </summary>
+    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 }
