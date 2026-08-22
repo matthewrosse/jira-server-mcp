@@ -107,15 +107,20 @@ public sealed class MyOpenIssuesProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_project_key_that_fails_the_grammar_is_rejected_before_any_jira_call()
     {
+        // Called directly rather than through MyOpenIssuesAsync: that helper asserts the call
+        // succeeded, which is right for every other case in this file and wrong for this one.
         var result = await _client.CallToolAsync(
             "jira_my_open_issues",
             new Dictionary<string, object?> { ["project"] = "proj-1; DROP" },
             cancellationToken: TestContext.Current.CancellationToken);
 
-        result.IsError.ShouldNotBe(true);
+        result.IsError.ShouldBe(true);
 
         result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem()
             .Text.ShouldContain("not a valid Jira project key");
+
+        result.StructuredContent.ShouldNotBeNull()
+            .GetProperty("outcome").GetString().ShouldBe("refused");
 
         _seam.Jira.LogEntries.ShouldBeEmpty();
     }

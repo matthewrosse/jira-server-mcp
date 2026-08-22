@@ -13,11 +13,4 @@ namespace JiraServerMcp.Rendering;
 /// The structured half, or null where this renderer has none yet — <see cref="Tools.ToolCall"/>
 /// then supplies the outcome envelope alone, so structure is still present on every result.
 /// </param>
-internal readonly record struct Rendered(string Text, JsonElement? Structure = null)
-{
-    /// <summary>
-    /// A renderer with no structured half yet. Written as a conversion so the modules that have
-    /// not been given one read exactly as they did before.
-    /// </summary>
-    public static implicit operator Rendered(string text) => new(text);
-}
+internal readonly record struct Rendered(string Text, JsonElement? Structure = null);
