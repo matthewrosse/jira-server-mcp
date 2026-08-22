@@ -1,6 +1,5 @@
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Tests;
 
@@ -11,16 +10,9 @@ namespace JiraServerMcp.Tests;
 /// </summary>
 public sealed class ConnectedProfileVerbTests : IDisposable
 {
-    private const string Token = "s3cr3t-personal-access-token";
+    private readonly VerbSeam _seam = new();
 
-    private readonly ConfigurationHome _home = new();
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    public void Dispose()
-    {
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public void Dispose() => _seam.Dispose();
 
     /// <summary>
     /// The arm `auth login` was missing: an address that accepts the connection and then says
@@ -29,15 +21,15 @@ public sealed class ConnectedProfileVerbTests : IDisposable
     [Fact]
     public async Task Logging_in_against_a_jira_that_never_answers_says_so_and_does_not_throw()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
-                .WithBody("""{"name":"ada","displayName":"Ada Lovelace","active":true}""")
+                .WithBody(JiraAccount.Payload())
                 .WithDelay(TimeSpan.FromSeconds(10)));
 
-        await AddAsync("work");
+        await _seam.AddProfileAsync();
 
-        var result = await LoginAsync("work", new Dictionary<string, string>(_home.Environment)
+        var result = await LoginAsync(new Dictionary<string, string>
         {
             ["JIRA_SERVER_MCP__TIMEOUT_SECONDS"] = "1",
         });
@@ -55,14 +47,14 @@ public sealed class ConnectedProfileVerbTests : IDisposable
     [Fact]
     public async Task Logging_in_against_a_body_that_is_not_json_reports_the_fault_by_name()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("<html><body>Sign in to the network</body></html>"));
 
-        await AddAsync("work");
+        await _seam.AddProfileAsync();
 
-        var result = await LoginAsync("work");
+        var result = await LoginAsync();
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldNotContain("Unhandled exception");
@@ -73,9 +65,9 @@ public sealed class ConnectedProfileVerbTests : IDisposable
     [Fact]
     public async Task A_timeout_that_is_not_a_positive_whole_number_of_seconds_is_refused()
     {
-        await AddAsync("work");
+        await _seam.AddProfileAsync();
 
-        var result = await LoginAsync("work", new Dictionary<string, string>(_home.Environment)
+        var result = await LoginAsync(new Dictionary<string, string>
         {
             ["JIRA_SERVER_MCP__TIMEOUT_SECONDS"] = "half a minute",
         });
@@ -89,9 +81,9 @@ public sealed class ConnectedProfileVerbTests : IDisposable
     [Fact]
     public async Task A_timeout_longer_than_the_client_accepts_is_refused_rather_than_thrown()
     {
-        await AddAsync("work");
+        await _seam.AddProfileAsync();
 
-        var result = await LoginAsync("work", new Dictionary<string, string>(_home.Environment)
+        var result = await LoginAsync(new Dictionary<string, string>
         {
             ["JIRA_SERVER_MCP__TIMEOUT_SECONDS"] = "99999999",
         });
@@ -104,9 +96,9 @@ public sealed class ConnectedProfileVerbTests : IDisposable
     [Fact]
     public async Task A_timeout_of_zero_seconds_is_refused_too()
     {
-        await AddAsync("work");
+        await _seam.AddProfileAsync();
 
-        var result = await LoginAsync("work", new Dictionary<string, string>(_home.Environment)
+        var result = await LoginAsync(new Dictionary<string, string>
         {
             ["JIRA_SERVER_MCP__TIMEOUT_SECONDS"] = "0",
         });
@@ -115,18 +107,12 @@ public sealed class ConnectedProfileVerbTests : IDisposable
         result.StandardError.ShouldContain("JIRA_SERVER_MCP__TIMEOUT_SECONDS");
     }
 
-    private Task<HostProcessResult> AddAsync(string name) =>
-        HostProcess.RunAsync(
-            ["profile", "add", name, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
+    /// <summary>
+    /// `auth login` is the subject of every test here rather than staging for one, so it is run
+    /// through the seam rather than by its login step, which would assert the success this file
+    /// exists to disprove.
+    /// </summary>
     private Task<HostProcessResult> LoginAsync(
-        string name,
         IReadOnlyDictionary<string, string>? environment = null) =>
-        HostProcess.RunAsync(
-            ["auth", "login", name],
-            TestContext.Current.CancellationToken,
-            environment ?? _home.Environment,
-            Token + "\n");
+        _seam.RunAsync(["auth", "login", "work"], VerbSeam.Token + "\n", environment);
 }

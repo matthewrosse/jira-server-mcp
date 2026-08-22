@@ -505,7 +505,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
-                .WithBody(ProtocolSeam.MyselfPayload));
+                .WithBody(JiraAccount.Payload()));
 
         var account = await CallAsync("jira_whoami");
 

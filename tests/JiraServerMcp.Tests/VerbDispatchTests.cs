@@ -8,14 +8,14 @@ namespace JiraServerMcp.Tests;
 /// </summary>
 public sealed class VerbDispatchTests : IDisposable
 {
-    private readonly ConfigurationHome _home = new();
+    private readonly VerbSeam _seam = new();
 
-    public void Dispose() => _home.Dispose();
+    public void Dispose() => _seam.Dispose();
 
     [Fact]
     public async Task An_unknown_verb_fails_and_explains_itself_on_standard_error()
     {
-        var result = await RunAsync(["frobnicate"]);
+        var result = await _seam.RunAsync(["frobnicate"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("frobnicate");
@@ -26,7 +26,7 @@ public sealed class VerbDispatchTests : IDisposable
     [Fact]
     public async Task No_verb_fails_and_explains_itself_on_standard_error()
     {
-        var result = await RunAsync([]);
+        var result = await _seam.RunAsync([]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("Usage:");
@@ -36,7 +36,7 @@ public sealed class VerbDispatchTests : IDisposable
     [Fact]
     public async Task Serving_without_a_profile_says_which_option_is_missing()
     {
-        var result = await RunAsync(["serve"]);
+        var result = await _seam.RunAsync(["serve"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("--profile");
@@ -46,7 +46,7 @@ public sealed class VerbDispatchTests : IDisposable
     [Fact]
     public async Task Serving_an_unknown_profile_fails_at_startup_and_names_it()
     {
-        var result = await RunAsync(["serve", "--profile", "absent"]);
+        var result = await _seam.RunAsync(["serve", "--profile", "absent"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("absent");
@@ -58,9 +58,9 @@ public sealed class VerbDispatchTests : IDisposable
     [Fact]
     public async Task Serving_a_profile_with_no_credential_names_the_command_that_fixes_it()
     {
-        await RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
+        await _seam.RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
 
-        var result = await RunAsync(["serve", "--profile", "work"]);
+        var result = await _seam.RunAsync(["serve", "--profile", "work"]);
 
         // 2, not 1: an installation with no token cannot serve at all, which is the same code
         // every ConfigurationException already exits with.
@@ -76,10 +76,10 @@ public sealed class VerbDispatchTests : IDisposable
     {
         // Deliberate as of the resolved-profile module: `serve` cannot start without a token, but
         // `auth status` finding no token is the answer to the question it was asked.
-        await RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
+        await _seam.RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
 
-        var served = await RunAsync(["serve", "--profile", "work"]);
-        var status = await RunAsync(["auth", "status", "work"]);
+        var served = await _seam.RunAsync(["serve", "--profile", "work"]);
+        var status = await _seam.RunAsync(["auth", "status", "work"]);
 
         served.ExitCode.ShouldBe(2);
         status.ExitCode.ShouldBe(1);
@@ -90,13 +90,13 @@ public sealed class VerbDispatchTests : IDisposable
     {
         // The bundle existed when the profile was added. Finding out it has moved during a tool
         // call, once per handler, is worse than refusing to start.
-        var bundle = Path.Combine(_home.Directory, "corporate-ca.pem");
+        var bundle = Path.Combine(_seam.Home.Directory, "corporate-ca.pem");
 
-        Directory.CreateDirectory(_home.Directory);
+        Directory.CreateDirectory(_seam.Home.Directory);
         await File.WriteAllTextAsync(
             bundle, TestCertificate.Pem(), TestContext.Current.CancellationToken);
 
-        await RunAsync(
+        await _seam.RunAsync(
             [
                 "profile", "add", "work",
                 "--url", "https://jira.example.com",
@@ -107,12 +107,11 @@ public sealed class VerbDispatchTests : IDisposable
 
         // The token is resolved before the bundle is checked, so one has to be present for the
         // bundle check to be the thing this test observes.
-        var result = await HostProcess.RunAsync(
+        var result = await _seam.RunAsync(
             ["serve", "--profile", "work"],
-            TestContext.Current.CancellationToken,
-            new Dictionary<string, string>(_home.Environment)
+            environment: new Dictionary<string, string>
             {
-                ["JIRA_SERVER_MCP__WORK__TOKEN"] = "s3cr3t-personal-access-token",
+                ["JIRA_SERVER_MCP__WORK__TOKEN"] = VerbSeam.Token,
             });
 
         result.ExitCode.ShouldNotBe(0);
@@ -124,9 +123,9 @@ public sealed class VerbDispatchTests : IDisposable
     [Fact]
     public async Task Serving_with_a_grant_nobody_recognises_fails_at_startup_and_lists_the_real_ones()
     {
-        await RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
+        await _seam.RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
 
-        var result = await RunAsync(["serve", "--profile", "work", "--allow", "issues:delete"]);
+        var result = await _seam.RunAsync(["serve", "--profile", "work", "--allow", "issues:delete"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("issues:delete");
@@ -145,9 +144,9 @@ public sealed class VerbDispatchTests : IDisposable
     {
         // The profile has no credential, and its own refusal names 'auth login'. The grant is
         // wrong first, so that is the sentence the operator should get.
-        await RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
+        await _seam.RunAsync(["profile", "add", "work", "--url", "https://jira.example.com"]);
 
-        var result = await RunAsync(["serve", "--profile", "work", "--allow", "issues:delete"]);
+        var result = await _seam.RunAsync(["serve", "--profile", "work", "--allow", "issues:delete"]);
 
         result.StandardError.ShouldNotContain("auth login");
     }
@@ -155,17 +154,11 @@ public sealed class VerbDispatchTests : IDisposable
     [Fact]
     public async Task Logging_in_to_an_unknown_profile_is_refused()
     {
-        var result = await HostProcess.RunAsync(
-            ["auth", "login", "absent"],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: "s3cr3t-personal-access-token\n");
+        var result = await _seam.RunAsync(
+            ["auth", "login", "absent"], standardInput: VerbSeam.Token + "\n");
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("absent");
-        File.Exists(_home.CredentialsFile).ShouldBeFalse();
+        File.Exists(_seam.Home.CredentialsFile).ShouldBeFalse();
     }
-
-    private Task<HostProcessResult> RunAsync(string[] verb) =>
-        HostProcess.RunAsync(verb, TestContext.Current.CancellationToken, _home.Environment);
 }

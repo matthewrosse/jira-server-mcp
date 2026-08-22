@@ -15,19 +15,6 @@ namespace JiraServerMcp.Protocol.Tests;
 public sealed class ChangedSinceProtocolTests : IAsyncLifetime
 {
     /// <summary>
-    /// The account this server is authenticated as, in a zone two hours east of UTC — the zone
-    /// Jira reads its JQL date literals in.
-    /// </summary>
-    private static string MyselfPayload(string? timeZone = "Europe/Warsaw") => $$"""
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true{{(timeZone is null ? "" : $",\n  \"timeZone\": \"{timeZone}\"")}}
-        }
-        """;
-
-    /// <summary>
     /// The instance's own clock, one hour east of UTC — deliberately not the account's zone, so
     /// that a test asserting a window can only pass on one of the two.
     /// </summary>
@@ -288,9 +275,13 @@ public sealed class ChangedSinceProtocolTests : IAsyncLifetime
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(JiraResponse.Json(200, ServerInfoPayload));
 
+    /// <summary>
+    /// The account this server is authenticated as. Its default zone is two hours east of UTC —
+    /// the zone Jira reads its JQL date literals in, and deliberately not the instance's own.
+    /// </summary>
     private void StubMyself(string? timeZone = "Europe/Warsaw") =>
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(JiraResponse.Json(200, MyselfPayload(timeZone)));
+            .RespondWith(JiraResponse.Json(200, JiraAccount.Payload(timeZone)));
 
     private void StubSearch(IResponseBuilder response) =>
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())

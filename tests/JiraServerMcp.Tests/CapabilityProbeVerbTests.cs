@@ -1,7 +1,6 @@
 using System.Text.Json;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Tests;
 
@@ -11,34 +10,21 @@ namespace JiraServerMcp.Tests;
 /// </summary>
 public sealed class CapabilityProbeVerbTests : IDisposable
 {
-    private const string Token = "s3cr3t-personal-access-token";
+    private readonly VerbSeam _seam = new();
 
-    private readonly ConfigurationHome _home = new();
-    private readonly WireMockServer _jira = WireMockServer.Start();
+    public CapabilityProbeVerbTests() => StubServerInfo();
 
-    public CapabilityProbeVerbTests()
-    {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json("""{"name":"ada","displayName":"Ada Lovelace","active":true}"""));
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
-            .RespondWith(Json("""{"version":"8.20.7","deploymentType":"Server"}"""));
-    }
-
-    public void Dispose()
-    {
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public void Dispose() => _seam.Dispose();
 
     [Fact]
     public async Task Logging_in_records_the_probe_on_the_profile()
     {
         StubSoftware(licensed: true);
+        StubAccount();
 
-        await AddAsync("work");
+        await _seam.AddProfileAsync();
 
-        var result = await LoginAsync("work");
+        var result = await LoginAsync();
 
         result.ExitCode.ShouldBe(0);
 
@@ -56,8 +42,8 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     {
         StubSoftware(licensed: false);
 
-        await AddAsync("work");
-        await LoginAsync("work");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
         CapabilitiesOf("work").GetProperty("softwareLicensed").GetBoolean().ShouldBeFalse();
     }
@@ -65,12 +51,14 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     [Fact]
     public async Task A_probe_that_fails_does_not_lose_the_token_that_was_just_validated()
     {
-        _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(500));
 
-        await AddAsync("work");
+        StubAccount();
 
-        var result = await LoginAsync("work");
+        await _seam.AddProfileAsync();
+
+        var result = await LoginAsync();
 
         result.ExitCode.ShouldBe(0);
         result.StandardOutput.ShouldContain("Ada Lovelace");
@@ -85,17 +73,16 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     {
         StubSoftware(licensed: true);
 
-        await AddAsync("work");
-        await LoginAsync("work");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
-        _jira.Reset();
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json("""{"name":"ada","displayName":"Ada Lovelace","active":true}"""));
-        _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
+        _seam.Jira.Reset();
+        StubAccount();
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(503));
 
         // Rotating a token onto a profile that has been probed before.
-        var result = await LoginAsync("work");
+        var result = await LoginAsync();
 
         result.ExitCode.ShouldBe(0);
 
@@ -113,10 +100,10 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     {
         StubSoftware(licensed: true);
 
-        await AddAsync("work");
-        await LoginAsync("work");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
-        var result = await RunAsync(["profile", "refresh", "work"]);
+        var result = await _seam.RunAsync(["profile", "refresh", "work"]);
 
         result.ExitCode.ShouldBe(0);
         result.StandardOutput.ShouldContain("8.20.7");
@@ -128,20 +115,19 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     {
         StubSoftware(licensed: true);
 
-        await AddAsync("work");
-        await LoginAsync("work");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
         CapabilitiesOf("work").GetProperty("softwareLicensed").GetBoolean().ShouldBeTrue();
 
         // The licence lapsed, and the software API stopped answering.
-        _jira.Reset();
-        _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
-            .RespondWith(Json("""{"version":"8.20.7","deploymentType":"Server"}"""));
+        _seam.Jira.Reset();
+        StubServerInfo();
         StubSoftware(licensed: false);
 
         var probedAt = CapabilitiesOf("work").GetProperty("probedAt").GetDateTimeOffset();
 
-        (await RunAsync(["profile", "refresh", "work"])).ExitCode.ShouldBe(0);
+        (await _seam.RunAsync(["profile", "refresh", "work"])).ExitCode.ShouldBe(0);
 
         var refreshed = CapabilitiesOf("work");
 
@@ -152,7 +138,7 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     [Fact]
     public async Task Refreshing_a_profile_that_was_never_registered_says_so()
     {
-        var result = await RunAsync(["profile", "refresh", "absent"]);
+        var result = await _seam.RunAsync(["profile", "refresh", "absent"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("profile add absent");
@@ -161,9 +147,9 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     [Fact]
     public async Task Refreshing_without_a_stored_token_names_the_command_that_stores_one()
     {
-        await AddAsync("work");
+        await _seam.AddProfileAsync();
 
-        var result = await RunAsync(["profile", "refresh", "work"]);
+        var result = await _seam.RunAsync(["profile", "refresh", "work"]);
 
         result.ExitCode.ShouldBe(1);
         result.StandardError.ShouldContain("the capability probe is taken as the Jira user");
@@ -175,16 +161,16 @@ public sealed class CapabilityProbeVerbTests : IDisposable
     {
         StubSoftware(licensed: true);
 
-        await AddAsync("work");
-        await LoginAsync("work");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
-        _jira.Reset();
-        _jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
+        _seam.Jira.Reset();
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(401)
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("""{"errorMessages":["denied"],"errors":{}}"""));
 
-        var result = await RunAsync(["profile", "refresh", "work"]);
+        var result = await _seam.RunAsync(["profile", "refresh", "work"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldNotContain("Unhandled exception");
@@ -192,8 +178,20 @@ public sealed class CapabilityProbeVerbTests : IDisposable
         CapabilitiesOf("work").GetProperty("softwareLicensed").GetBoolean().ShouldBeTrue();
     }
 
+    /// <summary>
+    /// The account call the login itself makes, for the tests where `auth login` is the subject.
+    /// The tests that only need a logged-in profile get this from the seam's own login step.
+    /// </summary>
+    private void StubAccount() =>
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
+            .RespondWith(Json(JiraAccount.Payload()));
+
+    private void StubServerInfo() =>
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
+            .RespondWith(Json("""{"version":"8.20.7","deploymentType":"Server"}"""));
+
     private void StubSoftware(bool licensed) =>
-        _jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/agile/1.0/board").UsingGet())
             .RespondWith(licensed
                 ? Json("""{"startAt":0,"maxResults":1,"isLast":false,"values":[{"id":1,"name":"b"}]}""")
                 : Response.Create().WithStatusCode(404)
@@ -205,22 +203,12 @@ public sealed class CapabilityProbeVerbTests : IDisposable
             .WithHeader("Content-Type", "application/json")
             .WithBody(payload);
 
-    private Task<HostProcessResult> AddAsync(string name) =>
-        RunAsync(["profile", "add", name, "--url", _jira.Url!]);
-
-    private Task<HostProcessResult> LoginAsync(string name) =>
-        RunAsync(["auth", "login", name], standardInput: Token + "\n");
-
-    private Task<HostProcessResult> RunAsync(string[] verb, string? standardInput = null) =>
-        HostProcess.RunAsync(
-            verb,
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput);
+    private Task<HostProcessResult> LoginAsync() =>
+        _seam.RunAsync(["auth", "login", "work"], standardInput: VerbSeam.Token + "\n");
 
     private JsonElement CapabilitiesOf(string name) => ProfileIn(name).GetProperty("capabilities");
 
     private JsonElement ProfileIn(string name) =>
-        JsonDocument.Parse(_home.ReadProfiles()).RootElement
+        JsonDocument.Parse(_seam.Home.ReadProfiles()).RootElement
             .GetProperty("profiles").GetProperty(name);
 }
