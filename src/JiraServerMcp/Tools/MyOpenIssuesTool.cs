@@ -33,6 +33,11 @@ internal sealed class MyOpenIssuesTool(
         string[]? fields = null,
         CancellationToken cancellationToken = default)
     {
+        if (project is not null && !ProjectKey.IsValid(project))
+        {
+            return ToolCall.Error(ProjectKey.Rejected(project));
+        }
+
         return await ToolCall.RunAsync(
             profile,
             Name,
@@ -42,11 +47,6 @@ internal sealed class MyOpenIssuesTool(
                 + "jira_search with a project filter narrows it further.",
             async () =>
             {
-                if (project is not null && !ProjectKey.IsValid(project))
-                {
-                    return ProjectKey.Rejected(project);
-                }
-
                 var jql = MyOpenIssues.Jql(project);
 
                 return await IssuePage.RunAsync(
