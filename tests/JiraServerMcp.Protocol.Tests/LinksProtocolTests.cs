@@ -4,7 +4,6 @@ using ModelContextProtocol.Protocol;
 using WireMock;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -16,19 +15,6 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class LinksProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
     /// <summary>
     /// Jira's own three, plus a custom type whose outward wording repeats one of theirs — which is
     /// what a Jira with local link types actually looks like.
@@ -57,45 +43,11 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         ["relationship"] = "pull request",
     };
 
-    private readonly WireMockServer _jira = WireMockServer.Start();
+    private ProtocolSeam _seam = null!;
 
-    private readonly ConfigurationHome _home = new();
+    public async ValueTask InitializeAsync() => _seam = await ProtocolSeam.StartAsync();
 
-    private readonly List<McpClient> _clients = [];
-
-    public async ValueTask InitializeAsync()
-    {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(200, MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        foreach (var client in _clients)
-        {
-            await client.DisposeAsync();
-        }
-
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task A_matched_phrase_links_in_the_direction_the_phrase_reads()
@@ -104,7 +56,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLink(201);
 
         var text = await CallAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -132,7 +84,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLink(201);
 
         await CallAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -172,7 +124,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLink(201);
 
         var text = await FailedCallAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -193,7 +145,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLinkTypes();
 
         var text = await FailedCallAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -218,7 +170,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLink(201);
 
         var text = await FailedCallAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -240,7 +192,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLink(404, """{ "errorMessages": ["Issue Does Not Exist"], "errors": {} }""");
 
         var text = await FailedCallAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -263,7 +215,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLink(201);
 
         await CallAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -285,7 +237,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubRemoteLinkWrite(201);
 
         var text = await CallAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_add_remote_link",
             new Dictionary<string, object?>
             {
@@ -315,7 +267,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubRemoteLinkWrite(200);
 
         var text = await CallAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_add_remote_link",
             new Dictionary<string, object?>
             {
@@ -335,8 +287,8 @@ public sealed class LinksProtocolTests : IAsyncLifetime
     {
         StubIssue();
 
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
-            .RespondWith(Json(200, """
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
+            .RespondWith(JiraResponse.Json(200, """
                 [
                   {
                     "id": 10100,
@@ -351,7 +303,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
                 """));
 
         var readable = await CallAsync(
-            await ClientAsync(),
+            await _seam.ConnectAsync(),
             "jira_get_issues",
             new Dictionary<string, object?>
             {
@@ -363,14 +315,14 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         readable.ShouldContain("pull request");
         readable.ShouldContain("https://github.com/acme/web/pull/128");
 
-        _jira.Reset();
+        _seam.Jira.Reset();
         StubIssue();
 
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(403));
 
         var refused = await CallAsync(
-            await ClientAsync(),
+            await _seam.ConnectAsync(),
             "jira_get_issues",
             new Dictionary<string, object?>
             {
@@ -391,11 +343,11 @@ public sealed class LinksProtocolTests : IAsyncLifetime
 
         // Jira answers this endpoint with a 404 both where the issue is invisible and where issue
         // linking is disabled instance-wide — and the issue itself just read fine.
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12/remotelink").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(404));
 
         var text = await CallAsync(
-            await ClientAsync(),
+            await _seam.ConnectAsync(),
             "jira_get_issues",
             new Dictionary<string, object?>
             {
@@ -415,7 +367,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLink(201);
 
         var structure = await StructureAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -442,7 +394,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLinkTypes();
 
         var structure = await StructureAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -466,7 +418,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubLink(403, """{ "errorMessages": ["You do not have permission"], "errors": {} }""");
 
         var structure = await StructureAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_link_issues",
             new Dictionary<string, object?>
             {
@@ -485,7 +437,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
         StubRemoteLinkWrite(201);
 
         var first = await StructureAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_add_remote_link",
             _remoteLinkArguments);
 
@@ -494,11 +446,11 @@ public sealed class LinksProtocolTests : IAsyncLifetime
             {"outcome":"ok","key":"PROJ-42","url":"https://github.com/acme/web/pull/128","created":true}
             """);
 
-        _jira.Reset();
+        _seam.Jira.Reset();
         StubRemoteLinkWrite(200);
 
         var repeat = await StructureAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_add_remote_link",
             _remoteLinkArguments);
 
@@ -517,11 +469,11 @@ public sealed class LinksProtocolTests : IAsyncLifetime
     [Fact]
     public async Task An_attach_jira_refused_carries_the_status_and_no_created_field()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/remotelink").UsingPost())
-            .RespondWith(Json(403, """{ "errorMessages": ["You do not have permission"], "errors": {} }"""));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/remotelink").UsingPost())
+            .RespondWith(JiraResponse.Json(403, """{ "errorMessages": ["You do not have permission"], "errors": {} }"""));
 
         var structure = await StructureAsync(
-            await ClientAsync("links:write"),
+            await _seam.ConnectAsync("links:write"),
             "jira_add_remote_link",
             _remoteLinkArguments,
             failed: true);
@@ -534,7 +486,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Neither_link_tool_exists_without_the_links_write_grant()
     {
-        var tools = await (await ClientAsync("issues:write")).ListToolsAsync(
+        var tools = await (await _seam.ConnectAsync("issues:write")).ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
 
         tools.Select(tool => tool.Name).ShouldNotContain("jira_link_issues");
@@ -542,8 +494,8 @@ public sealed class LinksProtocolTests : IAsyncLifetime
     }
 
     private void StubIssue() =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12").UsingGet())
-            .RespondWith(Json(200, """
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-12").UsingGet())
+            .RespondWith(JiraResponse.Json(200, """
                 {
                   "key": "PROJ-12",
                   "fields": {
@@ -568,28 +520,23 @@ public sealed class LinksProtocolTests : IAsyncLifetime
     private void StubLinkTypes() => StubLinkTypes(200, LinkTypesPayload);
 
     private void StubLinkTypes(int status, string payload) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issueLinkType").UsingGet())
-            .RespondWith(Json(status, payload));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issueLinkType").UsingGet())
+            .RespondWith(JiraResponse.Json(status, payload));
 
     private void StubLink(int status, string payload = "") =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issueLink").UsingPost())
-            .RespondWith(Json(status, payload));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issueLink").UsingPost())
+            .RespondWith(JiraResponse.Json(status, payload));
 
     private void StubRemoteLinkWrite(int status) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/remotelink").UsingPost())
-            .RespondWith(Json(status, """{ "id": 10100, "self": "http://jira/rest/api/2/issue/PROJ-42/remotelink/10100" }"""));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/remotelink").UsingPost())
+            .RespondWith(JiraResponse.Json(status, """{ "id": 10100, "self": "http://jira/rest/api/2/issue/PROJ-42/remotelink/10100" }"""));
 
     private static JsonElement Body(IRequestMessage request) =>
         JsonDocument.Parse(request.Body ?? string.Empty).RootElement;
 
-    private static IResponseBuilder Json(int status, string body) =>
-        Response.Create().WithStatusCode(status)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(body);
-
     private IReadOnlyList<IRequestMessage> Requests() =>
     [
-        .. _jira.LogEntries.Select(entry => entry.RequestMessage).OfType<IRequestMessage>(),
+        .. _seam.Jira.LogEntries.Select(entry => entry.RequestMessage).OfType<IRequestMessage>(),
     ];
 
     private async Task<string> CallAsync(
@@ -648,30 +595,5 @@ public sealed class LinksProtocolTests : IAsyncLifetime
 
         return result.StructuredContent.ShouldNotBeNull(
             $"{tool} answered with prose and no structured content.");
-    }
-
-    /// <summary>
-    /// A server launched with the grants named here, exactly as an operator's MCP configuration
-    /// would (ADR-0005).
-    /// </summary>
-    private async Task<McpClient> ClientAsync(params string[] grants)
-    {
-        string[] allow = [.. grants.SelectMany(grant => (string[])["--allow", grant])];
-
-        var client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor(["serve", "--profile", Profile, .. allow]),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        _clients.Add(client);
-
-        return client;
     }
 }

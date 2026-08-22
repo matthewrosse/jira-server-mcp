@@ -3,7 +3,6 @@ using ModelContextProtocol.Protocol;
 using WireMock;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,87 +13,27 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class FieldAliasProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
+    private ProtocolSeam _seam = null!;
 
     private McpClient _client = null!;
 
     public async ValueTask InitializeAsync()
     {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
+        _seam = await ProtocolSeam.StartAsync();
 
-        added.ExitCode.ShouldBe(0);
+        await _seam.RunAsync(
+            ["profile", "alias", "set", ProtocolSeam.Profile, "story_points", "customfield_10010"]);
 
-        var aliased = await HostProcess.RunAsync(
-            ["profile", "alias", "set", Profile, "story_points", "customfield_10010"],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
-        aliased.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(200, MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-
-        _client = await ServerAsync();
+        _client = await _seam.ConnectAsync("issues:write");
     }
 
-    /// <summary>
-    /// A server reading the profile as it stands. Aliases are read at startup, so a test that
-    /// declares one after the fact needs a server of its own.
-    /// </summary>
-    private async Task<McpClient> ServerAsync() =>
-        await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor(
-                    "serve", "--profile", Profile, "--allow", "issues:write"),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
-
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync();
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task A_create_naming_an_alias_reaches_jira_as_the_identifier()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
-            .RespondWith(Json(201, """{ "id": "10500", "key": "PROJ-42" }"""));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(JiraResponse.Json(201, """{ "id": "10500", "key": "PROJ-42" }"""));
 
         var result = await _client.CallToolAsync(
             "jira_create_issue",
@@ -118,7 +57,7 @@ public sealed class FieldAliasProtocolTests : IAsyncLifetime
     [Fact]
     public async Task An_update_naming_the_identifier_still_works_because_an_alias_is_not_a_rename()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingPut())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingPut())
             .RespondWith(Response.Create().WithStatusCode(204));
 
         var result = await _client.CallToolAsync(
@@ -138,8 +77,8 @@ public sealed class FieldAliasProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_read_asks_jira_for_the_identifier_and_shows_the_agent_both_names()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingGet())
-            .RespondWith(Json(200, """
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingGet())
+            .RespondWith(JiraResponse.Json(200, """
                 {
                   "key": "PROJ-42",
                   "fields": { "summary": "It fell over", "customfield_10010": 5 }
@@ -166,8 +105,8 @@ public sealed class FieldAliasProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_field_name_nothing_recognises_fails_with_the_aliases_this_profile_declares()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
-            .RespondWith(Json(400, """
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(JiraResponse.Json(400, """
                 {
                   "errorMessages": [],
                   "errors": { "storypoints": "Field 'storypoints' cannot be set." }
@@ -198,8 +137,8 @@ public sealed class FieldAliasProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_search_row_labels_an_aliased_field_as_an_issue_read_does()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
-            .RespondWith(Json(200, """
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+            .RespondWith(JiraResponse.Json(200, """
                 {
                   "startAt": 0,
                   "maxResults": 25,
@@ -240,13 +179,13 @@ public sealed class FieldAliasProtocolTests : IAsyncLifetime
             cancellationToken: TestContext.Current.CancellationToken);
 
         TextOf(result).ShouldContain("name the same field");
-        _jira.LogEntries.ShouldBeEmpty();
+        _seam.Jira.LogEntries.ShouldBeEmpty();
     }
 
     [Fact]
     public async Task The_confirmation_names_the_field_the_way_the_caller_did()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingPut())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingPut())
             .RespondWith(Response.Create().WithStatusCode(204));
 
         var result = await _client.CallToolAsync(
@@ -271,17 +210,15 @@ public sealed class FieldAliasProtocolTests : IAsyncLifetime
     [Fact]
     public async Task An_alias_named_after_an_expansions_own_field_does_not_hijack_the_expansion()
     {
-        var aliased = await HostProcess.RunAsync(
-            ["profile", "alias", "set", Profile, "comment", "customfield_10050"],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
+        await _seam.RunAsync(
+            ["profile", "alias", "set", ProtocolSeam.Profile, "comment", "customfield_10050"]);
 
-        aliased.ExitCode.ShouldBe(0);
+        // Aliases are read at startup, so a test that declares one after the fact needs a
+        // server of its own.
+        var client = await _seam.ConnectAsync("issues:write");
 
-        await using var client = await ServerAsync();
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingGet())
-            .RespondWith(Json(200, """
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingGet())
+            .RespondWith(JiraResponse.Json(200, """
                 {
                   "key": "PROJ-42",
                   "fields": {
@@ -312,13 +249,8 @@ public sealed class FieldAliasProtocolTests : IAsyncLifetime
         result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
 
     private IRequestMessage SingleRequest(string path) =>
-        _jira.LogEntries
+        _seam.Jira.LogEntries
             .Select(entry => entry.RequestMessage)
             .OfType<IRequestMessage>()
             .Single(request => request.Path == path);
-
-    private static IResponseBuilder Json(int status, string payload) =>
-        Response.Create().WithStatusCode(status)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(payload);
 }

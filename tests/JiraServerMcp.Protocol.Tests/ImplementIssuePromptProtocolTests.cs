@@ -1,9 +1,5 @@
 using ModelContextProtocol;
-using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
-using WireMock.RequestBuilders;
-using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -15,65 +11,16 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class ImplementIssuePromptProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
+    private ProtocolSeam _seam = null!;
 
-    private const string Profile = "work";
+    public async ValueTask InitializeAsync() => _seam = await ProtocolSeam.StartAsync();
 
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    private readonly ConfigurationHome _home = new();
-
-    private readonly List<McpClient> _clients = [];
-
-    public async ValueTask InitializeAsync()
-    {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(200)
-                .WithHeader("Content-Type", "application/json")
-                .WithBody(MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        foreach (var client in _clients)
-        {
-            await client.DisposeAsync();
-        }
-
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task A_client_granted_every_tool_the_procedure_calls_sees_the_prompt()
     {
-        var client = await ClientAsync("issues:write", "comments:write");
+        var client = await _seam.ConnectAsync("issues:write", "comments:write");
 
         client.ServerCapabilities.Prompts.ShouldNotBeNull();
 
@@ -102,7 +49,7 @@ public sealed class ImplementIssuePromptProtocolTests : IAsyncLifetime
         // transition tool, would read as an instruction to do something impossible. With nothing
         // registered the server advertises no prompts capability at all, so such a client does not
         // see an empty list — it sees no prompt surface, and prompts/list is not even available.
-        var client = await ClientAsync(grants);
+        var client = await _seam.ConnectAsync(grants);
 
         client.ServerCapabilities.Prompts.ShouldBeNull();
 
@@ -148,7 +95,7 @@ public sealed class ImplementIssuePromptProtocolTests : IAsyncLifetime
 
         // Static text: no fetch to go stale, no failure at prompt-fetch time, and not a character
         // of Jira-authored content in the message.
-        _jira.LogEntries.ShouldBeEmpty();
+        _seam.Jira.LogEntries.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -156,7 +103,7 @@ public sealed class ImplementIssuePromptProtocolTests : IAsyncLifetime
     /// </summary>
     private async Task<string> GetAsync(string? key)
     {
-        var client = await ClientAsync("issues:write", "comments:write");
+        var client = await _seam.ConnectAsync("issues:write", "comments:write");
 
         var result = await client.GetPromptAsync(
             "implement_issue",
@@ -170,30 +117,5 @@ public sealed class ImplementIssuePromptProtocolTests : IAsyncLifetime
         message.Role.ShouldBe(Role.User);
 
         return message.Content.ShouldBeOfType<TextContentBlock>().Text;
-    }
-
-    /// <summary>
-    /// A server launched with the grants named here, exactly as an operator's MCP configuration
-    /// would (ADR-0005).
-    /// </summary>
-    private async Task<McpClient> ClientAsync(params string[] grants)
-    {
-        string[] allow = [.. grants.SelectMany(grant => (string[])["--allow", grant])];
-
-        var client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor(["serve", "--profile", Profile, .. allow]),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        _clients.Add(client);
-
-        return client;
     }
 }

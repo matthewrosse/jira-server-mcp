@@ -4,7 +4,6 @@ using ModelContextProtocol.Protocol;
 using WireMock;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Protocol.Tests;
 
@@ -14,19 +13,6 @@ namespace JiraServerMcp.Protocol.Tests;
 /// </summary>
 public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
 {
-    private const string Token = "s3cr3t-personal-access-token";
-
-    private const string Profile = "work";
-
-    private const string MyselfPayload = """
-        {
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
     private const string TransitionsPayload = """
         {
           "transitions": [
@@ -53,45 +39,11 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         { "id": "10200", "timeSpent": "3h 30m", "started": "2026-08-16T09:00:00.000+0000" }
         """;
 
-    private readonly WireMockServer _jira = WireMockServer.Start();
+    private ProtocolSeam _seam = null!;
 
-    private readonly ConfigurationHome _home = new();
+    public async ValueTask InitializeAsync() => _seam = await ProtocolSeam.StartAsync();
 
-    private readonly List<McpClient> _clients = [];
-
-    public async ValueTask InitializeAsync()
-    {
-        var added = await HostProcess.RunAsync(
-            ["profile", "add", Profile, "--url", _jira.Url!],
-            TestContext.Current.CancellationToken,
-            _home.Environment);
-
-        added.ExitCode.ShouldBe(0);
-
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Json(200, MyselfPayload));
-
-        var loggedIn = await HostProcess.RunAsync(
-            ["auth", "login", Profile],
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput: Token + "\n");
-
-        loggedIn.ExitCode.ShouldBe(0);
-
-        _jira.Reset();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        foreach (var client in _clients)
-        {
-            await client.DisposeAsync();
-        }
-
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
 
     [Fact]
     public async Task A_transition_named_in_any_casing_reaches_jira_as_its_identifier()
@@ -100,7 +52,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubTransition(204);
 
         var text = await CallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_transition_issue",
             new Dictionary<string, object?>
             {
@@ -125,7 +77,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubTransition(204);
 
         await CallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_transition_issue",
             new Dictionary<string, object?>
             {
@@ -148,7 +100,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubTransitions();
 
         var text = await FailedCallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_transition_issue",
             new Dictionary<string, object?>
             {
@@ -182,7 +134,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubTransition(204);
 
         var text = await FailedCallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_transition_issue",
             new Dictionary<string, object?>
             {
@@ -200,7 +152,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubTransitions(404, """{ "errorMessages": ["Issue Does Not Exist"], "errors": {} }""");
 
         var text = await FailedCallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_transition_issue",
             new Dictionary<string, object?>
             {
@@ -223,7 +175,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubTransition(204);
 
         await CallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_transition_issue",
             new Dictionary<string, object?>
             {
@@ -256,7 +208,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubTransition(503);
 
         await FailedCallAsync(
-            await ClientAsync("issues:write"),
+            await _seam.ConnectAsync("issues:write"),
             "jira_transition_issue",
             new Dictionary<string, object?>
             {
@@ -270,11 +222,11 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_comment_comes_back_as_an_identifier_and_a_timestamp_and_nothing_else()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
-            .RespondWith(Json(201, CommentPayload));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
+            .RespondWith(JiraResponse.Json(201, CommentPayload));
 
         var text = await CallAsync(
-            await ClientAsync("comments:write"),
+            await _seam.ConnectAsync("comments:write"),
             "jira_add_comment",
             new Dictionary<string, object?>
             {
@@ -296,7 +248,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     public async Task An_empty_comment_is_refused_before_anything_is_sent()
     {
         var text = await FailedCallAsync(
-            await ClientAsync("comments:write"),
+            await _seam.ConnectAsync("comments:write"),
             "jira_add_comment",
             new Dictionary<string, object?>
             {
@@ -311,11 +263,11 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_comment_jira_could_not_answer_is_asked_exactly_once()
     {
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
             .RespondWith(Response.Create().WithStatusCode(503));
 
         await FailedCallAsync(
-            await ClientAsync("comments:write"),
+            await _seam.ConnectAsync("comments:write"),
             "jira_add_comment",
             new Dictionary<string, object?>
             {
@@ -332,7 +284,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubWorklog(201);
 
         var text = await CallAsync(
-            await ClientAsync("worklogs:write"),
+            await _seam.ConnectAsync("worklogs:write"),
             "jira_add_worklog",
             new Dictionary<string, object?>
             {
@@ -358,7 +310,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubWorklog(201);
 
         await CallAsync(
-            await ClientAsync("worklogs:write"),
+            await _seam.ConnectAsync("worklogs:write"),
             "jira_add_worklog",
             new Dictionary<string, object?>
             {
@@ -375,7 +327,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     public async Task A_duration_jira_could_not_read_is_refused_before_anything_is_sent()
     {
         var text = await FailedCallAsync(
-            await ClientAsync("worklogs:write"),
+            await _seam.ConnectAsync("worklogs:write"),
             "jira_add_worklog",
             new Dictionary<string, object?>
             {
@@ -393,7 +345,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     public async Task A_start_time_jira_could_not_read_is_refused_before_anything_is_sent()
     {
         var text = await FailedCallAsync(
-            await ClientAsync("worklogs:write"),
+            await _seam.ConnectAsync("worklogs:write"),
             "jira_add_worklog",
             new Dictionary<string, object?>
             {
@@ -412,7 +364,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         StubWorklog(503);
 
         await FailedCallAsync(
-            await ClientAsync("worklogs:write"),
+            await _seam.ConnectAsync("worklogs:write"),
             "jira_add_worklog",
             new Dictionary<string, object?>
             {
@@ -426,7 +378,7 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     [Fact]
     public async Task The_three_tools_say_honestly_whether_they_read_and_whether_they_destroy()
     {
-        var client = await ClientAsync("issues:write", "comments:write", "worklogs:write");
+        var client = await _seam.ConnectAsync("issues:write", "comments:write", "worklogs:write");
 
         var tools = await client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
@@ -447,28 +399,23 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
     private static JsonElement Body(IRequestMessage request) =>
         JsonDocument.Parse(request.Body ?? string.Empty).RootElement;
 
-    private static IResponseBuilder Json(int status, string body) =>
-        Response.Create().WithStatusCode(status)
-            .WithHeader("Content-Type", "application/json")
-            .WithBody(body);
-
     private void StubTransitions() => StubTransitions(200, TransitionsPayload);
 
     private void StubTransitions(int status, string payload) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/transitions").UsingGet())
-            .RespondWith(Json(status, payload));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/transitions").UsingGet())
+            .RespondWith(JiraResponse.Json(status, payload));
 
     private void StubTransition(int status) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/transitions").UsingPost())
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/transitions").UsingPost())
             .RespondWith(Response.Create().WithStatusCode(status));
 
     private void StubWorklog(int status) =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/worklog").UsingPost())
-            .RespondWith(Json(status, WorklogPayload));
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/worklog").UsingPost())
+            .RespondWith(JiraResponse.Json(status, WorklogPayload));
 
     private IReadOnlyList<IRequestMessage> Requests() =>
     [
-        .. _jira.LogEntries.Select(entry => entry.RequestMessage).OfType<IRequestMessage>(),
+        .. _seam.Jira.LogEntries.Select(entry => entry.RequestMessage).OfType<IRequestMessage>(),
     ];
 
     private async Task<string> CallAsync(
@@ -499,30 +446,5 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         result.IsError.ShouldBe(true);
 
         return result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
-    }
-
-    /// <summary>
-    /// A server launched with the grants named here, exactly as an operator's MCP configuration
-    /// would (ADR-0005).
-    /// </summary>
-    private async Task<McpClient> ClientAsync(params string[] grants)
-    {
-        string[] allow = [.. grants.SelectMany(grant => (string[])["--allow", grant])];
-
-        var client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
-            {
-                Name = "jira-server-mcp",
-                Command = HostProcess.Command,
-                Arguments = HostProcess.ArgumentsFor(["serve", "--profile", Profile, .. allow]),
-                EnvironmentVariables = _home.Environment.ToDictionary(
-                    entry => entry.Key,
-                    entry => (string?)entry.Value),
-            }),
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        _clients.Add(client);
-
-        return client;
     }
 }
