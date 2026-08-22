@@ -130,7 +130,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
     {
         // The login succeeds and the probe does not, which is how a profile ends up without one.
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(JiraResponse.Json(200, ProtocolSeam.MyselfPayload));
+            .RespondWith(JiraResponse.Json(200, JiraAccount.Payload()));
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(503));
 
@@ -294,7 +294,7 @@ public sealed class SoftwareToolsProtocolTests : IAsyncLifetime
     private async Task SignInAsync(bool softwareLicensed)
     {
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(JiraResponse.Json(200, ProtocolSeam.MyselfPayload));
+            .RespondWith(JiraResponse.Json(200, JiraAccount.Payload()));
 
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/serverInfo").UsingGet())
             .RespondWith(JiraResponse.Json(200, ServerInfoPayload));

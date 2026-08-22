@@ -79,6 +79,16 @@ with Jira replaced by an HTTP double. Where tool-specific branching is proven. S
 staging it takes — the double, a registered profile, a stored token, a client over stdio — lives in
 the `ProtocolSeam` fixture, and a test in that project fails if a file stages it by hand.
 
+**Verb seam** — the boundary at which an operator observes a verb: the exit code, and what is
+printed. Proven over the CLI as a real process against an HTTP double, because the failure ladder
+writes to standard error and returns nothing a caller could inspect. See ADR-0008, clause 4. What
+varies here is the ladder itself — unregistered, registered, logged in — so a verb that is the
+subject of a test is spelled out, and a verb that is only staging is not. The staging it
+takes — the double, a registered profile, a stored token — lives in the `VerbSeam` fixture, and a
+test in that project fails if a file stages it by hand or retypes the account payload the fixture
+answers with.
+_Avoid_: command, CLI test — the first already names the System.CommandLine symbol.
+
 **Expansion** — an optional extra section of an issue read: comments, transitions, changelog,
 links, worklogs, attachments. Opt-in, because each one costs the agent context it may not need.
 An expansion reaches its section by exactly one of three mechanisms — a collection field, Jira's

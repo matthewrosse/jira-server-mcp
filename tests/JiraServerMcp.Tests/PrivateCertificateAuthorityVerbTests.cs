@@ -7,19 +7,20 @@ namespace JiraServerMcp.Tests;
 /// </summary>
 public sealed class PrivateCertificateAuthorityVerbTests : IDisposable
 {
-    private const string Token = "s3cr3t-personal-access-token";
+    private readonly VerbSeam _seam = new();
 
-    private const string MyselfPayload =
-        """{"key":"JIRAUSER10100","name":"ada","displayName":"Ada Lovelace","active":true}""";
-
-    private readonly ConfigurationHome _home = new();
+    /// <summary>
+    /// This file's Jira is not the seam's double: WireMock serves its own generated certificate
+    /// and does not hand out the material needed to trust it, which is what these tests need.
+    /// The seam's double is never touched, so no HTTP server is started beside this one.
+    /// </summary>
     private readonly TlsTestServer _jira =
-        TlsTestServer.StartWithASelfSignedCertificate(MyselfPayload);
+        TlsTestServer.StartWithASelfSignedCertificate(JiraAccount.Payload());
 
     public void Dispose()
     {
         _jira.Dispose();
-        _home.Dispose();
+        _seam.Dispose();
     }
 
     [Fact]
@@ -27,12 +28,13 @@ public sealed class PrivateCertificateAuthorityVerbTests : IDisposable
     {
         await AddProfileAsync();
 
-        var result = await RunAsync(["auth", "login", "work"], standardInput: Token + "\n");
+        var result = await _seam.RunAsync(
+            ["auth", "login", "work"], standardInput: VerbSeam.Token + "\n");
 
         result.ExitCode.ShouldBe(0);
         result.StandardOutput.ShouldContain("Ada Lovelace");
 
-        File.Exists(_home.CredentialsFile).ShouldBeTrue();
+        File.Exists(_seam.Home.CredentialsFile).ShouldBeTrue();
     }
 
     [Fact]
@@ -40,36 +42,33 @@ public sealed class PrivateCertificateAuthorityVerbTests : IDisposable
     {
         await AddProfileAsync();
 
-        (await RunAsync(["auth", "login", "work"], standardInput: Token + "\n")).ExitCode
-            .ShouldBe(0);
+        (await _seam.RunAsync(["auth", "login", "work"], standardInput: VerbSeam.Token + "\n"))
+            .ExitCode.ShouldBe(0);
 
-        var result = await RunAsync(["auth", "status", "work"]);
+        var result = await _seam.RunAsync(["auth", "status", "work"]);
 
         result.ExitCode.ShouldBe(0);
         result.StandardOutput.ShouldContain("Ada Lovelace");
     }
 
+    /// <summary>
+    /// Not the seam's own step: the bundle is what these tests are about, and it has to be written
+    /// and named on the same `profile add` that registers the profile.
+    /// </summary>
     private async Task AddProfileAsync()
     {
-        Directory.CreateDirectory(_home.Directory);
+        Directory.CreateDirectory(_seam.Home.Directory);
 
-        var bundle = Path.Combine(_home.Directory, "corporate-ca.pem");
+        var bundle = Path.Combine(_seam.Home.Directory, "corporate-ca.pem");
 
         await File.WriteAllTextAsync(
             bundle,
             _jira.CertificatePem,
             TestContext.Current.CancellationToken);
 
-        var added = await RunAsync(
+        var added = await _seam.RunAsync(
             ["profile", "add", "work", "--url", _jira.Url.ToString(), "--ca-bundle", bundle]);
 
         added.ExitCode.ShouldBe(0);
     }
-
-    private Task<HostProcessResult> RunAsync(string[] verb, string? standardInput = null) =>
-        HostProcess.RunAsync(
-            verb,
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput);
 }

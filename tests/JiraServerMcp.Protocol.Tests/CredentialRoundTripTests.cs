@@ -65,7 +65,7 @@ public sealed class CredentialRoundTripTests : IDisposable
         _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
-                .WithBody("""{"name":"ada","displayName":"Ada Lovelace","active":true}"""));
+                .WithBody(JiraAccount.Payload()));
 
     private async Task CallWhoamiAsync()
     {

@@ -42,7 +42,7 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
     {
         StubMyself(Response.Create().WithStatusCode(200)
             .WithHeader("Content-Type", "application/json")
-            .WithBody(ProtocolSeam.MyselfPayload));
+            .WithBody(JiraAccount.Payload()));
 
         var result = await CallWhoamiAsync(TestContext.Current.CancellationToken);
 
@@ -62,7 +62,7 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
     {
         StubMyself(Response.Create().WithStatusCode(200)
             .WithHeader("Content-Type", "application/json")
-            .WithBody(ProtocolSeam.MyselfPayload));
+            .WithBody(JiraAccount.Payload()));
 
         await CallWhoamiAsync(TestContext.Current.CancellationToken);
 
@@ -81,7 +81,7 @@ public sealed class WhoamiProtocolTests : IAsyncLifetime
     {
         StubMyself(Response.Create().WithStatusCode(200)
             .WithHeader("Content-Type", "application/json")
-            .WithBody(ProtocolSeam.MyselfPayload)
+            .WithBody(JiraAccount.Payload())
             .WithDelay(TimeSpan.FromSeconds(10)));
 
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));

@@ -1,7 +1,4 @@
 using System.Text.Json;
-using WireMock.RequestBuilders;
-using WireMock.ResponseBuilders;
-using WireMock.Server;
 
 namespace JiraServerMcp.Tests;
 
@@ -11,25 +8,9 @@ namespace JiraServerMcp.Tests;
 /// </summary>
 public sealed class ProfileVerbTests : IDisposable
 {
-    private readonly ConfigurationHome _home = new();
+    private readonly VerbSeam _seam = new();
 
-    /// <summary>
-    /// `auth login` validates a token before storing it, so the tests that store one need a Jira
-    /// to validate against.
-    /// </summary>
-    private readonly WireMockServer _jira = WireMockServer.Start();
-
-    public ProfileVerbTests() =>
-        _jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(200)
-                .WithHeader("Content-Type", "application/json")
-                .WithBody("""{"name":"ada","displayName":"Ada Lovelace","active":true}"""));
-
-    public void Dispose()
-    {
-        _jira.Stop();
-        _home.Dispose();
-    }
+    public void Dispose() => _seam.Dispose();
 
     [Fact]
     public async Task Add_writes_the_profile_and_says_so()
@@ -38,9 +19,9 @@ public sealed class ProfileVerbTests : IDisposable
 
         result.ExitCode.ShouldBe(0);
         result.StandardOutput.ShouldContain("work");
-        File.Exists(_home.ProfilesFile).ShouldBeTrue();
+        File.Exists(_seam.Home.ProfilesFile).ShouldBeTrue();
 
-        var profile = ProfileIn(_home.ReadProfiles(), "work");
+        var profile = ProfileIn(_seam.Home.ReadProfiles(), "work");
 
         profile.GetProperty("baseUrl").GetString().ShouldBe("https://jira.example.com/");
         profile.GetProperty("createdAt").GetString().ShouldNotBeNullOrEmpty();
@@ -52,12 +33,12 @@ public sealed class ProfileVerbTests : IDisposable
     {
         var bundle = await WriteBundleAsync(TestCertificate.Pem());
 
-        var result = await RunAsync(
+        var result = await _seam.RunAsync(
             ["profile", "add", "work", "--url", "https://jira.example.com", "--ca-bundle", bundle]);
 
         result.ExitCode.ShouldBe(0);
 
-        ProfileIn(_home.ReadProfiles(), "work")
+        ProfileIn(_seam.Home.ReadProfiles(), "work")
             .GetProperty("caBundlePath").GetString().ShouldBe(bundle);
     }
 
@@ -72,7 +53,7 @@ public sealed class ProfileVerbTests : IDisposable
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("HTTPS");
-        File.Exists(_home.ProfilesFile).ShouldBeFalse();
+        File.Exists(_seam.Home.ProfilesFile).ShouldBeFalse();
     }
 
     [Theory]
@@ -90,7 +71,7 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task Add_refuses_a_certificate_authority_bundle_that_is_not_there()
     {
-        var result = await RunAsync(
+        var result = await _seam.RunAsync(
             [
                 "profile", "add", "work",
                 "--url", "https://jira.example.com",
@@ -99,7 +80,7 @@ public sealed class ProfileVerbTests : IDisposable
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("no-such-bundle.pem");
-        File.Exists(_home.ProfilesFile).ShouldBeFalse();
+        File.Exists(_seam.Home.ProfilesFile).ShouldBeFalse();
     }
 
     [Fact]
@@ -109,7 +90,7 @@ public sealed class ProfileVerbTests : IDisposable
         // and every handshake then fails for a reason that says nothing about this file.
         var bundle = await WriteBundleAsync("not a certificate");
 
-        var result = await RunAsync(
+        var result = await _seam.RunAsync(
             [
                 "profile", "add", "work",
                 "--url", "https://jira.example.com",
@@ -118,18 +99,18 @@ public sealed class ProfileVerbTests : IDisposable
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("corporate-ca.pem");
-        File.Exists(_home.ProfilesFile).ShouldBeFalse();
+        File.Exists(_seam.Home.ProfilesFile).ShouldBeFalse();
     }
 
     [Fact]
     public async Task A_damaged_profile_file_is_reported_rather_than_thrown()
     {
-        await AddAsync("work", "https://jira.example.com");
+        await _seam.AddProfileAsync("work", "https://jira.example.com");
 
         await File.WriteAllTextAsync(
-            _home.ProfilesFile, "{ truncated", TestContext.Current.CancellationToken);
+            _seam.Home.ProfilesFile, "{ truncated", TestContext.Current.CancellationToken);
 
-        var result = await RunAsync(["profile", "list"]);
+        var result = await _seam.RunAsync(["profile", "list"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("profiles.json");
@@ -139,14 +120,14 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task A_credential_that_cannot_be_decrypted_names_the_command_that_fixes_it()
     {
-        await AddJiraAsync("work");
-        await LoginAsync("work", "s3cr3t-personal-access-token");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
         // The key without its credentials, or the credentials without their key, is the same
         // situation: a restored backup that took one and not the other.
-        File.Delete(Path.Combine(_home.Directory, "credentials.key"));
+        File.Delete(Path.Combine(_seam.Home.Directory, "credentials.key"));
 
-        var result = await RunAsync(["serve", "--profile", "work"]);
+        var result = await _seam.RunAsync(["serve", "--profile", "work"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("auth login work");
@@ -156,13 +137,13 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task Storing_a_token_does_not_re_key_another_profiles_credential()
     {
-        await AddJiraAsync("work");
-        await AddJiraAsync("spare");
-        await LoginAsync("work", "work-personal-access-token");
-        await LoginAsync("spare", "spare-personal-access-token");
+        await _seam.AddProfileAsync("work");
+        await _seam.AddProfileAsync("spare");
+        await _seam.LoginAsync("work", "work-personal-access-token");
+        await _seam.LoginAsync("spare", "spare-personal-access-token");
 
         // Both were encrypted under the same key, and neither login replaced it.
-        var served = await RunAsync(["serve", "--profile", "work"]);
+        var served = await _seam.RunAsync(["serve", "--profile", "work"]);
 
         served.StandardError.ShouldNotContain("cannot be decrypted");
         served.StandardError.ShouldNotContain("Unhandled exception");
@@ -171,24 +152,24 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task Add_refuses_to_overwrite_an_existing_profile()
     {
-        await AddAsync("work", "https://jira.example.com");
+        await _seam.AddProfileAsync("work", "https://jira.example.com");
 
         var result = await AddAsync("work", "https://other.example.com");
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("work");
 
-        ProfileIn(_home.ReadProfiles(), "work")
+        ProfileIn(_seam.Home.ReadProfiles(), "work")
             .GetProperty("baseUrl").GetString().ShouldBe("https://jira.example.com/");
     }
 
     [Fact]
     public async Task List_shows_names_and_urls()
     {
-        await AddAsync("work", "https://jira.example.com");
-        await AddAsync("spare", "https://jira.spare.example.com");
+        await _seam.AddProfileAsync("work", "https://jira.example.com");
+        await _seam.AddProfileAsync("spare", "https://jira.spare.example.com");
 
-        var result = await RunAsync(["profile", "list"]);
+        var result = await _seam.RunAsync(["profile", "list"]);
 
         result.ExitCode.ShouldBe(0);
         result.StandardOutput.ShouldContain("work");
@@ -200,10 +181,10 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task List_prints_no_secret_even_when_a_credential_is_stored()
     {
-        await AddJiraAsync("work");
-        await LoginAsync("work", "s3cr3t-personal-access-token");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
-        var result = await RunAsync(["profile", "list"]);
+        var result = await _seam.RunAsync(["profile", "list"]);
 
         result.ExitCode.ShouldBe(0);
         result.StandardOutput.ShouldNotContain("s3cr3t");
@@ -213,7 +194,7 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task List_says_so_when_there_are_no_profiles()
     {
-        var result = await RunAsync(["profile", "list"]);
+        var result = await _seam.RunAsync(["profile", "list"]);
 
         result.ExitCode.ShouldBe(0);
         result.StandardOutput.ShouldContain("No profiles");
@@ -222,16 +203,16 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task Remove_deletes_the_profile_and_its_credential()
     {
-        await AddJiraAsync("work");
-        await LoginAsync("work", "s3cr3t-personal-access-token");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
-        var result = await RunAsync(["profile", "remove", "work"]);
+        var result = await _seam.RunAsync(["profile", "remove", "work"]);
 
         result.ExitCode.ShouldBe(0);
-        _home.ReadProfiles().ShouldNotContain("work");
+        _seam.Home.ReadProfiles().ShouldNotContain("work");
 
         // The credential is gone with it: serving the profile again cannot find one.
-        var served = await RunAsync(["serve", "--profile", "work"]);
+        var served = await _seam.RunAsync(["serve", "--profile", "work"]);
 
         served.ExitCode.ShouldNotBe(0);
         served.StandardError.ShouldContain("work");
@@ -240,7 +221,7 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task Remove_reports_a_profile_that_was_never_there()
     {
-        var result = await RunAsync(["profile", "remove", "absent"]);
+        var result = await _seam.RunAsync(["profile", "remove", "absent"]);
 
         result.ExitCode.ShouldNotBe(0);
         result.StandardError.ShouldContain("absent");
@@ -249,10 +230,10 @@ public sealed class ProfileVerbTests : IDisposable
     [Fact]
     public async Task The_profile_file_never_holds_a_token()
     {
-        await AddJiraAsync("work");
-        await LoginAsync("work", "s3cr3t-personal-access-token");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
-        _home.ReadProfiles().ShouldNotContain("s3cr3t");
+        _seam.Home.ReadProfiles().ShouldNotContain("s3cr3t");
     }
 
     [Fact]
@@ -265,13 +246,13 @@ public sealed class ProfileVerbTests : IDisposable
             return;
         }
 
-        await AddJiraAsync("work");
-        await LoginAsync("work", "s3cr3t-personal-access-token");
+        await _seam.AddProfileAsync();
+        await _seam.LoginAsync();
 
-        File.GetUnixFileMode(_home.Directory).ShouldBe(
+        File.GetUnixFileMode(_seam.Home.Directory).ShouldBe(
             UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 
-        foreach (var file in Directory.GetFiles(_home.Directory))
+        foreach (var file in Directory.GetFiles(_seam.Home.Directory))
         {
             File.GetUnixFileMode(file).ShouldBe(UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
@@ -279,28 +260,20 @@ public sealed class ProfileVerbTests : IDisposable
 
     private async Task<string> WriteBundleAsync(string contents)
     {
-        var bundle = Path.Combine(_home.Directory, "corporate-ca.pem");
+        var bundle = Path.Combine(_seam.Home.Directory, "corporate-ca.pem");
 
-        Directory.CreateDirectory(_home.Directory);
+        Directory.CreateDirectory(_seam.Home.Directory);
         await File.WriteAllTextAsync(bundle, contents, TestContext.Current.CancellationToken);
 
         return bundle;
     }
 
-    private Task<HostProcessResult> AddJiraAsync(string name) => AddAsync(name, _jira.Url!);
-
+    /// <summary>
+    /// `profile add` where the verb is the subject rather than the staging, which is most of this
+    /// file: the URL is the argument under test, so it is always given.
+    /// </summary>
     private Task<HostProcessResult> AddAsync(string name, string url) =>
-        RunAsync(["profile", "add", name, "--url", url]);
-
-    private Task<HostProcessResult> LoginAsync(string name, string token) =>
-        RunAsync(["auth", "login", name], standardInput: token + "\n");
-
-    private Task<HostProcessResult> RunAsync(string[] verb, string? standardInput = null) =>
-        HostProcess.RunAsync(
-            verb,
-            TestContext.Current.CancellationToken,
-            _home.Environment,
-            standardInput);
+        _seam.RunAsync(["profile", "add", name, "--url", url]);
 
     private static JsonElement ProfileIn(string profilesJson, string name) =>
         JsonDocument.Parse(profilesJson).RootElement.GetProperty("profiles").GetProperty(name);

@@ -16,21 +16,6 @@ internal sealed class ProtocolSeam : IAsyncDisposable
 
     public const string Profile = "work";
 
-    /// <summary>
-    /// The account the token belongs to, declared as fully as a real Jira declares one. A thinner
-    /// payload here would teach every later author a thinner Jira than they will meet.
-    /// </summary>
-    public const string MyselfPayload = """
-        {
-          "self": "http://localhost/rest/api/2/user?username=ada",
-          "key": "JIRAUSER10100",
-          "name": "ada",
-          "emailAddress": "ada@example.com",
-          "displayName": "Ada Lovelace",
-          "active": true
-        }
-        """;
-
     private readonly List<McpClient> _clients = [];
 
     private ProtocolSeam()
@@ -58,7 +43,7 @@ internal sealed class ProtocolSeam : IAsyncDisposable
         // itself. The stub and the request it logged are then cleared, leaving each test the empty
         // slate it asserts against.
         seam.Jira.Given(Request.Create().WithPath("/rest/api/2/myself").UsingGet())
-            .RespondWith(JiraResponse.Json(200, MyselfPayload));
+            .RespondWith(JiraResponse.Json(200, JiraAccount.Payload()));
 
         await seam.RunAsync(["auth", "login", Profile], standardInput: Token + "\n");
 
