@@ -55,6 +55,14 @@
     "path": "/rest/api/2/issue/createmeta?projectKeys=PZ&expand=projects.issuetypes.fields",
     "status": 200
   },
+  "editmeta-task": {
+    "path": "/rest/api/2/issue/HAR-1/editmeta",
+    "status": 200
+  },
+  "editmeta-bug": {
+    "path": "/rest/api/2/issue/HAR-2/editmeta",
+    "status": 200
+  },
   "user-search": {
     "path": "/rest/api/2/user/search?username=admin",
     "status": 200

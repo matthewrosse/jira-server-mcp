@@ -245,15 +245,26 @@ no error. `ATL_DB_DRIVER: org.postgresql.Driver` fixes it and the database step 
 
 ## Fixtures
 
-`tests/fixtures/payloads/8.20.7/` holds 21 payloads captured from the canonical version over a
+`tests/fixtures/payloads/8.20.7/` holds 23 payloads captured from the canonical version over a
 personal access token — the same authentication path the product uses, not the administrator
 basic-auth path the harness seeds with. `index.json` maps each file to the request that produced
 it.
 
 They cover the current user, server info, JQL search, an issue both bare and expanded with
 `changelog,renderedFields,transitions`, transitions, comments, worklogs, the project list and
-detail, statuses, components, versions, `createmeta`, user search, the field list, and the board,
-sprint, backlog and board-issue endpoints of the software API.
+detail, statuses, components, versions, `createmeta`, `editmeta` for two issue types, user search,
+the field list, and the board, sprint, backlog and board-issue endpoints of the software API.
+
+**Two payloads carry a different project key on purpose.** `editmeta-task.json` and
+`editmeta-bug.json` are `HAR-1` and `HAR-2`, from the long-lived harness instance above; the other
+21 came from the Phase 0 spike, which seeded project `PZ`. That corpus cannot be reproduced —
+`scripts/phase0/06-capture.py` reads a `seeded.json` and a token from an instance that no longer
+exists — so these two were captured from the instance the repo still supports, over the same
+personal access token path. **Do not re-run that script to add an endpoint.** It rewrites
+`index.json` wholesale from its own list, which would regenerate every payload and drop these two
+rows. The pair exists rather than one payload because what they are for is
+the difference between them: a Bug's edit screen carries `environment` and `versions` and a Task's
+does not.
 
 One number worth carrying into Phase 2: **a single trivial issue with one comment and one worklog
 deserializes from 12 KB of JSON, and 20 KB with expansions.** The default field projection is not
