@@ -133,6 +133,21 @@ nobody asked for. Not every named thing Jira holds is one: an issue type, a comp
 or a resolution is sent as the caller wrote it and Jira refuses it.
 _Avoid_: enum, allowed values, lookup table.
 
+**Query catalogue** — what one Jira will accept in a JQL query: which fields are queryable, the
+name each is queryable under, the operators each takes, and the functions this instance publishes.
+Published and never matched — nothing resolves a caller's word against it, which is what
+distinguishes it from a **published vocabulary** above. The read-side counterpart of a **screen**:
+a screen says what a write will accept, a query catalogue says what a query will.
+_Avoid_: JQL vocabulary, autocomplete data, field catalogue.
+
+**JQL name** — the name a field is queryable under, which for a custom field is neither its
+identifier nor, in general, its bare display name: `customfield_10107` is queryable as `cf[10107]`
+or as `"Story Points"` — quotes included, because Jira publishes the quoted form — and never under
+the identifier every other part of this server uses. The gap is why a **field alias** cannot simply
+be substituted into a query.
+_Avoid_: clause name (Jira's own word for the same thing, and one nothing else here uses), field
+name.
+
 **Relation phrase** — the direction-specific wording Jira publishes for a link type: "blocks" and
 "is blocked by" for the one type `Blocks`. The unit this server's tools take, in place of a type
 name paired with a direction, so that which end is which can never be got wrong. A phrase may be

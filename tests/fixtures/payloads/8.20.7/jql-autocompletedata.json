@@ -1,0 +1,1780 @@
+{
+  "visibleFieldNames": [
+    {
+      "value": "affectedVersion",
+      "displayName": "affectedVersion",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "~",
+        "!~",
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.project.version.Version"
+      ]
+    },
+    {
+      "value": "assignee",
+      "displayName": "assignee",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "not in",
+        "was",
+        "was not",
+        "is not",
+        "was in",
+        "in",
+        "is",
+        "was not in",
+        "changed",
+        "=",
+        "!="
+      ],
+      "types": [
+        "com.atlassian.jira.user.ApplicationUser"
+      ]
+    },
+    {
+      "value": "attachments",
+      "displayName": "attachments",
+      "searchable": "true",
+      "operators": [
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.attachment.Attachment"
+      ]
+    },
+    {
+      "value": "category",
+      "displayName": "category",
+      "auto": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.project.ProjectCategory"
+      ]
+    },
+    {
+      "value": "comment",
+      "displayName": "comment",
+      "searchable": "true",
+      "operators": [
+        "~",
+        "!~"
+      ],
+      "types": [
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "component",
+      "displayName": "component",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.bc.project.component.ProjectComponent"
+      ]
+    },
+    {
+      "value": "created",
+      "displayName": "created",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "createdDate",
+      "displayName": "createdDate",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "creator",
+      "displayName": "creator",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.user.ApplicationUser"
+      ]
+    },
+    {
+      "value": "description",
+      "displayName": "description",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "~",
+        "!~",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "Development",
+      "displayName": "Development - cf[10000]",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10000]",
+      "operators": [
+        ">",
+        ">=",
+        "=",
+        "<",
+        "<=",
+        "in",
+        "!~",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "java.lang.Number",
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "due",
+      "displayName": "due",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "duedate",
+      "displayName": "duedate",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "environment",
+      "displayName": "environment",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "~",
+        "!~",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "\"Epic Colour\"",
+      "displayName": "Epic Colour - cf[10105]",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10105]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "\"Epic Link\"",
+      "displayName": "Epic Link - cf[10102]",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10102]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "\"Epic Name\"",
+      "displayName": "Epic Name - cf[10104]",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10104]",
+      "operators": [
+        "~",
+        "!~",
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "\"Epic Status\"",
+      "displayName": "Epic Status - cf[10103]",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10103]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.customfields.option.Option"
+      ]
+    },
+    {
+      "value": "filter",
+      "displayName": "filter",
+      "auto": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.search.SearchRequest"
+      ]
+    },
+    {
+      "value": "fixVersion",
+      "displayName": "fixVersion",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        ">=",
+        "was in",
+        "in",
+        "<=",
+        "~",
+        "=",
+        "!=",
+        "not in",
+        "was",
+        "was not",
+        "is not",
+        "!~",
+        ">",
+        "is",
+        "was not in",
+        "<",
+        "changed"
+      ],
+      "types": [
+        "com.atlassian.jira.project.version.Version"
+      ]
+    },
+    {
+      "value": "id",
+      "displayName": "id",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "issue",
+      "displayName": "issue",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "issue.property",
+      "displayName": "issue.property",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "<",
+        "<=",
+        ">",
+        ">=",
+        "~",
+        "!~",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "java.util.Date",
+        "java.lang.Number",
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "issuekey",
+      "displayName": "issuekey",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "issueLinkType",
+      "displayName": "issueLinkType",
+      "auto": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.link.IssueLinkType"
+      ]
+    },
+    {
+      "value": "issuetype",
+      "displayName": "issuetype",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.issuetype.IssueType"
+      ]
+    },
+    {
+      "value": "key",
+      "displayName": "key",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "labels",
+      "displayName": "labels",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.label.Label"
+      ]
+    },
+    {
+      "value": "lastViewed",
+      "displayName": "lastViewed",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "level",
+      "displayName": "level",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.security.IssueSecurityLevel"
+      ]
+    },
+    {
+      "value": "originalEstimate",
+      "displayName": "originalEstimate",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.types.Duration"
+      ]
+    },
+    {
+      "value": "\"Original story points\"",
+      "displayName": "Original story points - cf[10111]",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10111]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.lang.Number"
+      ]
+    },
+    {
+      "value": "parent",
+      "displayName": "parent",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "\"Parent Link\"",
+      "displayName": "Parent Link - cf[10108]",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10108]",
+      "operators": [
+        "=",
+        "in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "priority",
+      "displayName": "priority",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        ">=",
+        "was in",
+        "in",
+        "<=",
+        "=",
+        "!=",
+        "not in",
+        "was",
+        "was not",
+        "is not",
+        ">",
+        "is",
+        "was not in",
+        "<",
+        "changed"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.priority.Priority"
+      ]
+    },
+    {
+      "value": "progress",
+      "displayName": "progress",
+      "orderable": "true",
+      "operators": [],
+      "types": [
+        "java.lang.Object"
+      ]
+    },
+    {
+      "value": "project",
+      "displayName": "project",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.project.Project"
+      ]
+    },
+    {
+      "value": "Rank",
+      "displayName": "Rank - cf[10106]",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10106]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "remainingEstimate",
+      "displayName": "remainingEstimate",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.types.Duration"
+      ]
+    },
+    {
+      "value": "reporter",
+      "displayName": "reporter",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "not in",
+        "was",
+        "was not",
+        "is not",
+        "was in",
+        "in",
+        "is",
+        "was not in",
+        "changed",
+        "=",
+        "!="
+      ],
+      "types": [
+        "com.atlassian.jira.user.ApplicationUser"
+      ]
+    },
+    {
+      "value": "request",
+      "displayName": "request",
+      "auto": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.search.SearchRequest"
+      ]
+    },
+    {
+      "value": "resolution",
+      "displayName": "resolution",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        ">=",
+        "was in",
+        "in",
+        "<=",
+        "=",
+        "!=",
+        "not in",
+        "was",
+        "was not",
+        "is not",
+        ">",
+        "is",
+        "was not in",
+        "<",
+        "changed"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.resolution.Resolution"
+      ]
+    },
+    {
+      "value": "resolutiondate",
+      "displayName": "resolutiondate",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "resolved",
+      "displayName": "resolved",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "savedfilter",
+      "displayName": "savedfilter",
+      "auto": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.search.SearchRequest"
+      ]
+    },
+    {
+      "value": "searchrequest",
+      "displayName": "searchrequest",
+      "auto": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.search.SearchRequest"
+      ]
+    },
+    {
+      "value": "Sprint",
+      "displayName": "Sprint - cf[10101]",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10101]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.greenhopper.service.sprint.Sprint"
+      ]
+    },
+    {
+      "value": "status",
+      "displayName": "status",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "not in",
+        "was",
+        "was not",
+        "is not",
+        "was in",
+        "in",
+        "is",
+        "was not in",
+        "changed",
+        "=",
+        "!="
+      ],
+      "types": [
+        "com.atlassian.jira.issue.status.Status"
+      ]
+    },
+    {
+      "value": "statusCategory",
+      "displayName": "statusCategory",
+      "auto": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.status.category.StatusCategory"
+      ]
+    },
+    {
+      "value": "\"Story Points\"",
+      "displayName": "Story Points - cf[10107]",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10107]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.lang.Number"
+      ]
+    },
+    {
+      "value": "subtasks",
+      "displayName": "subtasks",
+      "orderable": "true",
+      "operators": [],
+      "types": [
+        "java.lang.Object"
+      ]
+    },
+    {
+      "value": "summary",
+      "displayName": "summary",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "~",
+        "!~",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "\"Target end\"",
+      "displayName": "Target end - cf[10110]",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10110]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "\"Target start\"",
+      "displayName": "Target start - cf[10109]",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10109]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "Team",
+      "displayName": "Team - cf[10100]",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "cfid": "cf[10100]",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "java.lang.Number"
+      ]
+    },
+    {
+      "value": "text",
+      "displayName": "text",
+      "searchable": "true",
+      "operators": [
+        "~"
+      ],
+      "types": [
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "timeestimate",
+      "displayName": "timeestimate",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.types.Duration"
+      ]
+    },
+    {
+      "value": "timeoriginalestimate",
+      "displayName": "timeoriginalestimate",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.types.Duration"
+      ]
+    },
+    {
+      "value": "timespent",
+      "displayName": "timespent",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "com.atlassian.jira.types.Duration"
+      ]
+    },
+    {
+      "value": "type",
+      "displayName": "type",
+      "auto": "true",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "com.atlassian.jira.issue.issuetype.IssueType"
+      ]
+    },
+    {
+      "value": "updated",
+      "displayName": "updated",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "updatedDate",
+      "displayName": "updatedDate",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "voter",
+      "displayName": "voter",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.user.ApplicationUser"
+      ]
+    },
+    {
+      "value": "votes",
+      "displayName": "votes",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.lang.Number"
+      ]
+    },
+    {
+      "value": "watcher",
+      "displayName": "watcher",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.user.ApplicationUser"
+      ]
+    },
+    {
+      "value": "watchers",
+      "displayName": "watchers",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.lang.Number"
+      ]
+    },
+    {
+      "value": "worklogAuthor",
+      "displayName": "worklogAuthor",
+      "auto": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in"
+      ],
+      "types": [
+        "com.atlassian.jira.user.ApplicationUser"
+      ]
+    },
+    {
+      "value": "worklogComment",
+      "displayName": "worklogComment",
+      "searchable": "true",
+      "operators": [
+        "~",
+        "!~",
+        "is",
+        "is not"
+      ],
+      "types": [
+        "java.lang.String"
+      ]
+    },
+    {
+      "value": "worklogDate",
+      "displayName": "worklogDate",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "workratio",
+      "displayName": "workratio",
+      "orderable": "true",
+      "searchable": "true",
+      "operators": [
+        "=",
+        "!=",
+        "in",
+        "not in",
+        "is",
+        "is not",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ],
+      "types": [
+        "java.lang.Number"
+      ]
+    }
+  ],
+  "visibleFunctionNames": [
+    {
+      "value": "cascadeOption(\"\")",
+      "displayName": "cascadeOption(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.customfields.option.CascadingOption"
+      ]
+    },
+    {
+      "value": "childIssuesOf(\"\")",
+      "displayName": "childIssuesOf(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "closedSprints()",
+      "displayName": "closedSprints()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.greenhopper.service.sprint.Sprint"
+      ]
+    },
+    {
+      "value": "componentsLeadByUser()",
+      "displayName": "componentsLeadByUser()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.bc.project.component.ProjectComponent"
+      ]
+    },
+    {
+      "value": "currentLogin()",
+      "displayName": "currentLogin()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "currentUser()",
+      "displayName": "currentUser()",
+      "types": [
+        "com.atlassian.jira.user.ApplicationUser"
+      ]
+    },
+    {
+      "value": "earliestUnreleasedVersion()",
+      "displayName": "earliestUnreleasedVersion()",
+      "types": [
+        "com.atlassian.jira.project.version.Version"
+      ]
+    },
+    {
+      "value": "endOfDay()",
+      "displayName": "endOfDay()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "endOfMonth()",
+      "displayName": "endOfMonth()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "endOfWeek()",
+      "displayName": "endOfWeek()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "endOfYear()",
+      "displayName": "endOfYear()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "futureSprints()",
+      "displayName": "futureSprints()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.greenhopper.service.sprint.Sprint"
+      ]
+    },
+    {
+      "value": "issueHistory()",
+      "displayName": "issueHistory()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "issuesInPlan(\"\")",
+      "displayName": "issuesInPlan(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "issuesInProgram(\"\")",
+      "displayName": "issuesInProgram(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "issuesWithRemoteLinksByGlobalId(\"\")",
+      "displayName": "issuesWithRemoteLinksByGlobalId(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "lastLogin()",
+      "displayName": "lastLogin()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "latestReleasedVersion()",
+      "displayName": "latestReleasedVersion()",
+      "types": [
+        "com.atlassian.jira.project.version.Version"
+      ]
+    },
+    {
+      "value": "linkedIssues(\"\")",
+      "displayName": "linkedIssues(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "membersOf(\"\")",
+      "displayName": "membersOf(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.user.ApplicationUser"
+      ]
+    },
+    {
+      "value": "now()",
+      "displayName": "now()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "openSprints()",
+      "displayName": "openSprints()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.greenhopper.service.sprint.Sprint"
+      ]
+    },
+    {
+      "value": "parentIssuesOf(\"\")",
+      "displayName": "parentIssuesOf(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "projectsLeadByUser()",
+      "displayName": "projectsLeadByUser()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.project.Project"
+      ]
+    },
+    {
+      "value": "projectsWhereUserHasPermission(\"\")",
+      "displayName": "projectsWhereUserHasPermission(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.project.Project"
+      ]
+    },
+    {
+      "value": "projectsWhereUserHasRole(\"\")",
+      "displayName": "projectsWhereUserHasRole(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.project.Project"
+      ]
+    },
+    {
+      "value": "releasedVersions()",
+      "displayName": "releasedVersions()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.project.version.Version"
+      ]
+    },
+    {
+      "value": "standardIssueTypes()",
+      "displayName": "standardIssueTypes()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.issuetype.IssueType"
+      ]
+    },
+    {
+      "value": "startOfDay()",
+      "displayName": "startOfDay()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "startOfMonth()",
+      "displayName": "startOfMonth()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "startOfWeek()",
+      "displayName": "startOfWeek()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "startOfYear()",
+      "displayName": "startOfYear()",
+      "types": [
+        "java.util.Date"
+      ]
+    },
+    {
+      "value": "subTaskIssueTypes()",
+      "displayName": "subTaskIssueTypes()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.issuetype.IssueType"
+      ]
+    },
+    {
+      "value": "unreleasedVersions()",
+      "displayName": "unreleasedVersions()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.project.version.Version"
+      ]
+    },
+    {
+      "value": "updatedBy(\"\")",
+      "displayName": "updatedBy(\"\")",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "votedIssues()",
+      "displayName": "votedIssues()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    },
+    {
+      "value": "watchedIssues()",
+      "displayName": "watchedIssues()",
+      "isList": "true",
+      "types": [
+        "com.atlassian.jira.issue.Issue"
+      ]
+    }
+  ],
+  "jqlReservedWords": [
+    "explain",
+    "select",
+    "isnull",
+    "commit",
+    "isempty",
+    "when",
+    "rowid",
+    "output",
+    "number",
+    "character",
+    "identified",
+    "sqrt",
+    "delimiter",
+    "else",
+    "exclusive",
+    "lock",
+    "catch",
+    "join",
+    "strict",
+    "greater",
+    "if",
+    "between",
+    "order",
+    "having",
+    "in",
+    "byte",
+    "double",
+    "subtract",
+    "outer",
+    "index",
+    "raw",
+    "is",
+    "then",
+    "execute",
+    "input",
+    "as",
+    "defaults",
+    "field",
+    "size",
+    "left",
+    "unique",
+    "difference",
+    "returns",
+    "begin",
+    "modulo",
+    "object",
+    "trans",
+    "minus",
+    "access",
+    "increment",
+    "sum",
+    "long",
+    "into",
+    "uid",
+    "current",
+    "default",
+    "file",
+    "goto",
+    "min",
+    "audit",
+    "by",
+    "share",
+    "where",
+    "after",
+    "power",
+    "escape",
+    "connect",
+    "noaudit",
+    "table",
+    "validate",
+    "cf",
+    "set",
+    "break",
+    "initial",
+    "max",
+    "more",
+    "column",
+    "right",
+    "trigger",
+    "union",
+    "asc",
+    "rename",
+    "decrement",
+    "equals",
+    "fetch",
+    "char",
+    "exists",
+    "notin",
+    "to",
+    "first",
+    "return",
+    "transaction",
+    "checkpoint",
+    "date",
+    "privileges",
+    "declare",
+    "before",
+    "do",
+    "integer",
+    "float",
+    "while",
+    "empty",
+    "mode",
+    "view",
+    "whenever",
+    "prior",
+    "continue",
+    "function",
+    "intersection",
+    "limit",
+    "raise",
+    "create",
+    "from",
+    "collation",
+    "alter",
+    "group",
+    "add",
+    "all",
+    "last",
+    "like",
+    "resource",
+    "count",
+    "check",
+    "less",
+    "encoding",
+    "inner",
+    "rownum",
+    "collate",
+    "null",
+    "abort",
+    "immediate",
+    "true",
+    "decimal",
+    "exec",
+    "nowait",
+    "changed",
+    "desc",
+    "option",
+    "drop",
+    "next",
+    "string",
+    "session",
+    "values",
+    "for",
+    "distinct",
+    "insert",
+    "revoke",
+    "update",
+    "delete",
+    "not",
+    "synonym",
+    "avg",
+    "public",
+    "and",
+    "of",
+    "define",
+    "alias",
+    "divide",
+    "end",
+    "row",
+    "multiply",
+    "on",
+    "or",
+    "intersect",
+    "previous",
+    "false",
+    "go",
+    "start",
+    "was",
+    "rows",
+    "any",
+    "int",
+    "modify",
+    "with",
+    "inout",
+    "boolean",
+    "grant",
+    "remainder",
+    "user"
+  ]
+}

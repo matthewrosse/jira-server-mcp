@@ -90,5 +90,13 @@
   "agile-board-issues": {
     "path": "/rest/agile/1.0/board/1/issue",
     "status": 200
+  },
+  "jql-autocompletedata": {
+    "path": "/rest/api/2/jql/autocompletedata",
+    "status": 200
+  },
+  "jql-suggestions": {
+    "path": "/rest/api/2/jql/autocompletedata/suggestions?fieldName=status",
+    "status": 200
   }
 }

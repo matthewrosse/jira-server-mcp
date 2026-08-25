@@ -1,0 +1,32 @@
+{
+  "results": [
+    {
+      "value": "Closed",
+      "displayName": "Closed"
+    },
+    {
+      "value": "Done",
+      "displayName": "Done"
+    },
+    {
+      "value": "\"In Progress\"",
+      "displayName": "In Progress"
+    },
+    {
+      "value": "Open",
+      "displayName": "Open"
+    },
+    {
+      "value": "Reopened",
+      "displayName": "Reopened"
+    },
+    {
+      "value": "Resolved",
+      "displayName": "Resolved"
+    },
+    {
+      "value": "\"To Do\"",
+      "displayName": "To Do"
+    }
+  ]
+}
