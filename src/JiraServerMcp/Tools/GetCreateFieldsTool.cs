@@ -8,7 +8,10 @@ using ModelContextProtocol.Server;
 namespace JiraServerMcp.Tools;
 
 [McpServerToolType]
-internal sealed class GetCreateFieldsTool(JiraClient jira, ServedProfile profile)
+internal sealed class GetCreateFieldsTool(
+    JiraClient jira,
+    ServedProfile profile,
+    FieldAliases aliases)
 {
     private const string Name = "jira_get_create_fields";
 
@@ -50,6 +53,6 @@ internal sealed class GetCreateFieldsTool(JiraClient jira, ServedProfile profile
                 + $"'{projectKey}'. Either the project key or the type name is not one this "
                 + "account can create with: list the projects with jira_list_projects, and read "
                 + "the type names with jira_get_project.")
-            : ToolCall.Text(CreateFields.Render(read.Value));
+            : ToolCall.Text(CreateFields.Render(read.Value, aliases));
     }
 }

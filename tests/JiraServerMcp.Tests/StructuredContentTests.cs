@@ -3,6 +3,7 @@ using System.Text.Json;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
+using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
 using JiraServerMcp.Tools;
 
@@ -255,22 +256,92 @@ public class StructuredContentTests
             "PROJ",
             "Bug",
             [
-                new JiraCreateField("summary", "Summary", "string", Required: true, []),
-                new JiraCreateField(
+                new JiraScreenField("summary", "Summary", "string", Required: true, [], ["set"]),
+                new JiraScreenField(
                     "customfield_10010",
                     "Severity",
                     "option",
                     Required: true,
-                    ["Blocker", "Major", "Minor"]),
-                new JiraCreateField("labels", "Labels", "array", Required: false, []),
-            ])));
+                    ["Blocker", "Major", "Minor"],
+                    ["set"]),
+                new JiraScreenField(
+                    "labels",
+                    "Labels",
+                    "array",
+                    Required: false,
+                    [],
+                    ["add", "set", "remove"]),
+            ]),
+            FieldAliases.None));
 
         // The name is a selection label: customfield_10010 tells an agent nothing on its own, and
         // the allowed values are what a create must send verbatim.
         structure.ShouldBe(
             """
-            {"outcome":"ok","projectKey":"PROJ","issueTypeName":"Bug","fields":[{"id":"summary","name":"Summary","required":true,"type":"string","hasAllowedValues":false},{"id":"customfield_10010","name":"Severity","required":true,"type":"option","hasAllowedValues":true,"allowedValues":["Blocker","Major","Minor"],"allowedValuesTruncated":false},{"id":"labels","name":"Labels","required":false,"type":"array","hasAllowedValues":false}],"totalFields":3,"fieldsTruncated":false}
+            {"outcome":"ok","projectKey":"PROJ","issueTypeName":"Bug","fields":[{"id":"summary","name":"Summary","required":true,"type":"string","hasAllowedValues":false,"operations":["set"]},{"id":"customfield_10010","name":"Severity","required":true,"type":"option","hasAllowedValues":true,"allowedValues":["Blocker","Major","Minor"],"allowedValuesTruncated":false,"operations":["set"]},{"id":"labels","name":"Labels","required":false,"type":"array","hasAllowedValues":false,"operations":["add","set","remove"]}],"totalFields":3,"fieldsTruncated":false}
             """);
+    }
+
+    [Fact]
+    public void The_edit_screen_carries_the_key_and_what_may_be_done_to_each_field()
+    {
+        var structure = Structure(EditFields.Render(new JiraEditFields(
+                "PROJ-42",
+                [
+                    new JiraScreenField("summary", "Summary", "string", Required: true, [], ["set"]),
+                    new JiraScreenField(
+                        "issuetype",
+                        "Issue Type",
+                        "issuetype",
+                        Required: true,
+                        [],
+                        []),
+                    new JiraScreenField(
+                        "duedate",
+                        "Due Date",
+                        "date",
+                        Required: false,
+                        [],
+                        Operations: null),
+                ]),
+            FieldAliases.None));
+
+        // An empty list is a real answer — the field is on the screen and cannot be written. A
+        // field Jira said nothing about carries no operations at all, which is not that claim.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","key":"PROJ-42","fields":[{"id":"summary","name":"Summary","required":true,"type":"string","hasAllowedValues":false,"operations":["set"]},{"id":"issuetype","name":"Issue Type","required":true,"type":"issuetype","hasAllowedValues":false,"operations":[]},{"id":"duedate","name":"Due Date","required":false,"type":"date","hasAllowedValues":false}],"totalFields":3,"fieldsTruncated":false}
+            """);
+    }
+
+    [Fact]
+    public void An_edit_screen_with_many_fields_keeps_every_required_one_and_says_the_rest_were_cut()
+    {
+        var fields = Enumerable.Range(1, ScreenFields.OptionalCap + 10)
+            .Select(number => new JiraScreenField(
+                $"customfield_1{number:0000}",
+                $"Field {number}",
+                "string",
+                Required: false,
+                [],
+                ["set"]))
+            .ToArray();
+
+        var screen = Deserialize<EditFieldsOutput>(EditFields.Render(
+            new JiraEditFields(
+                "PROJ-42",
+                [
+                    new JiraScreenField("summary", "Summary", "string", Required: true, [], ["set"]),
+                    .. fields,
+                ]),
+            FieldAliases.None));
+
+        screen.TotalFields.ShouldBe(fields.Length + 1);
+        screen.FieldsTruncated.ShouldBe(true);
+
+        // The required one is never cut, and it leads.
+        screen.Fields.ShouldNotBeNull().Count.ShouldBe(ScreenFields.OptionalCap + 1);
+        screen.Fields[0].Id.ShouldBe("summary");
     }
 
     [Fact]
@@ -279,31 +350,33 @@ public class StructuredContentTests
         var structure = Structure(CreateFields.Render(new JiraCreateFields(
             "PROJ",
             "Bug",
-            [new JiraCreateField("summary", "Summary", Type: null, Required: true, [])])));
+            [new JiraScreenField("summary", "Summary", Type: null, Required: true, [], ["set"])]),
+            FieldAliases.None));
 
         // Jira Server versions differ in what schema they return, and a missing one must not turn
         // a good answer into a protocol error — so the field is absent, not null.
         structure.ShouldBe(
             """
-            {"outcome":"ok","projectKey":"PROJ","issueTypeName":"Bug","fields":[{"id":"summary","name":"Summary","required":true,"hasAllowedValues":false}],"totalFields":1,"fieldsTruncated":false}
+            {"outcome":"ok","projectKey":"PROJ","issueTypeName":"Bug","fields":[{"id":"summary","name":"Summary","required":true,"hasAllowedValues":false,"operations":["set"]}],"totalFields":1,"fieldsTruncated":false}
             """);
     }
 
     [Fact]
     public void A_cut_list_of_allowed_values_says_it_was_cut_and_still_says_it_is_constrained()
     {
-        var many = Enumerable.Range(1, CreateFields.ValueCap + 5)
+        var many = Enumerable.Range(1, ScreenFields.ValueCap + 5)
             .Select(number => $"Component {number}")
             .ToArray();
 
         var field = Deserialize<CreateFieldsOutput>(CreateFields.Render(new JiraCreateFields(
                 "PROJ",
                 "Bug",
-                [new JiraCreateField("components", "Component/s", "array", Required: true, many)])))
+                [new JiraScreenField("components", "Component/s", "array", Required: true, many, ["set"])]),
+                FieldAliases.None))
             .Fields.ShouldNotBeNull()
             .ShouldHaveSingleItem();
 
-        field.AllowedValues.ShouldNotBeNull().Count.ShouldBe(CreateFields.ValueCap);
+        field.AllowedValues.ShouldNotBeNull().Count.ShouldBe(ScreenFields.ValueCap);
         field.AllowedValuesTruncated.ShouldBe(true);
 
         // "Constrained, but the list was cut" must stay distinguishable from "unconstrained".
@@ -317,20 +390,21 @@ public class StructuredContentTests
     [Fact]
     public void The_worst_case_structured_half_of_a_create_screen_stays_bounded()
     {
-        var values = Enumerable.Range(1, CreateFields.ValueCap)
+        var values = Enumerable.Range(1, ScreenFields.ValueCap)
             .Select(number => $"An allowed value spelled out at length {number}")
             .ToArray();
 
-        var fields = Enumerable.Range(1, CreateFields.OptionalCap + 10)
-            .Select(number => new JiraCreateField(
+        var fields = Enumerable.Range(1, ScreenFields.OptionalCap + 10)
+            .Select(number => new JiraScreenField(
                 $"customfield_1{number:0000}",
                 $"A custom field with a long administrative name {number}",
                 "option",
                 Required: false,
-                values))
+                values,
+                ["set"]))
             .ToArray();
 
-        var structure = Structure(CreateFields.Render(new JiraCreateFields("PROJ", "Bug", fields)));
+        var structure = Structure(CreateFields.Render(new JiraCreateFields("PROJ", "Bug", fields), FieldAliases.None));
 
         structure.Length.ShouldBeLessThan(
             120_000,

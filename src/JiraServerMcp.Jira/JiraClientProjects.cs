@@ -5,8 +5,8 @@ using JiraServerMcp.Jira.Models;
 namespace JiraServerMcp.Jira;
 
 /// <summary>
-/// Projects and the metadata a create is built from: what exists, and what a create screen will
-/// accept for it.
+/// Projects and the screens a write is built from: what exists, what a create screen will accept
+/// for it, and what one issue's edit screen will accept.
 /// </summary>
 public sealed partial class JiraClient
 {
@@ -82,6 +82,36 @@ public sealed partial class JiraClient
                              ?? throw new InvalidOperationException(
                                  "Jira returned an empty body for /rest/api/2/issue/createmeta.");
 
-        return CreateFieldsReader.Read(document.RootElement);
+        return ScreenReader.ReadCreateScreen(document.RootElement);
+    }
+
+    /// <summary>
+    /// What Jira will accept when one issue is updated. An issue endpoint rather than a project
+    /// one, and here beside the create screen anyway: the two screens are one subject, and an
+    /// agent that reads one reads the other for the same reason.
+    /// </summary>
+    /// <remarks>
+    /// Jira answers an unknown key with a 404, so there is no null to return — unlike the create
+    /// screen, where an unknown project comes back as a 200 with nothing in it.
+    /// </remarks>
+    public async Task<JiraEditFields> GetEditFieldsAsync(
+        string key,
+        CancellationToken cancellationToken)
+    {
+        var path = $"rest/api/2/issue/{Uri.EscapeDataString(key)}/editmeta";
+
+        using var response = await httpClient
+            .GetAsync(path, cancellationToken)
+            .ConfigureAwait(false);
+
+        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+        using var document = await response.Content
+                                 .ReadFromJsonAsync<JsonDocument>(cancellationToken)
+                                 .ConfigureAwait(false)
+                             ?? throw new InvalidOperationException(
+                                 $"Jira returned an empty body for {path}.");
+
+        return ScreenReader.ReadEditScreen(key, document.RootElement);
     }
 }

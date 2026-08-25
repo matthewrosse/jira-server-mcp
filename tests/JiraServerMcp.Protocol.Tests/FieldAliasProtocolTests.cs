@@ -245,6 +245,62 @@ public sealed class FieldAliasProtocolTests : IAsyncLifetime
         TextOf(result).ShouldContain("Looked at it.");
     }
 
+    [Fact]
+    public async Task Both_screens_label_an_aliased_field_with_both_names()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/createmeta").UsingGet())
+            .RespondWith(JiraResponse.Json(200, """
+                {
+                  "projects": [
+                    {
+                      "key": "PROJ",
+                      "issuetypes": [
+                        {
+                          "name": "Bug",
+                          "fields": {
+                            "customfield_10010": {
+                              "required": true,
+                              "name": "Story Points",
+                              "schema": { "type": "number" },
+                              "operations": [ "set" ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """));
+
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/editmeta").UsingGet())
+            .RespondWith(JiraResponse.Json(200, """
+                {
+                  "fields": {
+                    "customfield_10010": {
+                      "required": false,
+                      "name": "Story Points",
+                      "schema": { "type": "number" },
+                      "operations": [ "set" ]
+                    }
+                  }
+                }
+                """));
+
+        var create = await _client.CallToolAsync(
+            "jira_get_create_fields",
+            new Dictionary<string, object?> { ["projectKey"] = "PROJ", ["issueType"] = "Bug" },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var edit = await _client.CallToolAsync(
+            "jira_get_edit_fields",
+            new Dictionary<string, object?> { ["key"] = "PROJ-42" },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Every other read renderer already does this; the screens were the pair that did not.
+        TextOf(create).ShouldContain("story_points (customfield_10010)");
+        TextOf(edit).ShouldContain("story_points (customfield_10010)");
+    }
+
     private static string TextOf(CallToolResult result) =>
         result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
 

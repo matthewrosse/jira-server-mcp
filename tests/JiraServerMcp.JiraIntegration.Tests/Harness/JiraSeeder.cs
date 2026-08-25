@@ -19,6 +19,12 @@ internal sealed record SeededJira(
     /// coverage reads.
     /// </summary>
     public string ExpandedIssueKey => IssueKeys[0];
+
+    /// <summary>The seeded Task, and the seeded Bug — the pair whose edit screens differ.</summary>
+    public string TaskIssueKey => IssueKeys[0];
+
+    /// <inheritdoc cref="TaskIssueKey"/>
+    public string BugIssueKey => IssueKeys[1];
 }
 
 /// <summary>

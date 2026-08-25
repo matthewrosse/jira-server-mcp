@@ -92,7 +92,8 @@ public sealed class JiraMetadataTests : IDisposable
                     "summary": {
                       "required": true,
                       "name": "Summary",
-                      "schema": { "type": "string", "system": "summary" }
+                      "schema": { "type": "string", "system": "summary" },
+                      "operations": [ "set" ]
                     },
                     "customfield_10010": {
                       "required": true,
@@ -101,18 +102,102 @@ public sealed class JiraMetadataTests : IDisposable
                       "allowedValues": [
                         { "id": "10300", "value": "Platform" },
                         { "id": "10301", "value": "Operations" }
-                      ]
+                      ],
+                      "operations": [ "set" ]
                     },
                     "description": {
                       "required": false,
                       "name": "Description",
                       "schema": { "type": "string", "system": "description" }
+                    },
+                    "labels": {
+                      "required": false,
+                      "name": "Labels",
+                      "schema": { "type": "array", "items": "string", "system": "labels" },
+                      "operations": [ "add", "set", "remove" ]
                     }
                   }
                 }
               ]
             }
           ]
+        }
+        """;
+
+    /// <summary>
+    /// A Task's edit screen, shaped as Jira Server 8.20.7 sends it: a bare <c>fields</c> object,
+    /// and <c>operations</c> on every field — including the fields no write may touch.
+    /// </summary>
+    private const string TaskEditMetaPayload = """
+        {
+          "fields": {
+            "summary": {
+              "required": true,
+              "name": "Summary",
+              "schema": { "type": "string", "system": "summary" },
+              "operations": [ "set" ]
+            },
+            "issuetype": {
+              "required": true,
+              "name": "Issue Type",
+              "schema": { "type": "issuetype", "system": "issuetype" },
+              "operations": [],
+              "allowedValues": [
+                { "id": "10002", "name": "Task" },
+                { "id": "10004", "name": "Bug" }
+              ]
+            },
+            "issuelinks": {
+              "required": false,
+              "name": "Linked Issues",
+              "schema": { "type": "array", "items": "issuelinks", "system": "issuelinks" },
+              "operations": [ "add" ]
+            },
+            "labels": {
+              "required": false,
+              "name": "Labels",
+              "schema": { "type": "array", "items": "string", "system": "labels" },
+              "operations": [ "add", "set", "remove" ]
+            },
+            "customfield_10108": {
+              "required": false,
+              "name": "Story Points",
+              "schema": { "type": "number", "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float" },
+              "operations": [ "set" ]
+            }
+          }
+        }
+        """;
+
+    /// <summary>
+    /// A Bug's edit screen in the same project, which carries two fields the Task's does not. The
+    /// screen is chosen by the issue type, which is why this tool takes a key rather than a type.
+    /// </summary>
+    private const string BugEditMetaPayload = """
+        {
+          "fields": {
+            "summary": {
+              "required": true,
+              "name": "Summary",
+              "schema": { "type": "string", "system": "summary" },
+              "operations": [ "set" ]
+            },
+            "environment": {
+              "required": false,
+              "name": "Environment",
+              "schema": { "type": "string", "system": "environment" },
+              "operations": [ "set" ]
+            },
+            "versions": {
+              "required": false,
+              "name": "Affects Version/s",
+              "schema": { "type": "array", "items": "version", "system": "versions" },
+              "operations": [ "set", "add", "remove" ],
+              "allowedValues": [
+                { "id": "10000", "name": "2.4.0" }
+              ]
+            }
+          }
         }
         """;
 
@@ -253,8 +338,17 @@ public sealed class JiraMetadataTests : IDisposable
         summary.Required.ShouldBeTrue();
         summary.Type.ShouldBe("string");
         summary.AllowedValues.ShouldBeEmpty();
+        summary.Operations.ShouldBe(["set"]);
 
         fields.Fields.Single(field => field.Id is "description").Required.ShouldBeFalse();
+
+        // Jira publishes operations on the create screen too, and this reader used to drop them.
+        fields.Fields.Single(field => field.Id is "labels").Operations
+            .ShouldBe(["add", "set", "remove"]);
+
+        // A field Jira said nothing about carries nothing, rather than an empty list — which is
+        // the different claim that the field is on the screen and cannot be written.
+        fields.Fields.Single(field => field.Id is "description").Operations.ShouldBeNull();
     }
 
     [Fact]
@@ -289,6 +383,70 @@ public sealed class JiraMetadataTests : IDisposable
             TestContext.Current.CancellationToken);
 
         fields.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task The_edit_screen_carries_the_identifier_requiredness_type_allowed_values_and_operations()
+    {
+        Stub("/rest/api/2/issue/PROJ-1/editmeta", TaskEditMetaPayload);
+
+        var fields = await CreateClient().GetEditFieldsAsync(
+            "PROJ-1",
+            TestContext.Current.CancellationToken);
+
+        // The key is the caller's own: Jira's edit metadata names no issue, no project and no type.
+        fields.Key.ShouldBe("PROJ-1");
+
+        var summary = fields.Fields.Single(field => field.Id is "summary");
+
+        summary.Name.ShouldBe("Summary");
+        summary.Required.ShouldBeTrue();
+        summary.Type.ShouldBe("string");
+        summary.Operations.ShouldBe(["set"]);
+
+        var issueType = fields.Fields.Single(field => field.Id is "issuetype");
+
+        // On the screen, required, and still not writable — the fact no other read publishes.
+        issueType.Required.ShouldBeTrue();
+        issueType.Operations.ShouldBeEmpty();
+        issueType.AllowedValues.ShouldBe(["Task", "Bug"]);
+
+        fields.Fields.Single(field => field.Id is "issuelinks").Operations.ShouldBe(["add"]);
+        fields.Fields.Single(field => field.Id is "labels").Operations
+            .ShouldBe(["add", "set", "remove"]);
+
+        var points = fields.Fields.Single(field => field.Id is "customfield_10108");
+
+        points.Name.ShouldBe("Story Points");
+        points.Required.ShouldBeFalse();
+        points.AllowedValues.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task The_edit_screen_of_another_issue_type_carries_different_fields()
+    {
+        Stub("/rest/api/2/issue/PROJ-1/editmeta", TaskEditMetaPayload);
+        Stub("/rest/api/2/issue/PROJ-2/editmeta", BugEditMetaPayload);
+
+        var client = CreateClient();
+
+        var task = await client.GetEditFieldsAsync("PROJ-1", TestContext.Current.CancellationToken);
+        var bug = await client.GetEditFieldsAsync("PROJ-2", TestContext.Current.CancellationToken);
+
+        bug.Fields.Select(field => field.Id).ShouldContain("environment");
+        task.Fields.Select(field => field.Id).ShouldNotContain("environment");
+
+        bug.Fields.Single(field => field.Id is "versions").AllowedValues.ShouldBe(["2.4.0"]);
+    }
+
+    [Fact]
+    public async Task The_edit_metadata_request_names_the_issue_and_escapes_its_key()
+    {
+        Stub("/rest/api/2/issue/A B-1/editmeta", TaskEditMetaPayload);
+
+        await CreateClient().GetEditFieldsAsync("A B-1", TestContext.Current.CancellationToken);
+
+        SingleRequest().Path.ShouldBe("/rest/api/2/issue/A B-1/editmeta");
     }
 
     [Fact]
