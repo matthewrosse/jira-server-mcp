@@ -301,6 +301,60 @@ public sealed class ProjectsProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_create_screen_says_which_of_its_fields_cannot_be_written()
+    {
+        Stub("/rest/api/2/issue/createmeta", """
+            {
+              "projects": [
+                {
+                  "key": "PROJ",
+                  "issuetypes": [
+                    {
+                      "name": "Bug",
+                      "fields": {
+                        "summary": {
+                          "required": true,
+                          "name": "Summary",
+                          "schema": { "type": "string" },
+                          "operations": [ "set" ]
+                        },
+                        "attachment": {
+                          "required": false,
+                          "name": "Attachment",
+                          "schema": { "type": "array" },
+                          "operations": []
+                        },
+                        "duedate": {
+                          "required": false,
+                          "name": "Due Date",
+                          "schema": { "type": "date" }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+            """);
+
+        var text = await CallAsync("jira_get_create_fields", new Dictionary<string, object?>
+        {
+            ["projectKey"] = "PROJ",
+            ["issueType"] = "Bug",
+        });
+
+        // Jira publishes operations on this screen too, and a field it will not accept is worth
+        // saying so about — a create that sends one is refused for a reason nothing else names.
+        text.ShouldContain("attachment (Attachment) — array; not writable");
+
+        // A field Jira said nothing about is not a field Jira refused: absence is not emptiness.
+        text.ShouldContain("duedate (Due Date) — date" + Environment.NewLine);
+
+        // And "set, and only set" is what almost every line would say, so no line says it.
+        text.ShouldContain("summary (Summary) — string" + Environment.NewLine);
+    }
+
+    [Fact]
     public async Task A_project_or_type_jira_does_not_know_comes_back_as_an_actionable_error()
     {
         Stub("/rest/api/2/issue/createmeta", """{ "projects": [] }""");

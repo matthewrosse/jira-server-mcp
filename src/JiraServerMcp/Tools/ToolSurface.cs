@@ -36,6 +36,7 @@ internal static class ToolSurface
         new(typeof(GetBacklogTool), RequiresSoftwareLicence: true),
         new(typeof(CreateIssueTool), RequiredGrant: Grant.IssuesWrite),
         new(typeof(UpdateIssueTool), RequiredGrant: Grant.IssuesWrite),
+        new(typeof(GetEditFieldsTool), RequiredGrant: Grant.IssuesWrite),
         new(typeof(TransitionIssueTool), RequiredGrant: Grant.IssuesWrite),
         new(typeof(AddCommentTool), RequiredGrant: Grant.CommentsWrite),
         new(typeof(AddWorklogTool), RequiredGrant: Grant.WorklogsWrite),

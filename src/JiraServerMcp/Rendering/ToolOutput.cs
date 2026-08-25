@@ -297,7 +297,7 @@ internal sealed record CreateFieldsOutput : ToolOutput
     /// optional ones as the response budget allows. Both halves are cut together.
     /// </summary>
     [JsonPropertyName("fields")]
-    public IReadOnlyList<CreateFieldOutput>? Fields { get; init; }
+    public IReadOnlyList<ScreenFieldOutput>? Fields { get; init; }
 
     /// <summary>Every field on the create screen, including the optional ones that were cut.</summary>
     [JsonPropertyName("totalFields")]
@@ -314,13 +314,40 @@ internal sealed record CreateFieldsOutput : ToolOutput
 }
 
 /// <summary>
-/// One field on the create screen. The name is a selection label under ADR-0009's amended rule 2:
+/// The edit screen: what an update of one issue may change, and how. Every field on the screen is
+/// carried, including the ones Jira will not let a write touch — <c>operations</c> is the half an
+/// agent cannot learn any other way than by being refused.
+/// </summary>
+internal sealed record EditFieldsOutput : ToolOutput
+{
+    /// <summary>The issue asked for. Jira's edit metadata names no issue, so this is the caller's own key.</summary>
+    [JsonPropertyName("key")]
+    public string? Key { get; init; }
+
+    /// <summary>
+    /// The fields the prose shows, in the order it shows them: required first, then as many
+    /// optional ones as the response budget allows. Both halves are cut together.
+    /// </summary>
+    [JsonPropertyName("fields")]
+    public IReadOnlyList<ScreenFieldOutput>? Fields { get; init; }
+
+    /// <summary>Every field on the edit screen, including the optional ones that were cut.</summary>
+    [JsonPropertyName("totalFields")]
+    public int? TotalFields { get; init; }
+
+    /// <summary>Whether optional fields were left out. Required fields are never cut.</summary>
+    [JsonPropertyName("fieldsTruncated")]
+    public bool? FieldsTruncated { get; init; }
+}
+
+/// <summary>
+/// One field on a screen. The name is a selection label under ADR-0009's amended rule 2:
 /// <c>customfield_10010</c> tells an agent nothing, and the name is what makes the identifier it
 /// must send actionable.
 /// </summary>
-internal sealed record CreateFieldOutput
+internal sealed record ScreenFieldOutput
 {
-    /// <summary>What a create call must send. For a custom field, nothing else will do.</summary>
+    /// <summary>What a write must send. For a custom field, nothing else will do.</summary>
     [JsonPropertyName("id")]
     public required string Id { get; init; }
 
@@ -351,6 +378,15 @@ internal sealed record CreateFieldOutput
 
     [JsonPropertyName("allowedValuesTruncated")]
     public bool? AllowedValuesTruncated { get; init; }
+
+    /// <summary>
+    /// What Jira says may be done to this field — <c>set</c>, <c>add</c>, <c>remove</c> — carried
+    /// verbatim under rule 2 of ADR-0009, which admits a value Jira itself enumerates. An empty
+    /// list is a real answer: the field is on the screen and cannot be written at all. Absent
+    /// where Jira said nothing, which is the different claim ADR-0009 forbids collapsing into it.
+    /// </summary>
+    [JsonPropertyName("operations")]
+    public IReadOnlyList<string>? Operations { get; init; }
 }
 
 /// <summary>

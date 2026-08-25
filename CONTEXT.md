@@ -144,6 +144,14 @@ whitelist, widened explicitly by the caller. The main lever against a raw Jira i
 hundred-kilobyte payload.
 _Avoid_: filter, field selection.
 
+**Screen** — the set of fields one Jira publishes for one operation on one issue type: the create
+screen, the edit screen. Keyed on issue type and operation, never on status — a screen scheme maps
+screens to operations, and a stock scheme maps all of them to one screen, so two screens that
+differ are an administrator's doing. A screen names each field's identifier, whether it is
+required, its allowed values where Jira enumerates them, and which operations it accepts — a field
+can be on the screen and still not be settable.
+_Avoid_: form, field configuration (Jira's own, and a different thing), metadata.
+
 **Response budget** — the limits on what a response is allowed to cost an agent: text per line,
 prose, issue-read expansion entries, and default and largest page sizes. Every renderer and every
 page reads these limits from one module; the cutting mechanics remain with the renderer that cuts,

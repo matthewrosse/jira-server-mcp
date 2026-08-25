@@ -84,8 +84,8 @@ internal sealed class UpdateIssueTool(
                 profile.Name,
                 $"updating {key}",
                 advice: exception.StatusCode is HttpStatusCode.BadRequest
-                    ? "Call jira_get_create_fields for the identifiers this project's fields "
-                      + "have." + FieldAliasAdvice.From(aliases)
+                    ? "Call jira_get_edit_fields for the identifiers this issue's fields have, "
+                      + "and which of them it will accept." + FieldAliasAdvice.From(aliases)
                     : null));
     }
 

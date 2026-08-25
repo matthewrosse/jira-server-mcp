@@ -34,6 +34,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
                 ["projectKey"] = "PROJ",
                 ["issueType"] = "Bug",
             },
+            ["jira_get_edit_fields"] = new() { ["key"] = "PROJ-12" },
             ["jira_search_users"] = new() { ["query"] = "ada" },
             ["jira_list_boards"] = [],
             ["jira_list_sprints"] = new() { ["boardId"] = 1 },

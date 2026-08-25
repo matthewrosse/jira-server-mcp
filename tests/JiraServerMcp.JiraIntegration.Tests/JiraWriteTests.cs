@@ -28,6 +28,33 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
 
     public ValueTask DisposeAsync() => _session.DisposeAsync();
 
+    /// <summary>
+    /// The one claim fixtures cannot make. A recorded payload proves the reader parses what it was
+    /// handed; that two issue types in one project publish different edit screens is a fact about
+    /// Jira, and only a real Jira can be asked.
+    /// </summary>
+    [Fact]
+    public async Task The_edit_screen_differs_between_two_issue_types_of_one_project()
+    {
+        var bug = await CallAsync("jira_get_edit_fields", new Dictionary<string, object?>
+        {
+            ["key"] = _jira.Seeded.BugIssueKey,
+        });
+
+        var task = await CallAsync("jira_get_edit_fields", new Dictionary<string, object?>
+        {
+            ["key"] = _jira.Seeded.TaskIssueKey,
+        });
+
+        bug.ShouldContain("environment");
+        bug.ShouldContain("versions");
+
+        // jira_update_issue takes a key, not a type — so answering "what may I set here" through
+        // the create screen answers about the wrong screen.
+        task.ShouldNotContain("environment");
+        task.ShouldNotContain("versions");
+    }
+
     [Fact]
     public async Task Creating_an_issue_puts_it_in_jira()
     {

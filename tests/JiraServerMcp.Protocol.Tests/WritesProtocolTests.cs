@@ -33,6 +33,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         tools.ShouldNotContain("jira_create_issue");
         tools.ShouldNotContain("jira_update_issue");
         tools.ShouldNotContain("jira_transition_issue");
+        tools.ShouldNotContain("jira_get_edit_fields");
         tools.ShouldNotContain("jira_add_comment");
         tools.ShouldNotContain("jira_add_worklog");
 
@@ -41,13 +42,16 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_issues_grant_registers_the_three_issue_writes_and_nothing_further()
+    public async Task The_issues_grant_registers_the_issue_writes_and_the_edit_screen_and_nothing_further()
     {
         var tools = await ToolsAsync(await _seam.ConnectAsync("issues:write"));
 
         tools.ShouldContain("jira_create_issue");
         tools.ShouldContain("jira_update_issue");
         tools.ShouldContain("jira_transition_issue");
+
+        // The edit screen has no read-only use: it exists to prepare the update beside it.
+        tools.ShouldContain("jira_get_edit_fields");
 
         // Commenting and logging work are their own grants.
         tools.ShouldNotContain("jira_add_comment");
@@ -62,6 +66,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         tools.ShouldNotContain("jira_create_issue");
         tools.ShouldNotContain("jira_update_issue");
         tools.ShouldNotContain("jira_transition_issue");
+        tools.ShouldNotContain("jira_get_edit_fields");
     }
 
     /// <summary>
@@ -90,6 +95,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
         tools.Contains("jira_create_issue").ShouldBe(issues);
         tools.Contains("jira_update_issue").ShouldBe(issues);
         tools.Contains("jira_transition_issue").ShouldBe(issues);
+        tools.Contains("jira_get_edit_fields").ShouldBe(issues);
         tools.Contains("jira_add_comment").ShouldBe(comments);
         tools.Contains("jira_add_worklog").ShouldBe(worklogs);
     }
@@ -113,6 +119,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
                 "jira_create_issue",
                 "jira_get_attachment",
                 "jira_get_create_fields",
+                "jira_get_edit_fields",
                 "jira_get_issues",
                 "jira_get_project",
                 "jira_list_projects",

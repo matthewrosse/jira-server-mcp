@@ -289,6 +289,7 @@ context learning that it is forbidden.
 | `jira_list_projects` | — | Key, name, id and type for every project the account can see. |
 | `jira_get_project` | — | One project with its issue types, statuses, components and versions — everything a create needs, in one response. |
 | `jira_get_create_fields` | — | What Jira will accept for a create: every field with its identifier, its type, whether it is required, and its allowed values. Read this before creating, or a required custom field rejects the create by identifier alone. |
+| `jira_get_edit_fields` | `issues:write` | What Jira will accept for an update of one issue: every field on its edit screen with its identifier, its type, whether it may be cleared, its allowed values, and which operations it accepts. The edit screen is not the create screen — it differs per issue type, and a field on it may still not be settable. |
 | `jira_search_users` | — | Users by part of a name. Jira Server identifies a user by username, not by Cloud's account identifier. |
 | `jira_list_boards` | — | Boards. **Jira Software only.** |
 | `jira_list_sprints` | — | A board's sprints. **Jira Software only.** |
@@ -338,8 +339,10 @@ clients that ignore `structuredContent`: honouring it would make you pay for eve
 against a server whose whole premise is what a response costs. A client that ignores the structure
 still gets a complete, readable answer as prose.
 
-`jira_get_create_fields` is the fullest of these: it carries every field a create must send, with
-its identifier, its name, whether it is required, and its allowed values. **A field's `type` is
+`jira_get_create_fields` and `jira_get_edit_fields` are the fullest of these: they carry every
+field of a screen, with its identifier, its name, whether it is required, its allowed values, and
+the `operations` Jira says the field accepts — a field can be on a screen and still not be
+settable, which is a thing no other answer tells you. **A field's `type` is
 Jira's own `schema.type`** — `string`, `option`, `array` — passed through unchanged rather than
 normalised into a vocabulary this server owns. A mapping would have to be maintained across every
 Jira Server version, and a mistranslation is worse than an unfamiliar string: you can match an
@@ -600,9 +603,11 @@ fails by absence rather than by a permission error.
 - *"Assign PROJ-123 to Jane Bloggs."* — `jira_search_users` for the username, then
   `jira_update_issue`. There is no separate assign tool; the assignee is a field.
 - *"Update PROJ-123: set the fix version to 2.4.0 and add the label `regression`."* —
-  `jira_get_project` to confirm the version exists, then `jira_update_issue`.
+  `jira_get_project` to confirm the version exists, `jira_get_edit_fields` for what PROJ-123's own
+  edit screen accepts, then `jira_update_issue`.
 - *"Rewrite PROJ-123's description to include the stack trace I just pasted, keeping what is already
-  there."* — `jira_get_issues` to read the current description, then `jira_update_issue`.
+  there."* — `jira_get_issues` to read the current description, then `jira_update_issue`. When the
+  update is rejected, `jira_get_edit_fields` names the identifiers PROJ-123's fields actually have.
 - *"Move PROJ-123 to In Review."* — `jira_get_issues` with `include: ["transitions"]`, then
   `jira_transition_issue` by transition name.
 - *"Close PROJ-123 as Won't Do with a comment explaining why."* — `jira_transition_issue`, which
