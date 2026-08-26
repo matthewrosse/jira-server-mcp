@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using JiraServerMcp.JiraIntegration.Tests.Harness;
 using ModelContextProtocol.Protocol;
 
@@ -197,6 +198,26 @@ public sealed class JiraReadTests(JiraHarness harness) : IAsyncLifetime
         names.ShouldNotContain("jira_add_comment");
         names.ShouldNotContain("jira_add_worklog");
         names.ShouldNotContain("jira_transition_issue");
+    }
+
+    /// <summary>
+    /// The one claim a fixture cannot make. Every custom field's JQL name is published from
+    /// Jira's own <c>cfid</c>, and the alias join parses the number out of it — so if a real
+    /// 8.20.7 stopped sending that property, or sent it in another shape, the whole labelling
+    /// design would be built on a double that says what it was told to say.
+    /// </summary>
+    [Fact]
+    public async Task A_real_instance_publishes_a_custom_fields_jql_name_in_the_bracket_form()
+    {
+        var text = await CallAsync("jira_get_jql_fields");
+
+        Regex.Matches(text, @"cf\[\d+\]").Count.ShouldBeGreaterThan(0,
+            "This Jira publishes no custom field in the cf[NNNNN] form the alias join parses.");
+
+        // The identifier the write tools hand out is not a JQL name, and no row claims otherwise.
+        text.Split('\n')
+            .Where(line => line.StartsWith("  ", StringComparison.Ordinal))
+            .ShouldNotContain(line => line.Contains("customfield_", StringComparison.Ordinal));
     }
 
     private async Task<string> CallAsync(
