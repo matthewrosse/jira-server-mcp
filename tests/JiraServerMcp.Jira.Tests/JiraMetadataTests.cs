@@ -500,6 +500,7 @@ public sealed class JiraMetadataTests : IDisposable
         bool includeInactive = false) =>
         CreateClient().SearchUsersAsync(
             query,
+            assignableTo: null,
             startAt,
             maxResults,
             includeInactive,

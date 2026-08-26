@@ -291,7 +291,7 @@ context learning that it is forbidden.
 | `jira_get_project` | — | One project with its issue types, statuses, components and versions — everything a create needs, in one response. |
 | `jira_get_create_fields` | — | What Jira will accept for a create: every field with its identifier, its type, whether it is required, and its allowed values. Read this before creating, or a required custom field rejects the create by identifier alone. |
 | `jira_get_edit_fields` | `issues:write` | What Jira will accept for an update of one issue: every field on its edit screen with its identifier, its type, whether it may be cleared, its allowed values, and which operations it accepts. The edit screen is not the create screen — it differs per issue type, and a field on it may still not be settable. |
-| `jira_search_users` | — | Users by part of a name. Jira Server identifies a user by username, not by Cloud's account identifier. |
+| `jira_search_users` | — | Users by part of a name. Jira Server identifies a user by username, not by Cloud's account identifier. Pass `assignableTo` with an issue or project key for the people Jira will accept as the assignee there — a user this search finds is not necessarily one that project will take. |
 | `jira_list_boards` | — | Boards. **Jira Software only.** |
 | `jira_list_sprints` | — | A board's sprints. **Jira Software only.** |
 | `jira_get_sprint_issues` | — | The issues in one sprint. **Jira Software only.** |
@@ -367,7 +367,10 @@ the username is what a write must send — there is no account identifier here, 
 like one belongs to Cloud — so it is both the identifier and the value that goes into an assignee
 field. Display names and email addresses stay in the delimited region of the text half: the first
 is how a person tells two similar colleagues apart, and the second is personal data this server
-does not promise to carry. The user search reports no `total`, because Jira's does not.
+does not promise to carry. The user search reports no `total`, because Jira's does not, and it
+carries `assignableTo` when it was anchored to an issue or a project — a count narrowed by an
+assignment permission means something different from a count of the directory, and no row says
+which of the two it is.
 
 `jira_link_issues` carries **both the relation phrase and the type name Jira stored it under**.
 They are not the same string — `"is blocked by"` is stored under `Blocks` — and each answers a
@@ -433,8 +436,8 @@ is acting as and what it can see, which is the context every later answer depend
 - *"What are the issue types and workflow statuses in PROJ?"* — `jira_get_project`, which returns
   issue types, statuses, components and versions in one response.
 - *"Find the Jira username for Jane Bloggs — I need it for an assignee field."* —
-  `jira_search_users`. On Jira Server the answer is a username, not a Cloud account identifier, and
-  that is the value the write tools want.
+  `jira_search_users`, with `assignableTo` naming the issue or project it is for. On Jira Server the
+  answer is a username, not a Cloud account identifier, and that is the value the write tools want.
 
 ### The work queue
 
@@ -610,8 +613,10 @@ fails by absence rather than by a permission error.
   my last message in the description."* — `jira_get_create_fields`, then `jira_create_issue`.
 - *"File this failing test as a Task in PROJ, set priority High, and assign it to me."* —
   `jira_get_create_fields`, `jira_whoami` for the username, `jira_create_issue`.
-- *"Assign PROJ-123 to Jane Bloggs."* — `jira_search_users` for the username, then
-  `jira_update_issue`. There is no separate assign tool; the assignee is a field.
+- *"Assign PROJ-123 to Jane Bloggs."* — `jira_search_users` with `assignableTo: "PROJ-123"` for the
+  username, then `jira_update_issue`. There is no separate assign tool; the assignee is a field.
+  Anchoring the search is what keeps a user who exists but cannot be assigned there from being
+  discovered at write time, on the write.
 - *"Update PROJ-123: set the fix version to 2.4.0 and add the label `regression`."* —
   `jira_get_project` to confirm the version exists, `jira_get_edit_fields` for what PROJ-123's own
   edit screen accepts, then `jira_update_issue`.

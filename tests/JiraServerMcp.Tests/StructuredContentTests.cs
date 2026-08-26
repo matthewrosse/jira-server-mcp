@@ -654,7 +654,8 @@ public class StructuredContentTests
             ],
             startAt: 0,
             maxResults: 25,
-            includeInactive: true));
+            includeInactive: true,
+            assignableTo: null));
 
         // The display name is how a person disambiguates two similar people, and it is in the
         // prose. The email is personal data this server would be promising to carry stably.
@@ -674,13 +675,34 @@ public class StructuredContentTests
             [],
             startAt: 50,
             maxResults: 25,
-            includeInactive: false));
+            includeInactive: false,
+            assignableTo: null));
 
         // The shape does not appear and vanish with the result count, and the paging position is
         // still what the caller asked from.
         structure.ShouldBe(
             """
             {"outcome":"ok","startAt":50,"count":0,"includeInactive":false,"users":[]}
+            """);
+    }
+
+    [Fact]
+    public void An_anchored_user_search_carries_the_anchor_the_rows_were_narrowed_by()
+    {
+        var structure = Structure(UserResults.Render(
+            [new JiraUser("Ada Lovelace", "ada", "ada@example.invalid", true)],
+            startAt: 0,
+            maxResults: 25,
+            includeInactive: false,
+            assignableTo: "PROJ-42"));
+
+        // Rule 2 admits it as a parameter that decides what the rows mean, as includeInactive is:
+        // a count of who may be assigned somewhere is not a count of the directory. The rows gain
+        // nothing, because assignability is a property of the query and a per-row flag would be
+        // true of every row by construction.
+        structure.ShouldBe(
+            """
+            {"outcome":"ok","startAt":0,"count":1,"includeInactive":false,"assignableTo":"PROJ-42","users":[{"username":"ada","active":true}]}
             """);
     }
 

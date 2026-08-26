@@ -146,6 +146,76 @@ public sealed class JiraReadTests(JiraHarness harness) : IAsyncLifetime
     }
 
     /// <summary>
+    /// A WireMock double stubbed to our own assumption cannot catch a parameter name Jira does not
+    /// take, so what the assignable search is anchored by is proven against a real 8.20.7.
+    /// </summary>
+    [Fact]
+    public async Task The_assignable_search_answers_for_a_project_key_and_for_an_issue_key()
+    {
+        var project = await CallAsync("jira_search_users", new Dictionary<string, object?>
+        {
+            ["assignableTo"] = _jira.Seeded.ProjectKey,
+        });
+
+        project.ShouldContain($"users assignable on {_jira.Seeded.ProjectKey}");
+        project.ShouldContain(_jira.Administrator.Username);
+
+        var issue = await CallAsync("jira_search_users", new Dictionary<string, object?>
+        {
+            ["query"] = _jira.Administrator.Username,
+            ["assignableTo"] = _jira.Seeded.TaskIssueKey,
+        });
+
+        issue.ShouldContain($"users assignable on {_jira.Seeded.TaskIssueKey}");
+        issue.ShouldContain(_jira.Administrator.Username);
+    }
+
+    [Fact]
+    public async Task An_anchor_this_jira_has_never_heard_of_is_answered_with_the_advice_for_it()
+    {
+        var result = await _session.Client.CallToolAsync(
+            "jira_search_users",
+            new Dictionary<string, object?>
+            {
+                ["query"] = "harness",
+                ["assignableTo"] = "NOSUCH",
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+
+        result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem()
+            .Text.ShouldContain("NOSUCH was not found, or you cannot browse it");
+    }
+
+    /// <summary>
+    /// The gap the whole parameter exists to close, from the other direction: the plain search
+    /// matches an email address and the assignable search does not, so a query that works on one
+    /// finds nobody on the other. Measured on 8.20.7 rather than assumed.
+    /// </summary>
+    [Fact]
+    public async Task The_assignable_search_does_not_match_the_email_address_the_plain_search_does()
+    {
+        var email = _jira.Seeded.Usernames[1] + "@example.invalid";
+
+        var directory = await CallAsync("jira_search_users", new Dictionary<string, object?>
+        {
+            ["query"] = email,
+        });
+
+        directory.ShouldContain(_jira.Seeded.Usernames[1]);
+
+        var assignable = await CallAsync("jira_search_users", new Dictionary<string, object?>
+        {
+            ["query"] = email,
+            ["assignableTo"] = _jira.Seeded.ProjectKey,
+        });
+
+        assignable.ShouldContain("none matched");
+        assignable.ShouldContain("not email addresses");
+    }
+
+    /// <summary>
     /// The software API surface, which exists here because the harness licenses Jira Software.
     /// </summary>
     [Fact]
