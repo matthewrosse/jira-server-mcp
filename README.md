@@ -282,6 +282,7 @@ context learning that it is forbidden.
 |---|---|---|
 | `jira_whoami` | — | The Jira account this server is authenticated as. The first thing to check when something is forbidden. |
 | `jira_search` | — | JQL search. 25 results by default, 100 at most, projected fields, and the total. |
+| `jira_get_jql_fields` | — | What this Jira will accept in a query: which fields are queryable, the name each is queryable under, the operators each takes, and the functions this instance publishes. Name a field for the values it accepts. A custom field is queryable as `cf[10107]` or by its quoted display name — never by the `customfield_10107` identifier the write tools hand out. |
 | `jira_my_open_issues` | — | The caller's own unresolved issues, most recently updated first — the start-of-session work queue, with no JQL to author. |
 | `jira_changed_since` | — | Issues that changed at or after a moment, oldest change first, with the watermark for the next call — the feed a scheduled workflow wakes on. |
 | `jira_get_issues` | — | Up to 20 issues in one call, with `include` opting into `comments`, `transitions`, `changelog`, `links`, `worklogs` and `attachments` for each. Each key succeeds or fails on its own, and the transition list arrives with the issue the agent is about to transition. |
@@ -491,6 +492,12 @@ ticks is one timestamp.
 `jira_search` takes JQL, but you rarely write it — describing the query in English and letting the
 agent author the JQL is the point, and asking it to show you the JQL it used is a good habit.
 
+What the agent cannot guess is what *this* Jira will accept: which fields are queryable, the name
+each is queryable under, and the operators each takes — `summary` takes `~` and not `=`, and a
+custom field is queryable as `cf[10107]` or as `"Story Points"`, never as the `customfield_10107`
+identifier `jira_get_create_fields` and `jira_get_edit_fields` hand out for a write. That is what
+`jira_get_jql_fields` publishes, and a rejected query now names it.
+
 - *"Find every open bug in PROJ with priority Highest, newest first."* — `jira_search` with
   `project = PROJ AND type = Bug AND priority = Highest AND resolution = EMPTY ORDER BY created DESC`.
 - *"How many unresolved issues does PROJ have? I only want the number."* — `jira_search` returns the
@@ -504,6 +511,9 @@ agent author the JQL is the point, and asking it to show you the JQL it used is 
   component."* — `jira_search`, with the grouping done by the agent over the projected fields.
 - *"Search PROJ for anything mentioning the phrase 'rate limit' in the summary or description."* —
   `jira_search` with a `text ~` clause.
+- *"What can I filter on in this Jira, and what is the story-points field called in a query?"* —
+  `jira_get_jql_fields`, then `jira_get_jql_fields` with `field: "status"` for the values one field
+  accepts.
 - *"Show me the JQL you would use for 'issues I reported that someone else resolved this
   quarter' — don't run it yet."* — no call at all. Useful for checking a query before it touches a
   large instance.

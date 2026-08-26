@@ -1,5 +1,8 @@
 using System.ComponentModel;
+using System.Net;
+using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
+using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
 using ModelContextProtocol.Protocol;
@@ -48,6 +51,26 @@ internal sealed class SearchTool(
                 fields,
                 aliases,
                 cancellationToken: cancellationToken),
-            cancellationToken);
+            cancellationToken,
+            describeApiFailure: Describe);
     }
+
+    /// <summary>
+    /// A rejected query is the routine failure of this tool, and the only one an agent can fix by
+    /// itself — but only if it can find out what this Jira is queryable by. Jira's own message
+    /// names the clause it choked on; what it cannot say is which names exist here, and that a
+    /// custom field is never queryable under the identifier every write tool hands out.
+    /// </summary>
+    private string Describe(JiraApiException exception) =>
+        JiraToolError.Describe(
+            exception,
+            profile.Name,
+            "searching",
+            advice: exception.StatusCode is HttpStatusCode.BadRequest
+                ? "Jira rejected that JQL and the message above names the clause. Call "
+                  + "jira_get_jql_fields for the names this Jira is queryable under and the "
+                  + "operators each takes; a custom field is queryable as cf[NNNNN], never as "
+                  + "customfield_NNNNN."
+                  + FieldAliasAdvice.From(aliases)
+                : null);
 }

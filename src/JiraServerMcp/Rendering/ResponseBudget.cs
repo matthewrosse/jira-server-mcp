@@ -49,6 +49,14 @@ internal static class ResponseBudget
     public const int ProjectListCap = 100;
 
     /// <summary>
+    /// The most queryable fields one response is worth. Jira's autocomplete endpoint has no page
+    /// of its own — it answers with every field at once — so a large instance is cut here or not
+    /// at all. There is no position to resume from, which is why the cut sentence asks for a
+    /// substring rather than offering a next page.
+    /// </summary>
+    public const int JqlFieldCap = 100;
+
+    /// <summary>
     /// The most characters one search or agile-page response is worth, about eight thousand
     /// tokens. A hundred issues of ordinary size sit well inside it; a hundred unusually verbose
     /// ones do not, and those are cut off with the position to resume from rather than flooding

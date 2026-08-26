@@ -341,6 +341,85 @@ internal sealed record EditFieldsOutput : ToolOutput
 }
 
 /// <summary>
+/// A query catalogue, or the values one field of it enumerates. One shape rather than two,
+/// because it is one question asked at two zoom levels: the catalogue half is absent when a field
+/// was named, and the suggestion half is absent when none was.
+/// </summary>
+internal sealed record JqlFieldsOutput : ToolOutput
+{
+    /// <summary>The fields the prose shows, in the order it shows them.</summary>
+    [JsonPropertyName("fields")]
+    public IReadOnlyList<JqlFieldOutput>? Fields { get; init; }
+
+    /// <summary>Every queryable field this Jira published, including the ones the cap left out.</summary>
+    [JsonPropertyName("totalFields")]
+    public int? TotalFields { get; init; }
+
+    /// <summary>
+    /// Whether the cap ended the list. There is no position to resume from — Jira's endpoint has
+    /// no page — so this is the whole of what a caller can learn about what it did not see.
+    /// </summary>
+    [JsonPropertyName("fieldsTruncated")]
+    public bool? FieldsTruncated { get; init; }
+
+    [JsonPropertyName("functions")]
+    public IReadOnlyList<JqlFunctionOutput>? Functions { get; init; }
+
+    /// <summary>The field a caller named, present only where it named one.</summary>
+    [JsonPropertyName("field")]
+    public string? Field { get; init; }
+
+    /// <summary>
+    /// What that field accepts, each value exactly as it is written in a clause — quoted where
+    /// Jira quoted it, because the quotes are part of the clause.
+    /// </summary>
+    [JsonPropertyName("values")]
+    public IReadOnlyList<string>? Values { get; init; }
+}
+
+/// <summary>
+/// One queryable field. <see cref="Name"/> is the JQL name and nothing else will do: for a custom
+/// field it is the quoted display name, and <see cref="CustomFieldId"/> is the other name it
+/// answers to — never the <c>customfield_10107</c> identifier a write takes.
+/// </summary>
+internal sealed record JqlFieldOutput
+{
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    /// <summary>Jira's <c>cfid</c>, the bracket form <c>cf[10107]</c>. Absent for a system field.</summary>
+    [JsonPropertyName("customFieldId")]
+    public string? CustomFieldId { get; init; }
+
+    /// <summary>
+    /// Jira's own type names, carried in full — the prose shows the last dot-segment, and this is
+    /// the half rule 2 wants intact.
+    /// </summary>
+    [JsonPropertyName("types")]
+    public required IReadOnlyList<string> Types { get; init; }
+
+    /// <summary>What this field takes. It differs per field: <c>summary</c> takes <c>~</c>, not <c>=</c>.</summary>
+    [JsonPropertyName("operators")]
+    public required IReadOnlyList<string> Operators { get; init; }
+
+    [JsonPropertyName("orderable")]
+    public required bool Orderable { get; init; }
+
+    [JsonPropertyName("searchable")]
+    public required bool Searchable { get; init; }
+}
+
+/// <summary>One function this instance publishes, named as it is written in a clause.</summary>
+internal sealed record JqlFunctionOutput
+{
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("types")]
+    public required IReadOnlyList<string> Types { get; init; }
+}
+
+/// <summary>
 /// One field on a screen. The name is a selection label under ADR-0009's amended rule 2:
 /// <c>customfield_10010</c> tells an agent nothing, and the name is what makes the identifier it
 /// must send actionable.

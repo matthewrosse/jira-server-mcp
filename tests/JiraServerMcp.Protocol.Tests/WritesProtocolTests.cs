@@ -121,6 +121,7 @@ public sealed class WritesProtocolTests : IAsyncLifetime
                 "jira_get_create_fields",
                 "jira_get_edit_fields",
                 "jira_get_issues",
+                "jira_get_jql_fields",
                 "jira_get_project",
                 "jira_list_projects",
                 "jira_my_open_issues",
