@@ -47,16 +47,37 @@ jobs:
       # about three minutes. The nightly workflow runs the other side of that trait.
       - name: Test
         run: |
+          set -o pipefail
           for project in \
             tests/JiraServerMcp.Jira.Tests \
             tests/JiraServerMcp.Tests \
             tests/JiraServerMcp.Protocol.Tests \
             tests/JiraServerMcp.JiraIntegration.Tests
           do
-            dotnet test "$project" --no-build -c Release \
-              -- --filter-not-trait "Category=JiraIntegration" \
-                 --coverage --coverage-output-format cobertura \
-                 --coverage-output "$(basename "$project").cobertura.xml"
+            log="$(basename "$project").log"
+            # The coverage probe prefixes every basic block with an unguarded store into a
+            # mapping under the temporary directory; whenever that page loses its backing the
+            # test host dies with an AccessViolationException blamed on whichever of our methods
+            # happened to be running. It is upstream, and open:
+            # https://github.com/microsoft/codecoverage/issues/232. Measured here at 7 crashes
+            # in 140 runs, so a run has about a one in twenty chance of reddening for a reason
+            # that has nothing to do with the code under test. Only that signature is retried;
+            # a test that genuinely fails still fails on the first attempt.
+            for attempt in 1 2 3; do
+              if dotnet test "$project" --no-build -c Release \
+                   -- --filter-not-trait "Category=JiraIntegration" \
+                      --coverage --coverage-output-format cobertura \
+                      --coverage-output "$(basename "$project").cobertura.xml" 2>&1 | tee "$log"
+              then
+                break
+              fi
+              grep -q "AccessViolationException" "$log" || exit 1
+              if [ "$attempt" = 3 ]; then
+                echo "::error::$project crashed in the coverage probe three times running."
+                exit 1
+              fi
+              echo "::warning::$project hit the coverage probe crash (codecoverage#232); retrying."
+            done
           done
 
       - name: Coverage summary
