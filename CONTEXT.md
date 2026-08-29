@@ -182,7 +182,15 @@ _Avoid_: search result, which names only the first of the six.
 
 **Canned query** — a fixed JQL the server owns, exposed as a named tool, so an agent spends no
 context authoring the query. The name is the contract; a parameter that changes what the query
-means belongs in `jira_search` instead.
+means belongs in `jira_search` instead. The rule binds where the name is the whole contract — where
+an agent chooses before reading a schema — and not to a tool whose parameters it reads first.
+
+**Assignable user** — a user one Jira will accept as the assignee of a given issue, or of
+anything in a given project. Always a subset of the users a directory search matches, and never
+derivable from a user's own record, because the permission lives on the project rather than on the
+person. The gap is invisible until a write is refused, and the refusal names a field rather than a
+permission — so it is asked about up front, by anchoring the user search to an issue or a project.
+_Avoid_: eligible user, project member, team.
 
 **Field alias** — a name an operator declares on a profile for one of that Jira's fields:
 `story_points` for `customfield_10010`. An additional name, never a rename — a read shows both, and

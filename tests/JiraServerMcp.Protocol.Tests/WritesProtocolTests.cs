@@ -303,6 +303,48 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_rejected_update_that_named_somebody_says_where_the_assignable_people_are()
+    {
+        StubUpdate(400);
+
+        var text = await FailedCallAsync(
+            await _seam.ConnectAsync("issues:write"),
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["assignee"] = "jbloggs",
+            });
+
+        // Jira answers an assignee it will not accept with a 400 naming a field, so "does not
+        // exist" and "cannot be assigned here" arrive as one sentence. This is the call that
+        // tells them apart.
+        text.ShouldContain("jira_search_users");
+        text.ShouldContain("assignableTo");
+        text.ShouldContain("jbloggs");
+    }
+
+    [Fact]
+    public async Task A_rejected_update_that_named_nobody_carries_no_assignee_advice()
+    {
+        StubUpdate(400);
+
+        var text = await FailedCallAsync(
+            await _seam.ConnectAsync("issues:write"),
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["fields"] = new Dictionary<string, object?> { ["summary"] = "A better summary" },
+            });
+
+        // An update that named no person cannot have been rejected over one, and an unassignment
+        // names nobody either — Jira takes that from anyone who may edit.
+        text.ShouldNotContain("assignableTo");
+        text.ShouldContain("jira_get_edit_fields");
+    }
+
+    [Fact]
     public async Task An_issue_can_be_unassigned()
     {
         StubUpdate(204);

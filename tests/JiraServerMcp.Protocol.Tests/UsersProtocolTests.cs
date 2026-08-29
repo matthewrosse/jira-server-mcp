@@ -38,13 +38,179 @@ public sealed class UsersProtocolTests : IAsyncLifetime
 
         var properties = users.JsonSchema.GetProperty("properties");
 
-        properties.GetProperty("query").GetProperty("type").GetString().ShouldBe("string");
+        properties.TryGetProperty("query", out _).ShouldBeTrue();
+        properties.TryGetProperty("assignableTo", out _).ShouldBeTrue();
         properties.TryGetProperty("startAt", out _).ShouldBeTrue();
         properties.TryGetProperty("maxResults", out _).ShouldBeTrue();
         properties.TryGetProperty("includeInactive", out _).ShouldBeTrue();
 
-        users.JsonSchema.GetProperty("required").EnumerateArray()
-            .Select(required => required.GetString()).ShouldBe(["query"]);
+        // Nothing is required: a query alone and an anchor alone are both whole calls, and which
+        // pairs are legal is a rule the schema cannot state — so the tool states it, below.
+        users.JsonSchema.TryGetProperty("required", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task A_search_naming_neither_a_query_nor_an_anchor_is_refused_before_jira_is_asked()
+    {
+        var result = await _client.CallToolAsync(
+            "jira_search_users",
+            new Dictionary<string, object?>(),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+
+        result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem()
+            .Text.ShouldContain("assignableTo");
+
+        _seam.Jira.LogEntries.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task An_issue_key_anchor_asks_jira_who_may_be_assigned_that_issue()
+    {
+        StubAssignable(("ada", "Ada Lovelace", "ada@example.com", true));
+
+        await SearchAsync(new Dictionary<string, object?>
+        {
+            ["query"] = "ad",
+            ["assignableTo"] = "PROJ-42",
+        });
+
+        var request = SingleRequest();
+
+        request.Path.ShouldBe("/rest/api/2/user/assignable/search");
+
+        var query = request.Query.ShouldNotBeNull();
+
+        query["issueKey"].ShouldHaveSingleItem().ShouldBe("PROJ-42");
+        query.ShouldNotContainKey("project");
+        query["username"].ShouldHaveSingleItem().ShouldBe("ad");
+    }
+
+    [Fact]
+    public async Task A_project_key_anchor_asks_jira_who_may_be_assigned_anything_in_it()
+    {
+        StubAssignable(("ada", "Ada Lovelace", "ada@example.com", true));
+
+        await SearchAsync(new Dictionary<string, object?>
+        {
+            ["query"] = "ad",
+            ["assignableTo"] = "PROJ",
+        });
+
+        var query = SingleRequest().Query.ShouldNotBeNull();
+
+        query["project"].ShouldHaveSingleItem().ShouldBe("PROJ");
+        query.ShouldNotContainKey("issueKey");
+    }
+
+    [Fact]
+    public async Task An_anchored_search_may_leave_the_query_out_to_list_everyone_assignable()
+    {
+        StubAssignable(("ada", "Ada Lovelace", "ada@example.com", true));
+
+        await SearchAsync(new Dictionary<string, object?> { ["assignableTo"] = "PROJ" });
+
+        // Jira answers an absent name there with everyone assignable, and the plain search answers
+        // it with nobody — so the parameter is left out rather than sent empty.
+        SingleRequest().Query.ShouldNotBeNull().ShouldNotContainKey("username");
+    }
+
+    [Fact]
+    public async Task An_anchored_search_never_sends_include_inactive_and_says_why()
+    {
+        StubAssignable(("ada", "Ada Lovelace", "ada@example.com", true));
+
+        var text = await SearchAsync(new Dictionary<string, object?>
+        {
+            ["assignableTo"] = "PROJ",
+            ["includeInactive"] = true,
+        });
+
+        SingleRequest().Query.ShouldNotBeNull().ShouldNotContainKey("includeInactive");
+
+        text.ShouldContain("Inactive users cannot be included when assignableTo is set");
+    }
+
+    [Fact]
+    public async Task An_anchored_answer_says_the_count_is_of_who_may_be_assigned_there()
+    {
+        StubAssignable(("ada", "Ada Lovelace", "ada@example.com", true));
+
+        var text = await SearchAsync(new Dictionary<string, object?>
+        {
+            ["assignableTo"] = "PROJ-42",
+        });
+
+        text.ShouldContain("users assignable on PROJ-42: 1");
+    }
+
+    [Fact]
+    public async Task An_anchored_search_that_matched_nobody_says_what_it_matches_on()
+    {
+        StubAssignable();
+
+        var text = await SearchAsync(new Dictionary<string, object?>
+        {
+            ["query"] = "ada@example.com",
+            ["assignableTo"] = "PROJ",
+        });
+
+        text.ShouldContain("users assignable on PROJ: none matched");
+        text.ShouldContain("not email addresses");
+        text.ShouldContain("from the start of a name");
+    }
+
+    [Fact]
+    public async Task A_missing_anchor_is_explained_rather_than_left_to_jiras_own_wording()
+    {
+        // Jira's sentence for a key that never existed is "The issue no longer exists.", which
+        // sends an agent looking for something that was deleted.
+        _seam.Jira.Given(Request.Create()
+                .WithPath("/rest/api/2/user/assignable/search").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(404)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(
+                    "{\"errorMessages\":[\"The issue no longer exists.\"],\"errors\":{}}"));
+
+        var result = await _client.CallToolAsync(
+            "jira_search_users",
+            new Dictionary<string, object?> { ["query"] = "ad", ["assignableTo"] = "PROJ-42" },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsError.ShouldBe(true);
+
+        var text = result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
+
+        text.ShouldContain("PROJ-42 was not found, or you cannot browse it");
+        text.ShouldContain("search without assignableTo");
+        text.ShouldNotContain("no longer exists");
+    }
+
+    [Fact]
+    public async Task The_structured_half_carries_the_anchor_the_rows_were_narrowed_by()
+    {
+        StubAssignable(("ada", "Ada Lovelace", "ada@example.com", true));
+
+        var anchored = await _client.CallToolAsync(
+            "jira_search_users",
+            new Dictionary<string, object?> { ["assignableTo"] = "PROJ-42" },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        anchored.StructuredContent.ShouldNotBeNull()
+            .GetProperty("assignableTo").GetString().ShouldBe("PROJ-42");
+
+        _seam.Jira.Reset();
+        StubUsers(("ada", "Ada Lovelace", "ada@example.com", true));
+
+        var unanchored = await _client.CallToolAsync(
+            "jira_search_users",
+            new Dictionary<string, object?> { ["query"] = "ad" },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Absent rather than null: a search of the whole directory was narrowed by nothing.
+        unanchored.StructuredContent.ShouldNotBeNull()
+            .TryGetProperty("assignableTo", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -186,16 +352,24 @@ public sealed class UsersProtocolTests : IAsyncLifetime
         return result.Content.OfType<TextContentBlock>().ShouldHaveSingleItem().Text;
     }
 
+    private void StubAssignable(params (string Name, string DisplayName, string Email, bool Active)[] users) =>
+        _seam.Jira.Given(Request.Create()
+                .WithPath("/rest/api/2/user/assignable/search").UsingGet())
+            .RespondWith(JiraResponse.Json(200, Payload(users)));
+
     private void StubUsers(params (string Name, string DisplayName, string Email, bool Active)[] users) =>
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/user/search").UsingGet())
-            .RespondWith(JiraResponse.Json(200, JsonSerializer.Serialize(users.Select(user => new
-            {
-                key = $"JIRAUSER{user.Name.GetHashCode(StringComparison.Ordinal)}",
-                name = user.Name,
-                displayName = user.DisplayName,
-                emailAddress = user.Email,
-                active = user.Active,
-            }))));
+            .RespondWith(JiraResponse.Json(200, Payload(users)));
+
+    private static string Payload((string Name, string DisplayName, string Email, bool Active)[] users) =>
+        JsonSerializer.Serialize(users.Select(user => new
+        {
+            key = $"JIRAUSER{user.Name.GetHashCode(StringComparison.Ordinal)}",
+            name = user.Name,
+            displayName = user.DisplayName,
+            emailAddress = user.Email,
+            active = user.Active,
+        }));
 
     private IRequestMessage SingleRequest() =>
         _seam.Jira.LogEntries.ShouldHaveSingleItem().ShouldNotBeNull().RequestMessage.ShouldNotBeNull();

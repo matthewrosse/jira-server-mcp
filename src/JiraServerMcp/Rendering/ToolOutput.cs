@@ -654,6 +654,15 @@ internal sealed record UserSearchOutput : ToolOutput
     [JsonPropertyName("includeInactive")]
     public bool? IncludeInactive { get; init; }
 
+    /// <summary>
+    /// The issue key or project key the search was narrowed to, as the caller gave it, and absent
+    /// when it was not narrowed at all. A count narrowed by an assignment permission means
+    /// something different from a count of the directory, and the rows carry nothing that says
+    /// which of the two this is.
+    /// </summary>
+    [JsonPropertyName("assignableTo")]
+    public string? AssignableTo { get; init; }
+
     [JsonPropertyName("users")]
     public IReadOnlyList<UserRowOutput>? Users { get; init; }
 }

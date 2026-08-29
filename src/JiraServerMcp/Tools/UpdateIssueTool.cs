@@ -86,8 +86,23 @@ internal sealed class UpdateIssueTool(
                 advice: exception.StatusCode is HttpStatusCode.BadRequest
                     ? "Call jira_get_edit_fields for the identifiers this issue's fields have, "
                       + "and which of them it will accept." + FieldAliasAdvice.From(aliases)
+                      + AssigneeAdvice(assignee)
                     : null));
     }
+
+    /// <summary>
+    /// The clause a rejected update earns only when it named somebody. Jira answers an assignee it
+    /// will not accept with a 400 naming a field rather than a permission, so "this person does not
+    /// exist" and "this person cannot be assigned here" arrive as the same sentence. This tool has a
+    /// dedicated assignee parameter, so it is the one that knows a person was in play; clearing an
+    /// assignee names nobody, and Jira accepts that from anyone who may edit.
+    /// </summary>
+    private static string AssigneeAdvice(string? assignee) =>
+        assignee is null or ""
+            ? string.Empty
+            : $" If it was the assignee Jira rejected, '{assignee}' may exist without being "
+              + "assignable here — call jira_search_users with assignableTo set to this issue's "
+              + "key for the people it will accept.";
 
     /// <summary>
     /// What was sent, named as the prose names it. The structured half carries the same list, off
