@@ -199,7 +199,7 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
         // seeded from scratch. IssueDetailReader.Link reads the same payload the other way round —
         // it takes outwardIssue to mean this issue is on the outward end — so the links expansion
         // words this link "blocks" when read from the blocked end. Only the wording is wrong, and
-        // fixing it is a change to the reader that belongs to its own ticket, not to #126.
+        // fixing it is a change to the reader, filed as #137.
         link.TryGetProperty("outwardIssue", out var outward).ShouldBeTrue(
             $"read from the blocked end, Jira described the link as: {link}");
 
