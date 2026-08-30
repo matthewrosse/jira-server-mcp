@@ -132,6 +132,14 @@ document. Untyped, not a field on the issue, and identified by a `globalId` this
 from the URL, so attaching the same URL twice updates one link rather than making two.
 _Avoid_: web link, external link, attachment — the last is a file Jira stores itself.
 
+**Attachment** — a file Jira stores on an issue. Reached as an expansion that names and sizes it,
+then fetched one window at a time, because a log or a pasted CSV is routinely larger than anything
+worth reading in one go. The media type Jira claims for it is advisory and nothing branches on it;
+whether the bytes are text is decided by reading them. It crosses this server's boundary as
+**content**, never as a path — nothing here opens a file on the machine the server runs on, in
+either direction, so a filename is a label a human will later download rather than a location.
+_Avoid_: file, document, remote link — the last is a URL Jira holds, not bytes this server moves.
+
 **Published vocabulary** — the words one Jira publishes for a kind of choice: the transitions
 available on this issue, the relation phrases this instance publishes. A word the caller used must
 resolve to exactly one of them, or be refused with the alternatives named — a word that names none
@@ -177,7 +185,9 @@ _Avoid_: form, field configuration (Jira's own, and a different thing), metadata
 **Response budget** — the limits on what a response is allowed to cost an agent: text per line,
 prose, issue-read expansion entries, and default and largest page sizes. Every renderer and every
 page reads these limits from one module; the cutting mechanics remain with the renderer that cuts,
-and the paging mechanics belong to the page of issues below.
+and the paging mechanics belong to the page of issues below. It bounds **answers** only: a cap on
+what a caller may send is a different thing, is spent before this server ever sees it, and lives
+with the tool that takes it.
 
 **Page of issues** — the answer six tools give: a JQL search, this account's open issues, the
 change feed, the operator's canned queries, a board's backlog, a sprint. One module states the whole recipe — the floor under
