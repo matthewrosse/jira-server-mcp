@@ -226,6 +226,24 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_subtasks_expansion_names_each_sub_task_with_its_status()
+    {
+        StubIssue("PROJ-12", JiraResponse.Json(200, IssuePayload("subtasks")));
+
+        var text = await GetIssuesAsync(new Dictionary<string, object?>
+        {
+            ["keys"] = new[] { "PROJ-12" },
+            ["include"] = new[] { "subtasks" },
+        });
+
+        text.ShouldContain("subtasks (1):");
+        text.ShouldContain("PROJ-43 (In Progress) — Wire the reader to the new field");
+
+        SingleRequest().Query.ShouldNotBeNull()["fields"].ShouldHaveSingleItem()
+            .ShouldEndWith(",subtasks");
+    }
+
+    [Fact]
     public async Task An_expansion_that_is_not_one_is_refused_rather_than_quietly_dropped()
     {
         var result = await _client.CallToolAsync(
@@ -233,7 +251,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
             new Dictionary<string, object?>
             {
                 ["keys"] = new[] { "PROJ-12" },
-                ["include"] = new[] { "subtasks" },
+                ["include"] = new[] { "epics" },
             },
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -241,7 +259,7 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
 
         var text = TextOf(result);
 
-        text.ShouldContain("subtasks");
+        text.ShouldContain("epics");
         text.ShouldContain("comments");
 
         // Refused before Jira was troubled with it.
@@ -340,6 +358,22 @@ public sealed class GetIssuesProtocolTests : IAsyncLifetime
                     "outwardIssue": {
                       "key": "PROJ-13",
                       "fields": { "summary": "Rotate the signing key" }
+                    }
+                  }
+                ]
+                """);
+        }
+
+        if (sections.Contains("subtasks"))
+        {
+            fields.Add("""
+                "subtasks": [
+                  {
+                    "key": "PROJ-43",
+                    "fields": {
+                      "summary": "Wire the reader to the new field",
+                      "status": { "name": "In Progress" },
+                      "issuetype": { "name": "Sub-task", "subtask": true }
                     }
                   }
                 ]

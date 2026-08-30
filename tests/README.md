@@ -245,7 +245,7 @@ no error. `ATL_DB_DRIVER: org.postgresql.Driver` fixes it and the database step 
 
 ## Fixtures
 
-`tests/fixtures/payloads/8.20.7/` holds 25 payloads captured from the canonical version over a
+`tests/fixtures/payloads/8.20.7/` holds 26 payloads captured from the canonical version over a
 personal access token — the same authentication path the product uses, not the administrator
 basic-auth path the harness seeds with. `index.json` maps each file to the request that produced
 it.
@@ -253,20 +253,22 @@ it.
 They cover the current user, server info, JQL search, an issue both bare and expanded with
 `changelog,renderedFields,transitions`, transitions, comments, worklogs, the project list and
 detail, statuses, components, versions, `createmeta`, `editmeta` for two issue types, user search,
-the field list, the JQL autocomplete data and one field's suggestions, and the board, sprint,
-backlog and board-issue endpoints of the software API.
+the field list, the JQL autocomplete data and one field's suggestions, an issue read with its
+sub-tasks, and the board, sprint, backlog and board-issue endpoints of the software API.
 
-**Four payloads come from a different instance on purpose.** `editmeta-task.json` and
-`editmeta-bug.json` are `HAR-1` and `HAR-2`, and `jql-autocompletedata.json` and
-`jql-suggestions.json` were captured beside them, from the long-lived harness instance above; the
+**Five payloads come from a different instance on purpose.** `editmeta-task.json` and
+`editmeta-bug.json` are `HAR-1` and `HAR-2`, `jql-autocompletedata.json` and
+`jql-suggestions.json` were captured beside them, and `issue-subtasks.json` is `HAR-1` read with
+the sub-tasks the seeder puts under it — all from the long-lived harness instance above; the
 other 21 came from the Phase 0 spike, which seeded project `PZ`. That corpus cannot be reproduced —
 `scripts/phase0/06-capture.py` reads a `seeded.json` and a token from an instance that no longer
-exists — so these two were captured from the instance the repo still supports, over the same
+exists — so these were captured from the instance the repo still supports, over the same
 personal access token path. **Do not re-run that script to add an endpoint.** It rewrites
-`index.json` wholesale from its own list, which would regenerate every payload and drop these two
+`index.json` wholesale from its own list, which would regenerate every payload and drop these
 rows. The edit-screen pair exists rather than one payload because what they are for is
 the difference between them: a Bug's edit screen carries `environment` and `versions` and a Task's
-does not.
+does not. Both carry `fixVersions`, so the two screens are told apart by a field's name and not by
+its identifier.
 
 **The JQL payloads were captured after the instance had settled, and that matters.** The same
 endpoint on the same instance over the same token answered with 28 fields and no custom ones while

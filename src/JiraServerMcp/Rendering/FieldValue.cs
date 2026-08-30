@@ -27,6 +27,15 @@ internal static class FieldValue
 
     private static string? Named(JsonElement element)
     {
+        // An issue Jira names inside another issue's field — the parent above all — carries no
+        // name of its own, so the loop below would fall through to the bare key. The status is
+        // what a reader wants of it and the one field the embedded projection carries; the
+        // summary is not, because this renders on every search line as well as every issue read.
+        if (Issue(element) is { Length: > 0 } issue)
+        {
+            return issue;
+        }
+
         foreach (var property in (string[])["name", "displayName", "value", "key"])
         {
             if (element.TryGetProperty(property, out var named)
@@ -40,4 +49,21 @@ internal static class FieldValue
         // Its JSON is worth more to an agent than nothing at all.
         return element.GetRawText();
     }
+
+    /// <summary>
+    /// An embedded issue as "key (status)", or null for an object that is not one. Both halves
+    /// are required: an object carrying a key and no status is some other shape of Jira's, and
+    /// the key alone is what the fallback below already renders.
+    /// </summary>
+    private static string? Issue(JsonElement element) =>
+        element.TryGetProperty("key", out var key)
+        && key.ValueKind is JsonValueKind.String
+        && element.TryGetProperty("fields", out var fields)
+        && fields.ValueKind is JsonValueKind.Object
+        && fields.TryGetProperty("status", out var status)
+        && status.ValueKind is JsonValueKind.Object
+        && status.TryGetProperty("name", out var name)
+        && name.ValueKind is JsonValueKind.String
+            ? $"{key.GetString()} ({name.GetString()})"
+            : null;
 }

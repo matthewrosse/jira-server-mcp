@@ -23,6 +23,7 @@ namespace JiraServerMcp.Jira.Models;
 /// </param>
 /// <param name="Worklogs">Logged time, null unless expanded.</param>
 /// <param name="Attachments">The files on the issue, empty unless expanded.</param>
+/// <param name="Subtasks">The issue's sub-tasks, empty unless expanded.</param>
 public sealed record JiraIssueDetail(
     string Key,
     IReadOnlyDictionary<string, JsonElement> Fields,
@@ -32,7 +33,8 @@ public sealed record JiraIssueDetail(
     IReadOnlyList<JiraIssueLink> Links,
     IReadOnlyList<JiraRemoteLink>? RemoteLinks,
     JiraWorklogs? Worklogs,
-    IReadOnlyList<JiraAttachment> Attachments)
+    IReadOnlyList<JiraAttachment> Attachments,
+    IReadOnlyList<JiraSubtask> Subtasks)
 {
     /// <summary>The status id, which survives an admin renaming the workflow.</summary>
     public string? StatusId => JiraFields.StatusId(Fields);
@@ -134,6 +136,17 @@ public sealed record JiraAttachment(
     long Size,
     string? MimeType,
     string? Content);
+
+/// <summary>
+/// One sub-task of an issue, in the parent's own rank order.
+/// </summary>
+/// <param name="Key">The sub-task's key, which is what a read of it must name.</param>
+/// <param name="Status">
+/// Its status name, which is the field deciding whether the work is done. Null where Jira
+/// answered without the embedded projection carrying one.
+/// </param>
+/// <param name="Summary">Its summary, where the embedded projection carried one.</param>
+public sealed record JiraSubtask(string Key, string? Status, string? Summary);
 
 /// <summary>The issue's logged time. <see cref="Total"/> is Jira's own count.</summary>
 public sealed record JiraWorklogs(int Total, IReadOnlyList<JiraWorklog> Worklogs);

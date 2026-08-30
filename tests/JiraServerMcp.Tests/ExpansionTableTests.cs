@@ -8,8 +8,8 @@ using JiraServerMcp.Tools;
 namespace JiraServerMcp.Tests;
 
 /// <summary>
-/// The table that says everything one expansion is called. These are the guards that make a
-/// seventh expansion impossible to half-add: a row that names no mechanism reaches Jira asking for
+/// The table that says everything one expansion is called. These are the guards that make an
+/// eighth expansion impossible to half-add: a row that names no mechanism reaches Jira asking for
 /// nothing, and a name the tool description never mentions is invisible to the agent that would
 /// ask for it — neither of which fails a rendering test, because both answer "there are none of
 /// those" rather than erroring. The last two hold the rendering to the same standard: a row that
@@ -104,8 +104,8 @@ public class ExpansionTableTests
     /// <summary>
     /// The mirror: an arm that renders whether or not it was asked for. Asserted as the whole
     /// body rather than expansion by expansion, because the body of an issue with no fields and
-    /// nothing asked for is the key and nothing else — which covers a seventh expansion the day
-    /// it is added without naming any of the six.
+    /// nothing asked for is the key and nothing else — which covers an eighth expansion the day
+    /// it is added without naming any of the seven.
     /// </summary>
     [Fact]
     public void No_expansion_renders_a_section_when_it_was_not_asked_for()
@@ -119,5 +119,5 @@ public class ExpansionTableTests
     /// guard that passed through that branch would keep passing if the ordinary one broke.
     /// </summary>
     private static JiraIssueDetail Empty =>
-        new("PROJ-12", new Dictionary<string, JsonElement>(), [], null, null, [], [], null, []);
+        new("PROJ-12", new Dictionary<string, JsonElement>(), [], null, null, [], [], null, [], []);
 }

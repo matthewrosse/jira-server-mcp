@@ -74,6 +74,11 @@ internal static class IssueDetail
             Attachments(body, issue.Attachments);
         }
 
+        if (expansions.Contains(Expansion.Subtasks))
+        {
+            Subtasks(body, issue.Subtasks);
+        }
+
         return body.ToString().TrimEnd();
     }
 
@@ -191,6 +196,41 @@ internal static class IssueDetail
             body.Append("  ").Append(link.Relation).Append(' ').Append(link.Key);
 
             if (link.Summary is { Length: > 0 } summary)
+            {
+                body.Append(" — ").Append(Truncation.Body(summary));
+            }
+
+            body.AppendLine();
+        }
+    }
+
+    /// <summary>
+    /// The issue's sub-tasks, one per line in the parent's own rank order. Neither the assignee
+    /// nor the issue type is here: the type is all but always "Sub-task", and the question a
+    /// reader has of a sub-task list — is this work done — is the one status answers.
+    /// </summary>
+    /// <remarks>
+    /// Capped with <c>Take</c> rather than through <c>Ordered</c>: sub-tasks are a whole field on
+    /// the issue rather than a collection Jira pages oldest-first, so there is no page to be
+    /// missing the recent end of.
+    /// </remarks>
+    private static void Subtasks(StringBuilder body, IReadOnlyList<JiraSubtask> subtasks)
+    {
+        var shown = subtasks.Take(ResponseBudget.IssueSection).ToArray();
+
+        body.AppendLine().Append("subtasks ")
+            .Append(Heading(shown.Length, subtasks.Count)).AppendLine(":");
+
+        foreach (var subtask in shown)
+        {
+            body.Append("  ").Append(subtask.Key);
+
+            if (subtask.Status is { Length: > 0 } status)
+            {
+                body.Append(" (").Append(status).Append(')');
+            }
+
+            if (subtask.Summary is { Length: > 0 } summary)
             {
                 body.Append(" — ").Append(Truncation.Body(summary));
             }

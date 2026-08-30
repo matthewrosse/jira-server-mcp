@@ -1,0 +1,184 @@
+{
+  "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
+  "id": "10000",
+  "self": "http://localhost:8080/rest/api/2/issue/10000",
+  "key": "HAR-1",
+  "fields": {
+    "summary": "Read a ticket before implementing it (revised)",
+    "issuetype": {
+      "self": "http://localhost:8080/rest/api/2/issuetype/10002",
+      "id": "10002",
+      "description": "A task that needs to be done.",
+      "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10318&avatarType=issuetype",
+      "name": "Task",
+      "subtask": false,
+      "avatarId": 10318
+    },
+    "subtasks": [
+      {
+        "id": "10003",
+        "key": "HAR-4",
+        "self": "http://localhost:8080/rest/api/2/issue/10003",
+        "fields": {
+          "summary": "Wire the reader to the new field",
+          "status": {
+            "self": "http://localhost:8080/rest/api/2/status/10000",
+            "description": "",
+            "iconUrl": "http://localhost:8080/",
+            "name": "To Do",
+            "id": "10000",
+            "statusCategory": {
+              "self": "http://localhost:8080/rest/api/2/statuscategory/2",
+              "id": 2,
+              "key": "new",
+              "colorName": "blue-gray",
+              "name": "To Do"
+            }
+          },
+          "priority": {
+            "self": "http://localhost:8080/rest/api/2/priority/3",
+            "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+            "name": "Medium",
+            "id": "3"
+          },
+          "issuetype": {
+            "self": "http://localhost:8080/rest/api/2/issuetype/10003",
+            "id": "10003",
+            "description": "The sub-task of the issue",
+            "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10316&avatarType=issuetype",
+            "name": "Sub-task",
+            "subtask": true,
+            "avatarId": 10316
+          }
+        }
+      },
+      {
+        "id": "10004",
+        "key": "HAR-5",
+        "self": "http://localhost:8080/rest/api/2/issue/10004",
+        "fields": {
+          "summary": "Capture the payload",
+          "status": {
+            "self": "http://localhost:8080/rest/api/2/status/10000",
+            "description": "",
+            "iconUrl": "http://localhost:8080/",
+            "name": "To Do",
+            "id": "10000",
+            "statusCategory": {
+              "self": "http://localhost:8080/rest/api/2/statuscategory/2",
+              "id": 2,
+              "key": "new",
+              "colorName": "blue-gray",
+              "name": "To Do"
+            }
+          },
+          "priority": {
+            "self": "http://localhost:8080/rest/api/2/priority/3",
+            "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+            "name": "Medium",
+            "id": "3"
+          },
+          "issuetype": {
+            "self": "http://localhost:8080/rest/api/2/issuetype/10003",
+            "id": "10003",
+            "description": "The sub-task of the issue",
+            "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10316&avatarType=issuetype",
+            "name": "Sub-task",
+            "subtask": true,
+            "avatarId": 10316
+          }
+        }
+      },
+      {
+        "id": "10005",
+        "key": "HAR-6",
+        "self": "http://localhost:8080/rest/api/2/issue/10005",
+        "fields": {
+          "summary": "Update the README table",
+          "status": {
+            "self": "http://localhost:8080/rest/api/2/status/10001",
+            "description": "",
+            "iconUrl": "http://localhost:8080/",
+            "name": "Done",
+            "id": "10001",
+            "statusCategory": {
+              "self": "http://localhost:8080/rest/api/2/statuscategory/3",
+              "id": 3,
+              "key": "done",
+              "colorName": "green",
+              "name": "Done"
+            }
+          },
+          "priority": {
+            "self": "http://localhost:8080/rest/api/2/priority/3",
+            "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+            "name": "Medium",
+            "id": "3"
+          },
+          "issuetype": {
+            "self": "http://localhost:8080/rest/api/2/issuetype/10003",
+            "id": "10003",
+            "description": "The sub-task of the issue",
+            "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10316&avatarType=issuetype",
+            "name": "Sub-task",
+            "subtask": true,
+            "avatarId": 10316
+          }
+        }
+      }
+    ],
+    "created": "2026-08-30T16:21:16.101+0000",
+    "reporter": {
+      "self": "http://localhost:8080/rest/api/2/user?username=admin",
+      "name": "admin",
+      "key": "JIRAUSER10000",
+      "emailAddress": "admin@example.invalid",
+      "avatarUrls": {
+        "48x48": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=48",
+        "24x24": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=24",
+        "16x16": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=16",
+        "32x32": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=32"
+      },
+      "displayName": "Harness Administrator",
+      "active": true,
+      "timeZone": "Etc/UTC"
+    },
+    "assignee": {
+      "self": "http://localhost:8080/rest/api/2/user?username=admin",
+      "name": "admin",
+      "key": "JIRAUSER10000",
+      "emailAddress": "admin@example.invalid",
+      "avatarUrls": {
+        "48x48": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=48",
+        "24x24": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=24",
+        "16x16": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=16",
+        "32x32": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=32"
+      },
+      "displayName": "Harness Administrator",
+      "active": true,
+      "timeZone": "Etc/UTC"
+    },
+    "priority": {
+      "self": "http://localhost:8080/rest/api/2/priority/3",
+      "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+      "name": "Medium",
+      "id": "3"
+    },
+    "updated": "2026-08-30T16:24:07.992+0000",
+    "labels": [],
+    "status": {
+      "self": "http://localhost:8080/rest/api/2/status/10000",
+      "description": "",
+      "iconUrl": "http://localhost:8080/",
+      "name": "To Do",
+      "id": "10000",
+      "statusCategory": {
+        "self": "http://localhost:8080/rest/api/2/statuscategory/2",
+        "id": 2,
+        "key": "new",
+        "colorName": "blue-gray",
+        "name": "To Do"
+      }
+    }
+  }
+}

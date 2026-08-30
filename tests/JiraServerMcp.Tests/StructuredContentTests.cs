@@ -792,6 +792,7 @@ public class StructuredContentTests
                 [],
                 null,
                 null,
+                [],
                 []),
             null);
 

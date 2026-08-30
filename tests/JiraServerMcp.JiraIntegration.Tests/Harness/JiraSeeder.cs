@@ -10,6 +10,7 @@ namespace JiraServerMcp.JiraIntegration.Tests.Harness;
 internal sealed record SeededJira(
     string ProjectKey,
     IReadOnlyList<string> IssueKeys,
+    IReadOnlyList<string> SubtaskKeys,
     IReadOnlyList<string> Usernames,
     int BoardId,
     int SprintId)
@@ -19,6 +20,13 @@ internal sealed record SeededJira(
     /// coverage reads.
     /// </summary>
     public string ExpandedIssueKey => IssueKeys[0];
+
+    /// <summary>
+    /// The issue carrying the sub-tasks, which is the same one the expansions read: three of
+    /// them, one transitioned out of the default status, so the section proves it renders a
+    /// status that varies rather than the same word three times.
+    /// </summary>
+    public string ParentIssueKey => IssueKeys[0];
 
     /// <summary>The seeded Task, and the seeded Bug — the pair whose edit screens differ.</summary>
     public string TaskIssueKey => IssueKeys[0];
@@ -44,6 +52,7 @@ internal sealed class JiraSeeder(HttpClient client, JiraAdministrator administra
 
         var usernames = await CreateUsersAsync(cancellationToken);
         var issueKeys = await CreateIssuesAsync(cancellationToken);
+        var subtaskKeys = await CreateSubtasksAsync(issueKeys[0], cancellationToken);
 
         await CommentAsync(issueKeys[0], cancellationToken);
         await LogWorkAsync(issueKeys[0], cancellationToken);
@@ -55,7 +64,7 @@ internal sealed class JiraSeeder(HttpClient client, JiraAdministrator administra
         var boardId = await FindBoardAsync(cancellationToken);
         var sprintId = await CreateSprintAsync(boardId, issueKeys, cancellationToken);
 
-        return new SeededJira(ProjectKey, issueKeys, usernames, boardId, sprintId);
+        return new SeededJira(ProjectKey, issueKeys, subtaskKeys, usernames, boardId, sprintId);
     }
 
     private async Task CreateProjectAsync(CancellationToken cancellationToken)
@@ -164,11 +173,133 @@ internal sealed class JiraSeeder(HttpClient client, JiraAdministrator administra
         return issueKeys;
     }
 
+    /// <summary>
+    /// Three sub-tasks under the first issue, one of them moved out of the default status. Three
+    /// exercises the multi-line section, and the mixed status is what proves the section carries
+    /// the field that says whether the work is done.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> CreateSubtasksAsync(
+        string parentKey, CancellationToken cancellationToken)
+    {
+        // Re-seeding a long-lived local instance would otherwise add three more every run.
+        if (await FindSubtasksAsync(parentKey, cancellationToken) is { Count: >= 3 } existing)
+        {
+            return [.. existing.Take(3)];
+        }
+
+        var subtaskKeys = new List<string>();
+
+        string[] summaries =
+        [
+            "Wire the reader to the new field",
+            "Capture the payload",
+            "Update the README table",
+        ];
+
+        foreach (var summary in summaries)
+        {
+            var (status, body) = await CallAsync(
+                HttpMethod.Post,
+                "/rest/api/2/issue",
+                new
+                {
+                    fields = new
+                    {
+                        project = new { key = ProjectKey },
+                        parent = new { key = parentKey },
+                        summary,
+                        issuetype = new { name = "Sub-task" },
+                    },
+                },
+                cancellationToken);
+
+            if (status is 200 or 201 && body?.TryGetProperty("key", out var key) is true)
+            {
+                subtaskKeys.Add(key.GetString()!);
+            }
+        }
+
+        // All three, not merely one: a parent left holding two would be topped up to five on the
+        // next run, and the tests would report a renderer that counted wrong.
+        if (subtaskKeys.Count != summaries.Length)
+        {
+            throw new InvalidOperationException(
+                $"Seeding produced {subtaskKeys.Count} of {summaries.Length} sub-tasks under "
+                + $"{parentKey}.");
+        }
+
+        await TransitionAsync(subtaskKeys[^1], cancellationToken);
+
+        return subtaskKeys;
+    }
+
+    /// <summary>
+    /// The sub-tasks already under one issue. A search that failed is not an empty answer: read as
+    /// one it would seed three more on every run, and the count the tests assert is the first
+    /// thing to break.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> FindSubtasksAsync(
+        string parentKey, CancellationToken cancellationToken)
+    {
+        var (status, body) = await CallAsync(
+            HttpMethod.Get,
+            $"/rest/api/2/search?jql=parent%3D{parentKey}%20ORDER%20BY%20created%20ASC&maxResults=10",
+            payload: null,
+            cancellationToken);
+
+        if (status is not 200 || body?.TryGetProperty("issues", out var issues) is not true)
+        {
+            throw new InvalidOperationException(
+                $"Searching for the sub-tasks of {parentKey} answered {status}.");
+        }
+
+        return [.. issues.EnumerateArray().Select(issue => issue.GetProperty("key").GetString()!)];
+    }
+
+    /// <summary>
+    /// Moves one issue as far along its workflow as one transition takes it. Which transitions a
+    /// workflow publishes is the administrator's, so the last one offered is taken rather than a
+    /// name being assumed: what matters is that this issue's status differs from its siblings'.
+    /// </summary>
+    private async Task TransitionAsync(string issueKey, CancellationToken cancellationToken)
+    {
+        var (status, body) = await CallAsync(
+            HttpMethod.Get,
+            $"/rest/api/2/issue/{issueKey}/transitions",
+            payload: null,
+            cancellationToken);
+
+        if (status is not 200 || body?.TryGetProperty("transitions", out var transitions) is not true)
+        {
+            throw new InvalidOperationException(
+                $"Reading the transitions of {issueKey} answered {status}.");
+        }
+
+        var last = transitions.EnumerateArray().LastOrDefault();
+
+        if (last.ValueKind is not JsonValueKind.Object)
+        {
+            throw new InvalidOperationException($"{issueKey} publishes no transitions to take.");
+        }
+
+        await CallAsync(
+            HttpMethod.Post,
+            $"/rest/api/2/issue/{issueKey}/transitions",
+            new { transition = new { id = last.GetProperty("id").GetString() } },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The three issues seeding creates, and not the sub-tasks under them: a sub-task is an issue
+    /// in the same project, so without the type filter this query answers with six rows and the
+    /// first three are the seeded issues only for as long as the ordering holds.
+    /// </summary>
     private async Task<IReadOnlyList<string>> FindIssuesAsync(CancellationToken cancellationToken)
     {
         var (_, body) = await CallAsync(
             HttpMethod.Get,
-            $"/rest/api/2/search?jql=project%3D{ProjectKey}%20ORDER%20BY%20created%20ASC&maxResults=10",
+            $"/rest/api/2/search?jql=project%3D{ProjectKey}%20AND%20issuetype%20NOT%20IN%20"
+            + "subTaskIssueTypes()%20ORDER%20BY%20created%20ASC&maxResults=10",
             payload: null,
             cancellationToken);
 

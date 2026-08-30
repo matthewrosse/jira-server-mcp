@@ -12,6 +12,7 @@ internal enum Expansion
     Links,
     Worklogs,
     Attachments,
+    Subtasks,
 }
 
 /// <summary>
@@ -32,7 +33,7 @@ internal static class Expansions
     /// The words an agent may ask for. A constant because the tool description is an attribute
     /// and cannot interpolate a property; <c>ExpansionTableTests</c> holds it to the table.
     /// </summary>
-    public const string Names = "comments, transitions, changelog, links, worklogs, attachments";
+    public const string Names = "comments, transitions, changelog, links, worklogs, attachments, subtasks";
 
     /// <summary>
     /// One expansion's names. <paramref name="Field"/> and <paramref name="Expand"/> are the two
@@ -60,6 +61,12 @@ internal static class Expansions
         new(Expansion.Links, "links", "issuelinks", null, SeparateRequest: true),
         new(Expansion.Worklogs, "worklogs", "worklog", null, false),
         new(Expansion.Attachments, "attachments", "attachment", null, false),
+
+        // Opt-in like every other row, and a break for the one caller that reached sub-tasks by
+        // widening the projection with "subtasks": the field is lifted out of the projection now,
+        // so that line renders as nothing unless this expansion was asked for. Accepted — the
+        // undocumented projection was the defect, and #126 records the reasoning.
+        new(Expansion.Subtasks, "subtasks", Field: "subtasks", Expand: null, SeparateRequest: false),
     ];
 
     /// <summary>

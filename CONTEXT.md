@@ -91,10 +91,10 @@ resource is one fact and the fields nothing asserts on are the ones that drift.
 _Avoid_: command, CLI test — the first already names the System.CommandLine symbol.
 
 **Expansion** — an optional extra section of an issue read: comments, transitions, changelog,
-links, worklogs, attachments. Opt-in, because each one costs the agent context it may not need.
-An expansion reaches its section by exactly one of three mechanisms — a collection field, Jira's
-own expand parameter, or a request of its own — and which one it is belongs to the expansion, not
-to the caller that asks for it.
+links, worklogs, attachments, sub-tasks. Opt-in, because each one costs the agent context it may
+not need. An expansion reaches its section by exactly one of three mechanisms — a collection
+field, Jira's own expand parameter, or a request of its own — and which one it is belongs to the
+expansion, not to the caller that asks for it.
 _Avoid_: Jira's own "expand", which names a different and overlapping mechanism.
 
 **Section** — a block of an issue read that is rendered on its own terms rather than as a line of
@@ -105,8 +105,9 @@ not ask".
 _Avoid_: block, panel, part.
 
 **Collection field** — a projected field Jira answers with as an array rather than a value:
-`comment`, `issuelinks`, `worklog`, `attachment`. It is asked for through the field projection but
-is not part of it, so it is lifted out and read into a section; left in, it renders as a JSON blob.
+`comment`, `issuelinks`, `worklog`, `attachment`, `subtasks`. It is asked for through the field
+projection but is not part of it, so it is lifted out and read into a section; left in, it renders
+as a JSON blob.
 Which names these are is decided where the expansions are named, not where the response is read.
 _Avoid_: array field, multi-value field, sub-resource.
 
@@ -115,6 +116,12 @@ than abridged for company, and each key succeeds or fails alone: one key that na
 the caller that key and no other. What distinguishes it from a search that happens to match those
 keys is the failure model, not the number of issues.
 _Avoid_: batch, multi-get, bulk operation — the last already names a write this project does not do.
+
+**Sub-task** — an issue Jira holds beneath another issue, in the one relation Jira models as a
+hierarchy rather than as a link. Reached as an expansion of the parent, where it renders with the
+status that says whether the work is done; the other end of the same relation is the `parent`
+field, which is in the default projection and renders as the parent's key and status both.
+_Avoid_: child issue, sub-issue, task — the last is an issue type Jira already ships.
 
 **Issue link** — a typed, directional relation from one Jira issue to another. It is a field on
 the issue, it is visible to JQL, and its type is named twice — once from each end.

@@ -219,6 +219,28 @@ public class SearchRenderingTests
         rendered.Length.ShouldBeLessThanOrEqualTo(ResponseBudget.SearchTextBudget);
     }
 
+    /// <summary>
+    /// The parent fix of #126 lands here as well as on an issue read, on purpose: a rendering
+    /// that behaved differently in the two renderers is the drift ADR-0003's seam exists to stop.
+    /// </summary>
+    [Fact]
+    public void A_parent_on_a_result_line_carries_its_status_rather_than_its_key_alone()
+    {
+        var rendered = Render(Page(Issue("PROJ-43", """
+            {
+              "summary": "Wire the reader to the new field",
+              "parent": {
+                "id": "10100",
+                "key": "PROJ-42",
+                "fields": { "summary": "Sub-tasks as a section", "status": { "name": "In Progress" } }
+              }
+            }
+            """)));
+
+        rendered.ShouldContain("parent: PROJ-42 (In Progress)");
+        rendered.ShouldNotContain("Sub-tasks as a section");
+    }
+
     private static string Render(JiraSearchPage page) => SearchResults.Render(page).Text;
 
     private static JiraIssue Issue(string key, string fields) =>
