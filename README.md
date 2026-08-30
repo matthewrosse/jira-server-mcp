@@ -303,9 +303,11 @@ context learning that it is forbidden.
 | `jira_add_worklog` | `worklogs:write` | Log work, with the time spent in Jira's own duration syntax (`"3h 30m"`), so how long a working day is stays Jira's decision. |
 | `jira_link_issues` | `links:write` | Link two issues by the relation *phrase* Jira publishes — `"blocks"`, `"is blocked by"` — so the direction reads as English and cannot be got backwards. Takes an optional comment. |
 | `jira_add_remote_link` | `links:write` | Attach a URL to an issue — a pull request, a build — so it lands in Jira's link panel rather than in a comment. The URL is the link's identity, so attaching it twice updates one link and says so. |
+| `jira_add_attachment` | `attachments:write` | Attach one text file to an issue: a test log, a diff, a report. The content is sent as text, never as a path — this server opens no file on the machine it runs on — and is stored as `text/plain` whatever the file is named. Jira appends rather than replaces, so the same file sent twice is two attachments. |
 
-Deliberately absent: issue deletion, comment editing and deletion, attachments, unlinking,
-sprint mutation, watchers, and votes. See [Known limitations](#known-limitations).
+Deliberately absent: issue deletion, comment editing and deletion, attachment replacement and
+deletion, unlinking, sprint mutation, watchers, and votes. See
+[Known limitations](#known-limitations).
 
 ## Structured content
 
@@ -702,13 +704,15 @@ identifier — `customfield_10010` — is refused as an alias, since the two wou
 
 ### Retry-safe writes
 
-Three writes have no natural way to be repeated safely: a create, a comment and a worklog. If one
-times out, Jira may or may not have committed it, and nothing in the answer says which. Today that
-leaves an agent to invent a recovery procedure in the worst possible context — after a timeout,
-mid-workflow — and an unattended loop either duplicates the work or stalls.
+Four writes have no natural way to be repeated safely: a create, a comment, a worklog and an
+attachment. If one times out, Jira may or may not have committed it, and nothing in the answer says
+which. Today that leaves an agent to invent a recovery procedure in the worst possible context —
+after a timeout, mid-workflow — and an unattended loop either duplicates the work or stalls. The
+attachment is the most expensive of the four to get wrong: Jira's upload appends rather than
+replaces, so a blind retry is a second copy of the whole file under the same name.
 
-`jira_create_issue`, `jira_add_comment` and `jira_add_worklog` each take an optional
-`idempotencyKey`: any string the caller invents, one per intended write.
+`jira_create_issue`, `jira_add_comment`, `jira_add_worklog` and `jira_add_attachment` each take an
+optional `idempotencyKey`: any string the caller invents, one per intended write.
 
 ```
 jira_create_issue(projectKey: "PROJ", issueType: "Bug", summary: "…", idempotencyKey: "run-42-step-1")
@@ -782,6 +786,23 @@ call read the same way round.
 - *"What is blocking PROJ-123, and is there a PR on it yet?"* — `jira_get_issues` with
   `include: ["links"]`, which returns both the issue links and the remote links.
 
+### Writing — `attachments:write`
+
+Launch with `--allow attachments:write`. The file's text is the argument: this server opens nothing
+on the machine it runs on, so an agent reads the file itself and passes what it read. It is stored
+as `text/plain` whatever the file is named, and read back with `jira_get_attachment`.
+
+- *"Attach the failing test output to PROJ-123 rather than pasting it into a comment."* —
+  `jira_add_attachment`. A comment is capped at a thousand characters every time anyone reads the
+  issue; an attachment is named and sized in the issue read and fetched only when someone wants it.
+- *"Put the diff you just wrote on PROJ-123 as review.diff."* — `jira_add_attachment`. As an
+  attachment it is bytes, where in a comment it would be Jira wiki markup whether you meant it or
+  not.
+- *"Attach the report and say in a comment what it shows."* — `jira_add_attachment`, then
+  `jira_add_comment`, which needs `comments:write` too.
+- *"Replace the log you attached yesterday."* — nothing here replaces or removes an attachment.
+  A second upload is a second file.
+
 ### Multi-step workflows
 
 Where the batching actually pays: each of these is one prompt that would otherwise be a dozen
@@ -813,7 +834,11 @@ Named here so the failure is expected rather than surprising. Each is a
 [known limitation](#known-limitations), not a bug.
 
 - *"Delete PROJ-123."* — no delete tool exists at any grant.
-- *"Attach this log file to PROJ-123."* — no attachment upload or download.
+- *"Attach the log file at /var/log/build.log to PROJ-123."* — no tool takes a path. Read the
+  file yourself and pass its text to `jira_add_attachment`, which is granted by
+  `attachments:write`.
+- *"Attach this screenshot to PROJ-123."* — an attachment is text only; its content crosses the
+  boundary as a string.
 - *"Move PROJ-123 into the next sprint"* or *"create a sprint."* — sprints and boards are read-only
   here.
 - *"Edit my last comment on PROJ-123."* — comments cannot be edited or removed through this server.
@@ -1012,8 +1037,12 @@ publishing over OIDC rather than a long-lived API key when it happens.
 
 What is **not** in this server, so you find out here rather than by asking an agent to try:
 
-- **Attachments.** No upload, no download. File paths crossing the MCP boundary are a
-  path-traversal surface that deserves its own design pass and its own ADR.
+- **Attachments.** Reading one is `jira_get_attachment`; writing one is `jira_add_attachment`
+  under `attachments:write`. What is absent is the rest: text only — no image, no archive, nothing
+  whose bytes are not text — one file per call, at most 64,000 characters in it, and nothing that
+  replaces or deletes an attachment already on the issue. Neither direction takes a file path:
+  content crosses this server's boundary and nothing here opens a file on the machine it runs on
+  ([ADR-0012](docs/adr/0012-attachments-cross-the-boundary-as-content.md)).
 - **Deletion.** No delete tool of any kind, at any grant. Not issues, not comments, not worklogs.
 - **Comment and worklog editing.** A comment or worklog this server adds cannot be edited or
   removed through it.

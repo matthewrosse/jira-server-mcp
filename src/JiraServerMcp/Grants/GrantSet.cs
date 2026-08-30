@@ -19,6 +19,7 @@ internal sealed class GrantSet
             ["comments:write"] = Grant.CommentsWrite,
             ["worklogs:write"] = Grant.WorklogsWrite,
             ["links:write"] = Grant.LinksWrite,
+            ["attachments:write"] = Grant.AttachmentsWrite,
         };
 
     /// <summary>

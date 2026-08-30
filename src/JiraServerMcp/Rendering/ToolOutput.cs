@@ -211,6 +211,27 @@ internal sealed record AddedCommentOutput : ToolOutput
 }
 
 /// <summary>
+/// An attachment as Jira stored it. Modelled on <see cref="AddedCommentOutput"/> rather than
+/// reusing <see cref="AttachmentOutput"/>, whose <c>binary</c> and <c>nextOffset</c> are
+/// read-paging semantics that would be null here forever. <see cref="Size"/> is Jira's own count
+/// rather than this server's, so it reports what was stored.
+/// </summary>
+internal sealed record AddedAttachmentOutput : ToolOutput
+{
+    [JsonPropertyName("key")]
+    public string? Key { get; init; }
+
+    [JsonPropertyName("attachmentId")]
+    public string? AttachmentId { get; init; }
+
+    [JsonPropertyName("fileName")]
+    public string? FileName { get; init; }
+
+    [JsonPropertyName("size")]
+    public long? Size { get; init; }
+}
+
+/// <summary>
 /// <see cref="TimeSpent"/> is the duration as Jira recorded it, which is what says how it read the
 /// duration it was given.
 /// </summary>

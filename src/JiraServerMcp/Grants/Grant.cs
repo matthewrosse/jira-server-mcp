@@ -10,4 +10,5 @@ internal enum Grant
     CommentsWrite,
     WorklogsWrite,
     LinksWrite,
+    AttachmentsWrite,
 }
