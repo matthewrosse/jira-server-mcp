@@ -71,6 +71,48 @@ public sealed class JiraReadTests(JiraHarness harness) : IAsyncLifetime
         text.ShouldContain("summary");
     }
 
+    /// <summary>
+    /// The sub-tasks expansion against a real 8.20.7, which is the only place the shape Jira
+    /// answers with — a key, and an embedded projection carrying the status — is proven rather
+    /// than assumed. The parent's own line is asserted from the other end in the same call.
+    /// </summary>
+    [Fact]
+    public async Task Sub_tasks_come_back_with_a_status_each_and_the_parent_carries_one_too()
+    {
+        var text = await CallAsync("jira_get_issues", new Dictionary<string, object?>
+        {
+            ["keys"] = new[] { _jira.Seeded.ParentIssueKey },
+            ["include"] = new[] { "subtasks" },
+        });
+
+        text.ShouldContain("subtasks (3)");
+
+        foreach (var key in _jira.Seeded.SubtaskKeys)
+        {
+            text.ShouldContain(key);
+        }
+
+        text.ShouldContain("Wire the reader to the new field");
+
+        // The seeder transitioned the last sub-task and left the other two alone, so the section
+        // carries two different status names rather than the same word three times.
+        var statuses = Regex
+            .Matches(text, @"^  [A-Z]+-\d+ \(([^)]+)\)", RegexOptions.Multiline)
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+
+        statuses.Length.ShouldBe(3);
+        statuses.Distinct().Count().ShouldBe(2);
+
+        // The other end of the same relation: a sub-task read carries its parent with a status.
+        var child = await CallAsync("jira_get_issues", new Dictionary<string, object?>
+        {
+            ["keys"] = new[] { _jira.Seeded.SubtaskKeys[0] },
+        });
+
+        child.ShouldContain($"parent: {_jira.Seeded.ParentIssueKey} (");
+    }
+
     [Fact]
     public async Task Several_keys_with_expansions_render_in_one_call_and_a_key_that_does_not_exist_fails_alone()
     {

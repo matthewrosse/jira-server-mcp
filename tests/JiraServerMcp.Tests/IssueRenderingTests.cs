@@ -195,6 +195,82 @@ public class IssueRenderingTests
     }
 
     [Fact]
+    public void Subtasks_carry_their_key_status_and_summary_in_jiras_own_order()
+    {
+        var rendered = IssueDetail.Render(Issue(subtasks: [
+            new JiraSubtask("PROJ-43", "In Progress", "Wire the reader to the new field"),
+            new JiraSubtask("PROJ-44", "Done", "Capture the payload"),
+        ]), [Expansion.Subtasks]);
+
+        rendered.ShouldContain("subtasks (2):");
+        rendered.ShouldContain("PROJ-43 (In Progress) — Wire the reader to the new field");
+        rendered.ShouldContain("PROJ-44 (Done) — Capture the payload");
+
+        // The parent's own rank order, which is the order Jira answered in.
+        rendered.IndexOf("PROJ-43", StringComparison.Ordinal)
+            .ShouldBeLessThan(rendered.IndexOf("PROJ-44", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// An instance that answered without the embedded projection leaves a sub-task as its key,
+    /// the same way a link whose summary is missing renders as the relation and the key.
+    /// </summary>
+    [Fact]
+    public void A_subtask_jira_sent_without_its_fields_renders_as_the_key_alone()
+    {
+        var rendered = IssueDetail.Render(
+            Issue(subtasks: [new JiraSubtask("PROJ-43", null, null)]),
+            [Expansion.Subtasks]);
+
+        rendered.ShouldContain("PROJ-43");
+        rendered.ShouldNotContain("PROJ-43 (");
+        rendered.ShouldNotContain("—");
+    }
+
+    /// <summary>
+    /// Capped by the issue-section budget like every other section, and with no claim about the
+    /// order: sub-tasks are a whole field on the issue rather than a page Jira cut at its own end.
+    /// </summary>
+    [Fact]
+    public void A_long_subtask_list_is_cut_to_the_issue_section_budget()
+    {
+        var subtasks = Enumerable.Range(1, ResponseBudget.IssueSection + 5)
+            .Select(number => new JiraSubtask($"PROJ-{number}", "To Do", $"Sub-task {number}"))
+            .ToArray();
+
+        var rendered = IssueDetail.Render(Issue(subtasks: subtasks), [Expansion.Subtasks]);
+
+        rendered.ShouldContain($"showing {ResponseBudget.IssueSection} of {subtasks.Length}");
+        rendered.ShouldNotContain($"Sub-task {subtasks.Length}");
+        rendered.ShouldNotContain("first");
+    }
+
+    /// <summary>
+    /// The other half of #126: <c>parent</c> is in the default projection and used to render as a
+    /// bare key, which told an agent reading a sub-task which issue its parent is and nothing
+    /// about it.
+    /// </summary>
+    [Fact]
+    public void A_parent_renders_with_its_status_rather_than_as_a_bare_key()
+    {
+        var rendered = IssueDetail.Render(Issue("""
+            {
+              "summary": "Wire the reader to the new field",
+              "parent": {
+                "id": "10100",
+                "key": "PROJ-42",
+                "fields": { "summary": "Sub-tasks as a section", "status": { "name": "In Progress" } }
+              }
+            }
+            """), []);
+
+        rendered.ShouldContain("parent: PROJ-42 (In Progress)");
+
+        // No summary: this same rendering is on every search line of every sub-task.
+        rendered.ShouldNotContain("parent: PROJ-42 (In Progress) — Sub-tasks as a section");
+    }
+
+    [Fact]
     public void Worklogs_carry_their_author_duration_and_start_time()
     {
         var rendered = IssueDetail.Render(Issue(worklogs: new JiraWorklogs(1, [
@@ -289,7 +365,8 @@ public class IssueRenderingTests
         IReadOnlyList<JiraIssueLink>? links = null,
         IReadOnlyList<JiraRemoteLink>? remoteLinks = null,
         JiraWorklogs? worklogs = null,
-        IReadOnlyList<JiraAttachment>? attachments = null) =>
+        IReadOnlyList<JiraAttachment>? attachments = null,
+        IReadOnlyList<JiraSubtask>? subtasks = null) =>
         new(
             "PROJ-12",
             JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fields)!,
@@ -299,5 +376,6 @@ public class IssueRenderingTests
             links ?? [],
             remoteLinks,
             worklogs,
-            attachments ?? []);
+            attachments ?? [],
+            subtasks ?? []);
 }

@@ -65,6 +65,26 @@ public sealed class JiraIssueTests : IDisposable
                 }
               }
             ],
+            "subtasks": [
+              {
+                "id": "10200",
+                "key": "PROJ-43",
+                "fields": {
+                  "summary": "Wire the reader to the new field",
+                  "status": { "name": "In Progress" },
+                  "issuetype": { "name": "Sub-task", "subtask": true }
+                }
+              },
+              {
+                "id": "10201",
+                "key": "PROJ-44",
+                "fields": {
+                  "summary": "Capture the payload",
+                  "status": { "name": "Done" },
+                  "issuetype": { "name": "Sub-task", "subtask": true }
+                }
+              }
+            ],
             "worklog": {
               "startAt": 0,
               "maxResults": 1,
@@ -192,6 +212,7 @@ public sealed class JiraIssueTests : IDisposable
         issue.Comments.ShouldBeNull();
         issue.Links.ShouldBeEmpty();
         issue.Worklogs.ShouldBeNull();
+        issue.Subtasks.ShouldBeEmpty();
     }
 
     [Fact]
@@ -232,13 +253,50 @@ public sealed class JiraIssueTests : IDisposable
     {
         StubIssue(Json(IssuePayload));
 
-        var issue = await GetIssueAsync("PROJ-12", ["summary", "comment", "issuelinks", "worklog"]);
+        var issue = await GetIssueAsync(
+            "PROJ-12", ["summary", "comment", "issuelinks", "worklog", "subtasks"]);
 
-        // Left in place they would render as three unreadable JSON blobs in the field list.
+        // Left in place they would render as four unreadable JSON blobs in the field list.
         issue.Fields.ContainsKey("comment").ShouldBeFalse();
         issue.Fields.ContainsKey("issuelinks").ShouldBeFalse();
         issue.Fields.ContainsKey("worklog").ShouldBeFalse();
+        issue.Fields.ContainsKey("subtasks").ShouldBeFalse();
         issue.Fields.ContainsKey("summary").ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Subtasks_carry_their_key_status_and_summary_in_the_order_jira_sent_them()
+    {
+        StubIssue(Json(IssuePayload));
+
+        var subtasks = (await GetIssueAsync("PROJ-12", ["subtasks"])).Subtasks;
+
+        subtasks.Count.ShouldBe(2);
+
+        subtasks[0].Key.ShouldBe("PROJ-43");
+        subtasks[0].Status.ShouldBe("In Progress");
+        subtasks[0].Summary.ShouldBe("Wire the reader to the new field");
+
+        subtasks[1].Key.ShouldBe("PROJ-44");
+        subtasks[1].Status.ShouldBe("Done");
+    }
+
+    /// <summary>
+    /// The hand-written payload above says what the reader was built for; this one says what Jira
+    /// actually sends. It was captured from the harness instance at 8.20.7 over a personal access
+    /// token, with three sub-tasks under one parent and one of them moved out of the default
+    /// status — the shape the section exists to render.
+    /// </summary>
+    [Fact]
+    public async Task Subtasks_read_the_same_way_out_of_a_payload_a_real_jira_sent()
+    {
+        StubIssue(Json(Fixture("issue-subtasks.json")));
+
+        var subtasks = (await GetIssueAsync("HAR-1", ["subtasks"])).Subtasks;
+
+        subtasks.Select(subtask => subtask.Key).ShouldBe(["HAR-4", "HAR-5", "HAR-6"]);
+        subtasks.Select(subtask => subtask.Status).ShouldBe(["To Do", "To Do", "Done"]);
+        subtasks[0].Summary.ShouldBe("Wire the reader to the new field");
     }
 
     [Fact]
@@ -366,7 +424,7 @@ public sealed class JiraIssueTests : IDisposable
     /// reader does with the list rather than where the list comes from.
     /// </summary>
     private static readonly string[] _collectionFields =
-        ["comment", "issuelinks", "worklog", "attachment"];
+        ["comment", "issuelinks", "worklog", "attachment", "subtasks"];
 
     private Task<Models.JiraIssueDetail> GetIssueAsync(
         string key,
@@ -377,6 +435,10 @@ public sealed class JiraIssueTests : IDisposable
             key,
             new Models.IssueRead(fields, expand ?? [], _collectionFields, remoteLinks),
             TestContext.Current.CancellationToken);
+
+    private static string Fixture(string name) =>
+        File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find().FullName, "tests", "fixtures", "payloads", "8.20.7", name));
 
     private static IResponseBuilder Json(string body) =>
         Response.Create().WithStatusCode(200)

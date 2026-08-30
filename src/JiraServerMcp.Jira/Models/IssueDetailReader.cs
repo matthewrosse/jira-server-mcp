@@ -33,7 +33,8 @@ internal static class IssueDetailReader
             Links: Links(fields),
             RemoteLinks: null,
             Worklogs: Worklogs(fields),
-            Attachments: Attachments(fields));
+            Attachments: Attachments(fields),
+            Subtasks: Subtasks(fields));
     }
 
     private static IReadOnlyDictionary<string, JsonElement> Projection(
@@ -202,6 +203,43 @@ internal static class IssueDetailReader
                 _ => null,
             }
             : null;
+
+    /// <summary>
+    /// The issue's sub-tasks, in the order Jira returned them, which is the parent's own rank
+    /// order. One with no key is dropped: the key is the only part a reader of it can act on.
+    /// </summary>
+    private static IReadOnlyList<JiraSubtask> Subtasks(JsonElement fields)
+    {
+        if (fields.ValueKind is not JsonValueKind.Object
+            || !TryArray(fields, "subtasks", out var subtasks))
+        {
+            return [];
+        }
+
+        return [.. subtasks.Select(Subtask).OfType<JiraSubtask>()];
+    }
+
+    /// <summary>
+    /// One sub-task. Jira embeds a projection of its own under <c>fields</c>, and an instance that
+    /// answered without one leaves the sub-task as its key alone rather than dropping it.
+    /// </summary>
+    private static JiraSubtask? Subtask(JsonElement subtask)
+    {
+        if (String(subtask, "key") is not { Length: > 0 } key)
+        {
+            return null;
+        }
+
+        subtask.TryGetProperty("fields", out var fields);
+
+        return new JiraSubtask(
+            Key: key,
+            Status: fields.ValueKind is JsonValueKind.Object
+                    && fields.TryGetProperty("status", out var status)
+                ? String(status, "name")
+                : null,
+            Summary: String(fields, "summary"));
+    }
 
     private static IReadOnlyList<JiraIssueLink> Links(JsonElement fields)
     {

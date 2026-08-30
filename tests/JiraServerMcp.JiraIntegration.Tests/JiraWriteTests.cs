@@ -47,12 +47,15 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
         });
 
         bug.ShouldContain("environment");
-        bug.ShouldContain("versions");
+
+        // Named rather than by identifier: both screens carry fixVersions, whose identifier
+        // contains "versions", so the identifier alone cannot tell the two screens apart.
+        bug.ShouldContain("Affects Version/s");
 
         // jira_update_issue takes a key, not a type — so answering "what may I set here" through
         // the create screen answers about the wrong screen.
         task.ShouldNotContain("environment");
-        task.ShouldNotContain("versions");
+        task.ShouldNotContain("Affects Version/s");
     }
 
     [Fact]
@@ -187,12 +190,20 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
 
         link.GetProperty("type").GetProperty("name").GetString().ShouldBe("Blocks");
 
-        // Named rather than indexed: Jira puts the *other* issue under whichever end it is on, so
-        // a missing property is the interesting answer here and a KeyNotFoundException hides it.
-        link.TryGetProperty("inwardIssue", out var inward).ShouldBeTrue(
+        // Named rather than indexed: Jira puts the *other* issue under the end that other issue is
+        // on, so read from the blocked end the blocker arrives as the outwardIssue — the end the
+        // outward wording "blocks" starts from. A missing property is the interesting answer here
+        // and a KeyNotFoundException hides it.
+        //
+        // This assertion was inwardIssue and a real 8.20.7 falsified it twice, on two instances
+        // seeded from scratch. IssueDetailReader.Link reads the same payload the other way round —
+        // it takes outwardIssue to mean this issue is on the outward end — so the links expansion
+        // words this link "blocks" when read from the blocked end. Only the wording is wrong, and
+        // fixing it is a change to the reader, filed as #137.
+        link.TryGetProperty("outwardIssue", out var outward).ShouldBeTrue(
             $"read from the blocked end, Jira described the link as: {link}");
 
-        inward.GetProperty("key").GetString().ShouldBe(blocker);
+        outward.GetProperty("key").GetString().ShouldBe(blocker);
     }
 
     [Fact]
