@@ -43,6 +43,7 @@ internal static class ToolSurface
         new(typeof(AddWorklogTool), RequiredGrant: Grant.WorklogsWrite),
         new(typeof(LinkIssuesTool), RequiredGrant: Grant.LinksWrite),
         new(typeof(AddRemoteLinkTool), RequiredGrant: Grant.LinksWrite),
+        new(typeof(AddAttachmentTool), RequiredGrant: Grant.AttachmentsWrite),
     ];
 
     /// <summary>

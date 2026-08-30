@@ -79,6 +79,12 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
                 ["url"] = "https://example.invalid/pr/1",
                 ["title"] = "A pull request",
             },
+            ["jira_add_attachment"] = new()
+            {
+                ["key"] = "PROJ-12",
+                ["fileName"] = "notes.md",
+                ["content"] = "a line",
+            },
         };
 
     private ProtocolSeam _seam = null!;
@@ -105,7 +111,7 @@ public sealed class StructuredContentProtocolTests : IAsyncLifetime
         _seam.Jira.Reset();
 
         _client = await _seam.ConnectAsync(
-            "issues:write,comments:write,worklogs:write,links:write");
+            "issues:write,comments:write,worklogs:write,links:write,attachments:write");
     }
 
     public async ValueTask DisposeAsync() => await _seam.DisposeAsync();

@@ -13,9 +13,10 @@ namespace JiraServerMcp.Tools;
 /// the whole of what it was asked to work from.
 /// </summary>
 /// <remarks>
-/// Read-only, so it registers for every client. Writing an attachment is deliberately absent: it
-/// is a different grant, and an upload is the one write whose payload this server would have to
-/// take from the agent wholesale.
+/// Read-only, so it registers for every client. Writing one is <see cref="AddAttachmentTool"/>,
+/// under a grant of its own. An upload is the one write whose payload this server takes from the
+/// agent wholesale, which is why that side caps the size and validates the file name rather than
+/// trusting either.
 /// </remarks>
 [McpServerToolType]
 internal sealed class GetAttachmentTool(JiraClient jira, ServedProfile profile)

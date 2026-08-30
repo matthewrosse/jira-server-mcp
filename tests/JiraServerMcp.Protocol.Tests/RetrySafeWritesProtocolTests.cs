@@ -22,7 +22,7 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
         _seam = await ProtocolSeam.StartAsync();
 
         _client = await _seam.ConnectAsync(
-            "issues:write", "comments:write", "worklogs:write");
+            "issues:write", "comments:write", "worklogs:write", "attachments:write");
     }
 
     public async ValueTask DisposeAsync() => await _seam.DisposeAsync();
@@ -33,7 +33,13 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
         var tools = await _client.ListToolsAsync(
             cancellationToken: TestContext.Current.CancellationToken);
 
-        foreach (var name in new[] { "jira_create_issue", "jira_add_comment", "jira_add_worklog" })
+        foreach (var name in new[]
+                 {
+                     "jira_create_issue",
+                     "jira_add_comment",
+                     "jira_add_worklog",
+                     "jira_add_attachment",
+                 })
         {
             tools.Single(tool => tool.Name == name)
                 .JsonSchema.GetProperty("properties")

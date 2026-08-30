@@ -119,3 +119,28 @@ act on. Two thresholds replace the one:
 Answering a red build on either is the same as before: add the file the resource wants, or amend
 this ADR deliberately. What is no longer available is editing a constant in passing.
 
+## Amendment (2026-08-31): the glob threshold moves to 1,550
+
+The trigger fired on #127's attachment upload, with the glob at 1,298 of 1,300 before a line of it
+was written — and `JiraClientAttachments.cs` at 202 of the 250 per-file cap, so the second guard was
+a few lines behind the first.
+
+Both responses this ADR allows are taken, in the order it names them. The upload goes in a **new
+partial file**, `JiraClientAttachmentWrites.cs`, rather than growing the read file: the multipart
+body, the media type it fixes and the one request in this client that carries
+`X-Atlassian-Token: no-check` are a resource's worth of endpoint, and the per-file cap is the guard
+that says so. That is response 1, and it leaves the per-file numbers healthy — the largest file is
+`JiraClientWrites.cs` at 203, exactly where the split left it.
+
+What response 1 cannot do, here as at every earlier firing, is answer the *glob*: a new file adds
+its own using block to the total rather than removing anything. So the threshold moves too, set the
+way the 2026-08-18 amendment set the last one — from what the client measures with the feature in,
+plus about one feature batch of headroom.
+
+With the upload in, the client measures **1,396 across thirteen files**. The threshold moves to
+**1,550**: 154 lines of headroom, which is about the headroom 800 left over 636, 1,000 left over
+867 and 1,300 left over 1,154.
+
+The per-file cap of 250 does not move. It is the guard the split made meaningful, nothing has grown
+back towards it, and moving a number nothing is pressing on would be the ratchet the 2026-08-18
+amendment refused.
