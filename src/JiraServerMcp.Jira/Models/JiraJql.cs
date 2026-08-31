@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace JiraServerMcp.Jira.Models;
 
 /// <summary>
@@ -41,3 +43,32 @@ public sealed record JiraJqlFunction(string Name, IReadOnlyList<string> Types);
 /// by the caller rather than by the payload.
 /// </summary>
 public sealed record JiraJqlSuggestions(string Field, IReadOnlyList<string> Values);
+
+/// <summary>
+/// A saved filter as its owner wrote it in Jira: a name, the JQL it runs, and who owns it. The
+/// counterpart of the catalogue above — that one says what this Jira can be asked, this one says
+/// what somebody already asked and kept.
+/// </summary>
+/// <remarks>
+/// Everything else Jira sends for a filter is dropped by not being declared: the avatar URLs, the
+/// share permissions, the shared users and the subscriptions are most of the payload's bytes and
+/// none of its meaning here. <paramref name="Jql"/> arrives without an <c>expand</c>, so the whole
+/// row costs one call.
+///
+/// <paramref name="Name"/> and <paramref name="Description"/> are free text a human typed in Jira
+/// and are untrusted content.
+/// </remarks>
+public sealed record JiraSavedFilter(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("description")] string? Description,
+    [property: JsonPropertyName("jql")] string Jql,
+    [property: JsonPropertyName("owner")] JiraSavedFilterOwner? Owner);
+
+/// <summary>
+/// Who owns a saved filter, carried as the username alone. A filter this account has favourited
+/// can be owned by somebody else, which is the whole reason a favourite stays current: whoever
+/// owns it keeps maintaining it.
+/// </summary>
+public sealed record JiraSavedFilterOwner(
+    [property: JsonPropertyName("name")] string? Name);

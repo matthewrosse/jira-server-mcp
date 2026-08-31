@@ -50,6 +50,20 @@ public sealed partial class JiraClient
     }
 
     /// <summary>
+    /// The saved filters the account this token belongs to has favourited. Jira answers with a
+    /// bare array and no paging envelope — the endpoint is unpaged, so any bound on the count is
+    /// the caller's — and each row already carries its JQL without an <c>expand</c>.
+    /// </summary>
+    /// <remarks>
+    /// Favourites rather than every filter this account can see: <c>/rest/api/2/filter/search</c>,
+    /// which would answer the wider question, is Cloud-only and answers 404 on this project's Jira
+    /// floor.
+    /// </remarks>
+    public Task<IReadOnlyList<JiraSavedFilter>> ListFavouriteFiltersAsync(
+        CancellationToken cancellationToken) =>
+        GetAsync<IReadOnlyList<JiraSavedFilter>>("rest/api/2/filter/favourite", cancellationToken);
+
+    /// <summary>
     /// A read whose payload is walked rather than deserialized, because what a caller needs from it
     /// is not the shape a serializer would build.
     /// </summary>

@@ -534,6 +534,61 @@ internal sealed record ProjectRowOutput
 }
 
 /// <summary>
+/// The saved filters this account has favourited. Jira's favourite-filters endpoint has no page of
+/// its own, so what bounds this is a cap rather than a position, exactly as
+/// <see cref="ProjectListOutput"/> is bounded.
+/// </summary>
+internal sealed record SavedFilterListOutput : ToolOutput
+{
+    /// <summary>The rows in <see cref="Filters"/>: what is carried here, not what Jira has.</summary>
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    /// <summary>
+    /// Every favourite that matched, including the ones the cap left out. Where a caller narrowed
+    /// by name, it is the number that matched rather than the number Jira sent.
+    /// </summary>
+    [JsonPropertyName("totalCount")]
+    public int? TotalCount { get; init; }
+
+    /// <summary>
+    /// Whether the cap left filters out. There is no next page to ask for: a filter outside the
+    /// cap is reached by narrowing the name.
+    /// </summary>
+    [JsonPropertyName("cutByCap")]
+    public bool? CutByCap { get; init; }
+
+    [JsonPropertyName("filters")]
+    public IReadOnlyList<SavedFilterRowOutput>? Filters { get; init; }
+}
+
+/// <summary>
+/// One saved filter. The id is what a follow-up query names — <c>filter = 10001</c> is ordinary
+/// JQL — and the JQL itself is Jira's own query text, carried under rule 2 as the value the caller
+/// would otherwise have to retype. The name and the description are prose a human wrote and are
+/// not carried.
+/// </summary>
+internal sealed record SavedFilterRowOutput
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+
+    /// <summary>
+    /// The query this filter runs, truncated with the prose the caller reads. A favourite can be
+    /// owned by somebody else, so this is the one field that says what a filter will actually do.
+    /// </summary>
+    [JsonPropertyName("jql")]
+    public string? Jql { get; init; }
+
+    /// <summary>
+    /// The owner's username — an identifier a follow-up call can use, and the field that says a
+    /// favourite is somebody else's filter rather than this account's own.
+    /// </summary>
+    [JsonPropertyName("owner")]
+    public string? Owner { get; init; }
+}
+
+/// <summary>
 /// One project: what a create call may name in it. The names are selection labels under ADR-0009's
 /// amended rule 2 — a version name is what <c>fixVersions</c> must be given verbatim, and its id
 /// is opaque.
