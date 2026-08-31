@@ -58,10 +58,10 @@ internal static class ResponseBudget
 
     /// <summary>
     /// The most saved filters one response is worth. Jira's favourite-filters endpoint has no page
-    /// of its own either, so a long list is cut here or not at all — and half of
-    /// <see cref="ProjectListCap"/> because a filter row carries a line of JQL and so weighs
-    /// several times what a project row does. Fifty favourites is also well past the point where a
-    /// person still knows what they have.
+    /// of its own either, so a long list is cut here or not at all — and smaller than
+    /// <see cref="ProjectListCap"/> because a saved filter's row carries a line of JQL and so
+    /// weighs several times what a project's does. Fifty favourites is also well past the point
+    /// where a person still knows what they have.
     /// </summary>
     public const int SavedFilterCap = 50;
 

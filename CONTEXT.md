@@ -239,8 +239,8 @@ and is paid for in the one call that lists it. It is run by naming `filter = <id
 which is ordinary JQL — so this server discovers filters and never executes one. Only the
 favourites of the account the token belongs to are reachable: Jira Server publishes no endpoint for
 every filter an account can see.
-_Avoid_: canned query, operator-defined query, filter (which this glossary spends on field
-projection).
+_Avoid_: canned query, operator-defined query, and the bare word filter — this glossary spends
+that one on field projection, so the two words travel together everywhere but a code identifier.
 
 **Untrusted content** — free text authored inside Jira: descriptions, comments, custom field
 values, project names, transition names, and the text Jira returns when it refuses a request —

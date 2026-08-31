@@ -365,13 +365,6 @@ public sealed class JiraReadTests(JiraHarness harness) : IAsyncLifetime
         });
 
         run.ShouldContain(_jira.Seeded.IssueKeys[0]);
-
-        var narrowed = await CallAsync("jira_list_saved_filters", new Dictionary<string, object?>
-        {
-            ["startsWith"] = "Harness favourite",
-        });
-
-        narrowed.ShouldContain(id);
     }
 
     /// <summary>

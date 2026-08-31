@@ -10,7 +10,8 @@ namespace JiraServerMcp.Jira.Tests;
 
 /// <summary>
 /// The query catalogue read, and the saved filters beside it, against the payloads a real Jira
-/// Server 8.20.7 sent: what is asked of Jira, and what the reader makes of the answer. The fixtures are the point here — every
+/// Server 8.20.7 sent: what is asked of Jira, and what the reader makes of the answer. The
+/// fixtures are the point here — every
 /// surprising thing this reader handles (a boolean sent as a string, a pre-quoted value, the
 /// bracket form of a custom field's identifier) is a property of the real payload rather than of
 /// a payload written to suit the reader.
@@ -32,10 +33,10 @@ public sealed class JiraJqlTests : IDisposable
             "name": "Open payment bugs",
             "description": "What the payments team triages every morning.",
             "owner": {
-              "self": "http://jira.invalid/rest/api/2/user?username=ada",
-              "name": "ada",
-              "key": "ada",
-              "displayName": "Ada Lovelace",
+              "self": "http://jira.invalid/rest/api/2/user?username=grace",
+              "name": "grace",
+              "key": "grace",
+              "displayName": "Grace Hopper",
               "active": true,
               "avatarUrls": {
                 "48x48": "http://jira.invalid/secure/useravatar?avatarId=10122",
@@ -56,9 +57,9 @@ public sealed class JiraJqlTests : IDisposable
             "id": "10002",
             "name": "Anything assigned to me",
             "owner": {
-              "self": "http://jira.invalid/rest/api/2/user?username=grace",
-              "name": "grace",
-              "displayName": "Grace Hopper",
+              "self": "http://jira.invalid/rest/api/2/user?username=ada",
+              "name": "ada",
+              "displayName": "Ada Lovelace",
               "active": true
             },
             "jql": "assignee = currentUser() ORDER BY updated DESC",
@@ -215,7 +216,7 @@ public sealed class JiraJqlTests : IDisposable
         open.Jql.ShouldBe("project = PAY AND status != Done ORDER BY created DESC");
 
         // A favourite can be somebody else's filter, which is the whole reason it stays current.
-        open.Owner.ShouldNotBeNull().Name.ShouldBe("ada");
+        open.Owner.ShouldNotBeNull().Name.ShouldBe("grace");
 
         // The projection is what the model declares: the avatar URLs, the share permissions, the
         // shared users and the subscriptions are most of the payload's bytes and reach no caller.

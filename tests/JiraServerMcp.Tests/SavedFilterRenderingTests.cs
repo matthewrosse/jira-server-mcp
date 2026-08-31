@@ -94,6 +94,22 @@ public class SavedFilterRenderingTests
     }
 
     [Fact]
+    public void A_cut_list_that_was_also_narrowed_says_what_it_was_cut_out_of()
+    {
+        var many = Enumerable.Range(1, ResponseBudget.SavedFilterCap + 5)
+            .Select(number => Filter(number.ToString(), $"Payments {number:D3}"))
+            .Append(Filter("999", "Releases"))
+            .ToArray();
+
+        var text = SavedFilterList.Render(many, startsWith: "payments").Text;
+
+        // Both facts, or the cap reads as everything this account has.
+        text.ShouldContain($"saved filters: {many.Length - 1} of {many.Length} whose name starts "
+                           + $"with 'payments' — showing the first {ResponseBudget.SavedFilterCap}");
+        text.ShouldContain("narrow with startsWith instead");
+    }
+
+    [Fact]
     public void A_prefix_narrows_on_the_name_and_the_header_says_what_it_matched_out_of()
     {
         var text = SavedFilterList.Render(
@@ -117,8 +133,10 @@ public class SavedFilterRenderingTests
         rendered.Text.ShouldContain(query[..ResponseBudget.Prose]);
         rendered.Text.ShouldContain("…[truncated,");
 
+        // The structured half carries Jira's own query whole: a marker there would be prose in
+        // the machine-readable field, and a caller reads that field to repeat the query.
         Structure(rendered).GetProperty("filters")[0].GetProperty("jql").GetString()
-            .ShouldNotBeNull().Length.ShouldBeGreaterThan(ResponseBudget.Prose - 1);
+            .ShouldBe(query);
     }
 
     [Fact]

@@ -6,7 +6,7 @@ namespace JiraServerMcp.Rendering;
 /// <summary>
 /// The saved filters this account has favourited, one block each: the id first, because
 /// <c>filter = 10001</c> is what a follow-up search sends. A discovery call — nothing here runs a
-/// filter.
+/// saved filter.
 /// </summary>
 internal static class SavedFilterList
 {
@@ -42,7 +42,9 @@ internal static class SavedFilterList
                     .. shown.Select(filter => new SavedFilterRowOutput
                     {
                         Id = filter.Id,
-                        Jql = Truncation.Body(filter.Jql),
+                        // Jira's own query text, whole: ADR-0009 rule 2 carries the value a
+                        // caller would otherwise retype, and a truncation marker is prose.
+                        Jql = filter.Jql,
                         Owner = filter.Owner?.Name,
                     }),
                 ],
@@ -72,7 +74,7 @@ internal static class SavedFilterList
             }));
 
     /// <summary>
-    /// One filter: the identifier a query names, the name and owner that say what it is and whose
+    /// One saved filter: the identifier a query names, the name and owner that say what it is and whose
     /// it is, its JQL, and the description where its owner wrote one. The JQL gets a prose budget
     /// rather than a line's — it is the thing being read here, and two thirds of a query narrows
     /// into nothing.
@@ -114,15 +116,16 @@ internal static class SavedFilterList
 
     private static string Header(int shown, int matched, int total, string? startsWith)
     {
-        if (shown < matched)
-        {
-            return $"saved filters: {matched} — showing the first {shown} by name. Jira's "
-                   + "favourite-filters endpoint has no page of its own, so the rest are not "
-                   + "available from this tool; narrow with startsWith instead.";
-        }
+        var counted = startsWith is { Length: > 0 } prefix
+            ? $"{matched} of {total} whose name starts with '{prefix}'"
+            : $"{total}";
 
-        return startsWith is { Length: > 0 } prefix
-            ? $"saved filters: {matched} of {total} whose name starts with '{prefix}'."
-            : $"saved filters: {total}.";
+        // A cut list says what it was cut out of, prefix included: without it, a call that both
+        // narrowed and was capped reads as though the cap was everything this account has.
+        return shown < matched
+            ? $"saved filters: {counted} — showing the first {shown} by name. Jira's "
+              + "favourite-filters endpoint has no page of its own, so the rest are not available "
+              + "from this tool; narrow with startsWith instead."
+            : $"saved filters: {counted}.";
     }
 }
