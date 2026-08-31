@@ -173,11 +173,18 @@ public sealed partial class JiraClient
     /// Logs work against one issue. <paramref name="timeSpent"/> is Jira's own duration syntax, in
     /// which Jira alone decides how long a day is. Never retried.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="leaveRemainingEstimate"/> sends <c>adjustEstimate=leave</c>, which stops
+    /// Jira reducing the issue's remaining estimate by the time logged. It is left off the wire
+    /// entirely when false, so what Jira does then is Jira's own default and not a value chosen
+    /// here.
+    /// </remarks>
     public Task<JiraAddedWorklog> AddWorklogAsync(
         string key,
         string timeSpent,
         string? started,
         string? comment,
+        bool leaveRemainingEstimate,
         CancellationToken cancellationToken)
     {
         var body = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -195,8 +202,10 @@ public sealed partial class JiraClient
             body["comment"] = comment;
         }
 
+        var path = $"rest/api/2/issue/{Uri.EscapeDataString(key)}/worklog";
+
         return PostAsync<JiraAddedWorklog>(
-            $"rest/api/2/issue/{Uri.EscapeDataString(key)}/worklog",
+            leaveRemainingEstimate ? path + "?adjustEstimate=leave" : path,
             body,
             cancellationToken);
     }

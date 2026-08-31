@@ -225,6 +225,14 @@ requires. Declared, never derived from Jira's own field names: derivation would 
 the same alias by accident, and the operator's intent is the one thing nothing else can supply.
 _Avoid_: field mapping, custom field name, friendly name.
 
+**Remaining estimate** — the time Jira believes is still needed on an issue, as against the
+original estimate it was first given. Logging work is the only thing here that moves it: a worklog
+reduces it by the time logged unless the caller asks for it to be left. The number is never
+reported back by a write, because Jira's answer to a worklog carries the worklog and nothing about
+the issue's time tracking; it is read through the `timetracking` field.
+_Avoid_: estimate, time estimate, original estimate — the last is a different number this server
+never writes.
+
 **Idempotency key** — a string a caller invents and hands to a write that Jira offers no natural
 way to repeat safely: a create, a comment, a worklog. This server records the key before it sends
 the write, so a second call carrying it writes nothing and is told what became of the first — above

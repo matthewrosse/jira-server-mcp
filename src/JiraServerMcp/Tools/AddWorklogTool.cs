@@ -26,8 +26,10 @@ internal sealed class AddWorklogTool(
     [Description(
         "Log work against an issue. The time spent is written in Jira's own duration syntax — "
         + "\"3h 30m\", \"1w 2d\", units w, d, h and m — so that how long a working day is stays "
-        + "Jira's decision and not a conversion made here. The entry cannot be edited or removed "
-        + "afterwards by this server.")]
+        + "Jira's decision and not a conversion made here. Logging work reduces the issue's "
+        + "remaining estimate by the time logged, which is Jira's own behaviour; pass "
+        + "leaveRemainingEstimate to keep the estimate where it is. The entry cannot be edited or "
+        + "removed afterwards by this server.")]
     public async Task<CallToolResult> AddWorklogAsync(
         [Description("The issue key, such as \"PROJ-42\".")]
         string key,
@@ -39,6 +41,15 @@ internal sealed class AddWorklogTool(
         string? started = null,
         [Description("A note on what the time went on.")]
         string? comment = null,
+        // Defaults to false — Jira's own behaviour, which is that a worklog reduces the remaining
+        // estimate by what was logged. Defaulting to true would be this server deciding what
+        // logging work means to a team's burndown, the same kind of decision as how long a working
+        // day is, and that one is already Jira's. Named for the remaining estimate because Jira
+        // tracks two and only this one moves.
+        [Description(
+            "Leave the issue's remaining estimate where it is. Omitted, Jira reduces it by the "
+            + "time logged. The original estimate is never touched either way.")]
+        bool leaveRemainingEstimate = false,
         [Description(RetrySafeWrite.KeyDescription)]
         string? idempotencyKey = null,
         CancellationToken cancellationToken = default)
@@ -84,6 +95,7 @@ internal sealed class AddWorklogTool(
                     timeSpent.Trim(),
                     startedAt,
                     comment,
+                    leaveRemainingEstimate,
                     cancellationToken);
 
                 var rendered = new Rendered(

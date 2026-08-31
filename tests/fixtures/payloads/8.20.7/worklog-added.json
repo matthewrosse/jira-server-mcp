@@ -1,0 +1,40 @@
+{
+  "self": "http://localhost:8080/rest/api/2/issue/10007/worklog/10005",
+  "author": {
+    "self": "http://localhost:8080/rest/api/2/user?username=admin",
+    "name": "admin",
+    "key": "JIRAUSER10000",
+    "emailAddress": "admin@example.invalid",
+    "avatarUrls": {
+      "48x48": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=48",
+      "24x24": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=24",
+      "16x16": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=16",
+      "32x32": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=32"
+    },
+    "displayName": "Harness Administrator",
+    "active": true,
+    "timeZone": "Etc/UTC"
+  },
+  "updateAuthor": {
+    "self": "http://localhost:8080/rest/api/2/user?username=admin",
+    "name": "admin",
+    "key": "JIRAUSER10000",
+    "emailAddress": "admin@example.invalid",
+    "avatarUrls": {
+      "48x48": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=48",
+      "24x24": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=24",
+      "16x16": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=16",
+      "32x32": "https://www.gravatar.com/avatar/98afc2e6474fc6c67d129b8b3043e959?d=mm&s=32"
+    },
+    "displayName": "Harness Administrator",
+    "active": true,
+    "timeZone": "Etc/UTC"
+  },
+  "created": "2026-08-31T21:24:15.364+0000",
+  "updated": "2026-08-31T21:24:15.364+0000",
+  "started": "2026-08-31T21:24:15.363+0000",
+  "timeSpent": "2h",
+  "timeSpentSeconds": 7200,
+  "id": "10005",
+  "issueId": "10007"
+}

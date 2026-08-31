@@ -167,6 +167,40 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
         logged[0].GetProperty("comment").GetString().ShouldBe("Logged through the protocol.");
     }
 
+    /// <summary>
+    /// What a worklog does to the remaining estimate, which no recorded payload can hold: Jira's
+    /// answer to a worklog POST carries the worklog and nothing about the issue's time tracking,
+    /// so only a real Jira can be asked what moved.
+    /// </summary>
+    [Fact]
+    public async Task Logging_work_reduces_the_remaining_estimate_unless_it_is_asked_not_to()
+    {
+        var key = await CreateEstimatedIssueAsync("8h");
+
+        await CallAsync("jira_add_worklog", new Dictionary<string, object?>
+        {
+            ["key"] = key,
+            ["timeSpent"] = "2h",
+        });
+
+        // In seconds, because Jira renders a duration in its own working days — "8h" comes back
+        // as "1d" on an eight-hour day — and this is a claim about the number, not the wording.
+        RemainingEstimateSeconds(await ReadTimeTrackingAsync(key)).ShouldBe(6 * 3600);
+
+        await CallAsync("jira_add_worklog", new Dictionary<string, object?>
+        {
+            ["key"] = key,
+            ["timeSpent"] = "2h",
+            ["leaveRemainingEstimate"] = true,
+        });
+
+        var timeTracking = await ReadTimeTrackingAsync(key);
+
+        // The second worklog was logged — the estimate is what stayed still, not the time spent.
+        RemainingEstimateSeconds(timeTracking).ShouldBe(6 * 3600);
+        timeTracking.GetProperty("timeSpentSeconds").GetInt32().ShouldBe(4 * 3600);
+    }
+
     [Fact]
     public async Task Linking_two_issues_puts_the_link_in_jira()
     {
@@ -261,6 +295,42 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
         names.ShouldContain("jira_link_issues");
         names.ShouldContain("jira_add_remote_link");
     }
+
+    /// <summary>
+    /// An issue carrying an original estimate, created the way an operator would — through the
+    /// tool, with Jira's own <c>timetracking</c> field. The harness puts that field on the
+    /// project's screens, which the scrum template does not.
+    /// </summary>
+    private async Task<string> CreateEstimatedIssueAsync(string originalEstimate)
+    {
+        var text = await CallAsync("jira_create_issue", new Dictionary<string, object?>
+        {
+            ["projectKey"] = _jira.Seeded.ProjectKey,
+            ["issueType"] = "Task",
+            ["summary"] = "To have work logged against an estimate "
+                + Guid.NewGuid().ToString("N")[..8],
+            ["fields"] = new Dictionary<string, object?>
+            {
+                ["timetracking"] = new Dictionary<string, object?>
+                {
+                    ["originalEstimate"] = originalEstimate,
+                },
+            },
+        });
+
+        return KeyFrom(text);
+    }
+
+    private async Task<JsonElement> ReadTimeTrackingAsync(string key)
+    {
+        var issue = await _session.ReadAsync(
+            $"/rest/api/2/issue/{key}?fields=timetracking", TestContext.Current.CancellationToken);
+
+        return issue.GetProperty("fields").GetProperty("timetracking");
+    }
+
+    private static int RemainingEstimateSeconds(JsonElement timeTracking) =>
+        timeTracking.GetProperty("remainingEstimateSeconds").GetInt32();
 
     private async Task<string> CreateIssueAsync(string summary)
     {

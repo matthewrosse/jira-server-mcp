@@ -24,13 +24,14 @@ public sealed class JiraCommentWorklogTests : IDisposable
         }
         """;
 
-    private const string WorklogPayload = """
-        {
-          "id": "10200",
-          "timeSpent": "3h 30m",
-          "started": "2026-08-16T09:00:00.000+0000"
-        }
-        """;
+    /// <summary>
+    /// What a real 8.20.7 answered a worklog POST with, captured rather than written here: a
+    /// hand-written stub carries whatever fields its author believes Jira sends, and this one
+    /// settles that the remaining estimate is not among them.
+    /// </summary>
+    private static readonly string _worklogPayload = File.ReadAllText(Path.Combine(
+        RepositoryRoot.Find().FullName,
+        "tests", "fixtures", "payloads", "8.20.7", "worklog-added.json"));
 
     private readonly WireMockServer _jira = WireMockServer.Start();
     private readonly List<ServiceProvider> _providers = [];
@@ -83,17 +84,18 @@ public sealed class JiraCommentWorklogTests : IDisposable
     [Fact]
     public async Task Logged_work_carries_jiras_own_duration_and_comes_back_with_what_jira_recorded()
     {
-        StubWorklog(201, WorklogPayload);
+        StubWorklog(201, _worklogPayload);
 
         var logged = await CreateClient().AddWorklogAsync(
             "PROJ-42",
-            "3h 30m",
+            "2h",
             started: null,
             comment: null,
+            leaveRemainingEstimate: false,
             TestContext.Current.CancellationToken);
 
-        logged.Id.ShouldBe("10200");
-        logged.TimeSpent.ShouldBe("3h 30m");
+        logged.Id.ShouldBe("10005");
+        logged.TimeSpent.ShouldBe("2h");
 
         var request = SingleRequest();
 
@@ -102,7 +104,7 @@ public sealed class JiraCommentWorklogTests : IDisposable
 
         var body = Body(request);
 
-        body.GetProperty("timeSpent").GetString().ShouldBe("3h 30m");
+        body.GetProperty("timeSpent").GetString().ShouldBe("2h");
         body.TryGetProperty("started", out _).ShouldBeFalse();
         body.TryGetProperty("comment", out _).ShouldBeFalse();
     }
@@ -110,19 +112,61 @@ public sealed class JiraCommentWorklogTests : IDisposable
     [Fact]
     public async Task A_start_time_and_a_comment_are_sent_where_they_were_given()
     {
-        StubWorklog(201, WorklogPayload);
+        StubWorklog(201, _worklogPayload);
 
         await CreateClient().AddWorklogAsync(
             "PROJ-42",
             "3h 30m",
             "2026-08-16T09:00:00.000+0000",
             "Tracked down the 500s.",
+            leaveRemainingEstimate: false,
             TestContext.Current.CancellationToken);
 
         var body = Body(SingleRequest());
 
         body.GetProperty("started").GetString().ShouldBe("2026-08-16T09:00:00.000+0000");
         body.GetProperty("comment").GetString().ShouldBe("Tracked down the 500s.");
+    }
+
+    /// <summary>
+    /// Jira reduces the remaining estimate by the time logged unless it is told otherwise, and
+    /// what tells it otherwise is a query parameter rather than anything in the body.
+    /// </summary>
+    [Fact]
+    public async Task The_remaining_estimate_is_left_alone_only_when_that_is_asked_for()
+    {
+        StubWorklog(201, _worklogPayload);
+
+        await CreateClient().AddWorklogAsync(
+            "PROJ-42",
+            "3h 30m",
+            started: null,
+            comment: null,
+            leaveRemainingEstimate: true,
+            TestContext.Current.CancellationToken);
+
+        SingleRequest().Url.ShouldEndWith("/rest/api/2/issue/PROJ-42/worklog?adjustEstimate=leave");
+    }
+
+    /// <summary>
+    /// Nothing is sent by default, rather than <c>adjustEstimate=auto</c>: what a worklog does to
+    /// the estimate when nobody says is Jira's decision, and naming its default here would pin
+    /// this server to a value Jira is free to change.
+    /// </summary>
+    [Fact]
+    public async Task No_adjustment_is_named_when_none_was_asked_for()
+    {
+        StubWorklog(201, _worklogPayload);
+
+        await CreateClient().AddWorklogAsync(
+            "PROJ-42",
+            "3h 30m",
+            started: null,
+            comment: null,
+            leaveRemainingEstimate: false,
+            TestContext.Current.CancellationToken);
+
+        SingleRequest().Url.ShouldEndWith("/rest/api/2/issue/PROJ-42/worklog");
     }
 
     [Fact]
@@ -136,6 +180,7 @@ public sealed class JiraCommentWorklogTests : IDisposable
                 "3h 30m",
                 started: null,
                 comment: null,
+                leaveRemainingEstimate: false,
                 TestContext.Current.CancellationToken));
 
         _jira.LogEntries.Count().ShouldBe(1);
