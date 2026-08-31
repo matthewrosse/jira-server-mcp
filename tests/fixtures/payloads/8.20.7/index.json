@@ -102,5 +102,10 @@
   "issue-subtasks": {
     "path": "/rest/api/2/issue/HAR-1?fields=summary%2Cstatus%2Cissuetype%2Cpriority%2Cassignee%2Creporter%2Ccreated%2Cupdated%2Cparent%2Clabels%2Csubtasks",
     "status": 200
+  },
+  "worklog-added": {
+    "path": "/rest/api/2/issue/HAR-8/worklog",
+    "method": "POST",
+    "status": 201
   }
 }
