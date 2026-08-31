@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
@@ -86,6 +87,7 @@ internal sealed class AddRemoteLinkTool(JiraClient jira, ServedProfile profile)
                         Created = created,
                     }));
             },
-            cancellationToken);
+            cancellationToken,
+            claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.LinkIssues, key.Trim()));
     }
 }

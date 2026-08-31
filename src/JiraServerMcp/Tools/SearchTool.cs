@@ -52,7 +52,9 @@ internal sealed class SearchTool(
                 aliases,
                 cancellationToken: cancellationToken),
             cancellationToken,
-            describeApiFailure: Describe);
+            // A read claims no Jira permission — one that lacks Browse Projects is answered with a
+            // 404, never a 403 — so the second argument is never anything but null here.
+            describeApiFailure: (failure, _) => Describe(failure));
     }
 
     /// <summary>

@@ -19,11 +19,17 @@ namespace JiraServerMcp.Errors;
 /// </summary>
 internal static class JiraToolError
 {
+    /// <remarks>
+    /// <c>permission</c> is what Jira said about the key a refused write claimed, where it was
+    /// asked and answered. This module stays a pure formatter: the lookup is
+    /// <see cref="Tools.ToolCall"/>'s to orchestrate, and the answer arrives here as a parameter.
+    /// </remarks>
     public static string Describe(
         JiraApiException exception,
         string profileName,
         string operation,
-        string? advice = null) =>
+        string? advice = null,
+        PermissionAnswer? permission = null) =>
         exception.StatusCode switch
         {
             HttpStatusCode.Unauthorized =>
@@ -35,12 +41,7 @@ internal static class JiraToolError
                     exception),
 
             HttpStatusCode.Forbidden =>
-                Assembled(
-                    $"Jira refused {operation}: the account this server is authenticated as does "
-                    + $"not have permission for it on {exception.Endpoint}. The request was not "
-                    + "retried, and repeating it will not help.",
-                    advice,
-                    exception),
+                Assembled(Refused(operation, exception, permission), advice, exception),
 
             // Jira answers the same way whether an issue or a project does not exist and whether
             // it exists but is not visible, so the bare 404 already says everything Jira has to
@@ -84,6 +85,28 @@ internal static class JiraToolError
 
             _ => Assembled($"{operation} failed.", advice, exception),
         };
+
+    /// <summary>
+    /// What Jira refused, and then why. Cause before consequence, and both before the caller's
+    /// state clause — a refusal reads as one account of one failure rather than as two.
+    ///
+    /// The two openings differ on purpose. Where nothing was asked, or the lookup itself failed,
+    /// this is today's sentence to the character: it is all this server knows. Where Jira did
+    /// answer, the opening stops asserting a missing permission, because the next line says
+    /// whether there is one — and on the branch where the account holds what it claimed, the old
+    /// opening would contradict it.
+    /// </summary>
+    private static string Refused(
+        string operation,
+        JiraApiException exception,
+        PermissionAnswer? permission) =>
+        permission is null
+            ? $"Jira refused {operation}: the account this server is authenticated as does not "
+              + $"have permission for it on {exception.Endpoint}. The request was not retried, "
+              + "and repeating it will not help."
+            : $"Jira refused {operation} on {exception.Endpoint}. The request was not retried, "
+              + "and repeating it will not help.\n"
+              + PermissionAdvice.Sentence(permission);
 
     /// <summary>
     /// An endpoint naming one issue. The create metadata lives under the same path and names no

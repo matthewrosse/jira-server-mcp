@@ -79,7 +79,7 @@ internal sealed class UpdateIssueTool(
                 return Confirm(key, resolved, assignee);
             },
             cancellationToken,
-            describeApiFailure: exception => JiraToolError.Describe(
+            describeApiFailure: (exception, permission) => JiraToolError.Describe(
                 exception,
                 profile.Name,
                 $"updating {key}",
@@ -87,7 +87,9 @@ internal sealed class UpdateIssueTool(
                     ? "Call jira_get_edit_fields for the identifiers this issue's fields have, "
                       + "and which of them it will accept." + FieldAliasAdvice.From(aliases)
                       + AssigneeAdvice(assignee)
-                    : null));
+                    : null,
+                permission),
+            claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.EditIssues, key));
     }
 
     /// <summary>

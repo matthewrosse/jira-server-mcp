@@ -81,7 +81,9 @@ internal sealed class SearchUsersTool(JiraClient jira, ServedProfile profile)
                 return UserResults.Render(users, page, size, includeInactive, assignableTo);
             },
             cancellationToken,
-            describeApiFailure: assignableTo is null ? null : failure => Describe(failure, assignableTo));
+            describeApiFailure: assignableTo is null
+                ? null
+                : (failure, _) => Describe(failure, assignableTo));
     }
 
     /// <summary>

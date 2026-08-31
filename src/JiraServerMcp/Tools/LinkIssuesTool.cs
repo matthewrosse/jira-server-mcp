@@ -63,7 +63,7 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
                           + "not linked.",
             () => jira.ListIssueLinkTypesAsync(cancellationToken),
             cancellationToken,
-            describeApiFailure: exception =>
+            describeApiFailure: (exception, _) =>
                 JiraToolError.Describe(
                     exception,
                     profile.Name,
@@ -117,7 +117,10 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
                 return Linked(from, to, relation, type);
             },
             cancellationToken,
-            describeApiFailure: exception => Failed(exception, profile.Name, from, to));
+            describeApiFailure: (exception, permission) =>
+                Failed(exception, profile.Name, from, to, permission),
+            // The 'from' issue, and only it: a refusal names one endpoint, so it gets one scope.
+            claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.LinkIssues, from));
     }
 
     /// <summary>
@@ -129,7 +132,8 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
         JiraApiException exception,
         string profileName,
         string from,
-        string to) =>
+        string to,
+        PermissionAnswer? permission) =>
         exception.StatusCode is HttpStatusCode.NotFound
             ? $"Jira answered 404 for the link between {from} and {to}. One of the two does not "
               + "exist or is not visible to this account, and Jira does not say which. Nothing "
@@ -138,7 +142,8 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
                 exception,
                 profileName,
                 $"linking {from} to {to}",
-                advice: $"Nothing was linked: {from} and {to} are as they were.");
+                advice: $"Nothing was linked: {from} and {to} are as they were.",
+                permission);
 
     /// <summary>
     /// The structured half carries the phrase and the type name both. They are different strings —

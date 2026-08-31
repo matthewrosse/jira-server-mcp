@@ -92,7 +92,7 @@ public sealed class ToolCallTests
                 [],
                 new Dictionary<string, string>()),
             CancellationToken.None,
-            describeApiFailure: _ => "the field map was rejected");
+            describeApiFailure: (_, _) => "the field map was rejected");
 
         result.IsError.ShouldBe(true);
         Text(result).ShouldBe("the field map was rejected");
@@ -144,7 +144,7 @@ public sealed class ToolCallTests
                 [],
                 new Dictionary<string, string>()),
             CancellationToken.None,
-            describeApiFailure: _ => "Nothing was transitioned: PROJ-1 is as it was.");
+            describeApiFailure: (_, _) => "Nothing was transitioned: PROJ-1 is as it was.");
 
         step.Failed.ShouldBeTrue();
         Text(step.Error).ShouldBe("Nothing was transitioned: PROJ-1 is as it was.");

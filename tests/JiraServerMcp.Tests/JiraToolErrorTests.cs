@@ -221,6 +221,76 @@ public sealed class JiraToolErrorTests
         }
     }
 
+    [Fact]
+    public void A_permission_the_account_lacks_is_named_before_the_callers_state_clause()
+    {
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: false, []));
+
+        message.ShouldContain("does not have EDIT_ISSUES on ABC-1");
+
+        // Cause before consequence: what Jira refused, then why, then what that leaves behind.
+        message.IndexOf("EDIT_ISSUES", StringComparison.Ordinal)
+            .ShouldBeLessThan(message.IndexOf("Nothing was changed", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The branch that is common in practice. Only two of the eight writes reach a 403 for a
+    /// missing permission on 8.20.7 — the rest answer 400 — so a 403 that arrives at all is more
+    /// often read-only mode, throttling, or a header, and saying "you do have this" is the answer.
+    /// </summary>
+    [Fact]
+    public void A_permission_the_account_holds_says_so_and_names_what_it_lacks_beside_it()
+    {
+        var message = Refused(
+            new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: true, ["ASSIGN_ISSUES"]));
+
+        message.ShouldContain("does have EDIT_ISSUES on ABC-1");
+        message.ShouldContain("ASSIGN_ISSUES");
+    }
+
+    [Fact]
+    public void A_permission_answer_with_nothing_else_missing_says_that_rather_than_trailing_off()
+    {
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: true, []));
+
+        message.ShouldContain("every other write permission");
+        message.ShouldContain("read-only");
+    }
+
+    [Fact]
+    public void A_refusal_nobody_could_ask_about_says_exactly_what_it_always_said()
+    {
+        var message = Refused(permission: null);
+
+        message.ShouldContain("does not have permission for it on");
+        message.ShouldNotContain("EDIT_ISSUES");
+    }
+
+    /// <summary>
+    /// The display name is admin-renameable, which makes it untrusted content — and untrusted
+    /// content may only appear inside the framed region, never spliced into this server's prose.
+    /// The bare key never needs framing, which is half of why it is what the sentence carries.
+    /// </summary>
+    [Fact]
+    public void The_permission_sentence_is_this_servers_own_prose_and_needs_no_framing()
+    {
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: false, []));
+
+        message.ShouldNotContain("<jira-data");
+    }
+
+    private static string Refused(PermissionAnswer? permission) =>
+        JiraToolError.Describe(
+            new JiraApiException(
+                HttpStatusCode.Forbidden,
+                "/rest/api/2/issue/ABC-1",
+                [],
+                new Dictionary<string, string>()),
+            "work",
+            "updating ABC-1",
+            advice: "Nothing was changed: ABC-1 is as it was.",
+            permission);
+
     private static string Describe(HttpStatusCode status, string endpoint) =>
         JiraToolError.Describe(
             new JiraApiException(status, endpoint, [], new Dictionary<string, string>()),

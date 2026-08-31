@@ -1,3 +1,4 @@
+using System.Net;
 using JiraServerMcp.Errors;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
@@ -30,6 +31,11 @@ internal static class ToolCall
     /// smaller page usually helps."</c> <c>describeApiFailure</c> replaces the default
     /// profile/operation wording for a Jira API failure when a tool has something more specific to
     /// say, such as where to look after a rejected create.
+    ///
+    /// <c>claim</c> is the Jira permission a write claims, which only a write passes. Where Jira
+    /// answers <c>403</c> it is looked up — after the refusal, never before — and the answer is
+    /// handed to the formatter and to <c>describeApiFailure</c> alike, so that a tool with its own
+    /// wording still says why. See <see cref="PermissionAdvice"/> and ADR-0013.
     /// </remarks>
     public static async Task<CallToolResult> RunAsync(
         ServedProfile profile,
@@ -38,7 +44,8 @@ internal static class ToolCall
         string whenTimedOut,
         Func<Task<Rendered>> work,
         CancellationToken cancellationToken,
-        Func<JiraApiException, string>? describeApiFailure = null)
+        Func<JiraApiException, PermissionAnswer?, string>? describeApiFailure = null,
+        PermissionClaim? claim = null)
     {
         var step = await StepAsync(
             profile,
@@ -47,7 +54,8 @@ internal static class ToolCall
             whenTimedOut,
             work,
             cancellationToken,
-            describeApiFailure);
+            describeApiFailure,
+            claim);
 
         return step.Failed ? step.Error : Text(step.Value);
     }
@@ -65,7 +73,8 @@ internal static class ToolCall
         string whenTimedOut,
         Func<Task<T>> work,
         CancellationToken cancellationToken,
-        Func<JiraApiException, string>? describeApiFailure = null)
+        Func<JiraApiException, PermissionAnswer?, string>? describeApiFailure = null,
+        PermissionClaim? claim = null)
     {
         try
         {
@@ -73,12 +82,20 @@ internal static class ToolCall
         }
         catch (JiraApiException exception)
         {
+            // Only here, and only for a write that named a permission: one round trip on a path
+            // where one has already failed, and nothing an agent can call early.
+            var permission = exception.StatusCode is HttpStatusCode.Forbidden && claim is not null
+                ? await PermissionAdvice.AskAsync(claim, cancellationToken)
+                : null;
+
             return Step<T>.Fail(
                 Failed(
-                    describeApiFailure?.Invoke(exception)
-                        ?? JiraToolError.Describe(exception, profile.Name, operation),
+                    describeApiFailure?.Invoke(exception, permission)
+                        ?? JiraToolError.Describe(
+                            exception, profile.Name, operation, permission: permission),
                     Outcomes.JiraApi,
-                    (int)exception.StatusCode));
+                    (int)exception.StatusCode,
+                    permission?.Missing));
         }
         catch (HttpRequestException exception)
         {
@@ -140,11 +157,15 @@ internal static class ToolCall
             IsError = true,
         };
 
-    private static CallToolResult Failed(string text, string outcome, int? statusCode = null) =>
+    private static CallToolResult Failed(
+        string text,
+        string outcome,
+        int? statusCode = null,
+        string? missingPermission = null) =>
         new()
         {
             Content = [new TextContentBlock { Text = text }],
-            StructuredContent = ToolOutputs.Outcome(outcome, statusCode),
+            StructuredContent = ToolOutputs.Outcome(outcome, statusCode, missingPermission),
             IsError = true,
         };
 
