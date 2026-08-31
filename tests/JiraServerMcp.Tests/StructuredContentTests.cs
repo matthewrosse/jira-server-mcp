@@ -748,6 +748,33 @@ public class StructuredContentTests
             + "carrying prose has not been added.");
     }
 
+    /// <summary>
+    /// A full cap of saved filters, each carrying a query of the length a team's real filter runs
+    /// to. The 2026-08-31 amendment to ADR-0009 admits a query whole, so the row cap is the only
+    /// thing bounding this half — which is the claim this pins.
+    /// </summary>
+    [Fact]
+    public void The_worst_case_structured_half_of_a_saved_filter_listing_stays_bounded()
+    {
+        var filters = Enumerable.Range(1, ResponseBudget.SavedFilterCap)
+            .Select(number => new JiraSavedFilter(
+                Id: $"{10_000 + number}",
+                Name: $"A filter with a long administrative name {number}",
+                Description: new string('d', 400),
+                Jql: "project in (PAY, OPS) AND status not in (Done, \"Won't Fix\") AND "
+                     + $"labels = triage-{number} ORDER BY created DESC",
+                Owner: new JiraSavedFilterOwner("a.developer.with.a.long.username")))
+            .ToArray();
+
+        var structure = Structure(SavedFilterList.Render(filters, startsWith: null));
+
+        structure.Length.ShouldBeLessThan(
+            12_000,
+            "The structured half of a saved filter listing has grown past what its cap bounds it "
+            + "to. ADR-0009 admits the query a caller re-sends and nothing else typed into a text "
+            + "box — check that a name or a description has not been added.");
+    }
+
     [Fact]
     public void The_outcome_envelope_carries_the_status_only_where_jira_answered_one()
     {

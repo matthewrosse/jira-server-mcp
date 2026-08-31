@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using JiraServerMcp.JiraIntegration.Tests.Harness;
 using ModelContextProtocol.Protocol;
@@ -330,6 +332,65 @@ public sealed class JiraReadTests(JiraHarness harness) : IAsyncLifetime
         text.Split('\n')
             .Where(line => line.StartsWith("  ", StringComparison.Ordinal))
             .ShouldNotContain(line => line.Contains("customfield_", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The saved filter path end to end, against a real 8.20.7. Everything load-bearing in this
+    /// feature came from probing rather than from reasoning — that <c>jql</c> arrives in the
+    /// listing without an expand, and that <c>filter = &lt;id&gt;</c> runs at all — and a double
+    /// will keep agreeing with its fixture long after Jira stops.
+    /// </summary>
+    [Fact]
+    public async Task A_favourited_filter_is_listed_and_runs_through_search_by_its_id()
+    {
+        // A fresh name per run: Jira refuses a second filter of the same name for one owner, and
+        // the harness may be pointed at an instance an earlier run already seeded.
+        var name = $"Harness favourite {Guid.NewGuid():N}";
+
+        var id = await CreateFavouriteFilterAsync(
+            name,
+            $"project = {_jira.Seeded.ProjectKey} ORDER BY created ASC");
+
+        var listed = await CallAsync("jira_list_saved_filters");
+
+        listed.ShouldContain(id);
+        listed.ShouldContain(name);
+        listed.ShouldContain($"jql: project = {_jira.Seeded.ProjectKey}");
+
+        // The whole point of listing them: the id is what a search names, and nothing in this
+        // server runs a filter.
+        var run = await CallAsync("jira_search", new Dictionary<string, object?>
+        {
+            ["jql"] = $"filter = {id}",
+        });
+
+        run.ShouldContain(_jira.Seeded.IssueKeys[0]);
+    }
+
+    /// <summary>
+    /// Stars a filter as the account the personal access token belongs to — the same account the
+    /// server lists the favourites of, which is what makes the listing find it.
+    /// </summary>
+    private async Task<string> CreateFavouriteFilterAsync(string name, string jql)
+    {
+        using var response = await _session.JiraApi.PostAsJsonAsync(
+            "/rest/api/2/filter",
+            new
+            {
+                name,
+                description = "Seeded by the read tests. Contains *wiki markup*.",
+                jql,
+                favourite = true,
+            },
+            TestContext.Current.CancellationToken);
+
+        response.IsSuccessStatusCode.ShouldBeTrue(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+        var created = await response.Content.ReadFromJsonAsync<JsonElement>(
+            TestContext.Current.CancellationToken);
+
+        return created.GetProperty("id").GetString().ShouldNotBeNull();
     }
 
     private async Task<string> CallAsync(

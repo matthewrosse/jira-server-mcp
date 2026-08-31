@@ -231,6 +231,17 @@ costs an agent context in every conversation.
 _Avoid_: custom tool, user-defined query, saved filter — the last is Jira's own concept and a
 different thing.
 
+**Saved filter** — a named JQL query a human wrote and kept inside Jira, owned by whoever wrote
+it. Not this server's object and not an operator-defined query: what separates them is cost. An
+operator-defined query is this deployment's own configuration and **registers as a tool**, so it is
+paid for in every conversation; a saved filter is Jira's own, is **listed and never registered**,
+and is paid for in the one call that lists it. It is run by naming `filter = <id>` in a search,
+which is ordinary JQL — so this server discovers filters and never executes one. Only the
+favourites of the account the token belongs to are reachable: Jira Server publishes no endpoint for
+every filter an account can see.
+_Avoid_: canned query, operator-defined query, and the bare word filter — this glossary spends
+that one on field projection, so the two words travel together everywhere but a code identifier.
+
 **Untrusted content** — free text authored inside Jira: descriptions, comments, custom field
 values, project names, transition names, and the text Jira returns when it refuses a request —
 a field validator's message is as admin-authored as a description is. It reaches a model, so it

@@ -1,6 +1,6 @@
 # ADR-0009: Structured content beside the prose, carrying identifiers only
 
-**Status:** Accepted (2026-08-18), amended (2026-08-18)
+**Status:** Accepted (2026-08-18), amended (2026-08-18, 2026-08-31)
 
 ## Context
 
@@ -126,3 +126,21 @@ does not report a total, so `total` is absent from a board or sprint listing rat
 null or as zero. Absence means unknown; zero means none, and a caller cannot be asked to tell those
 apart from the same value. The same rule governs any paging field a future endpoint declines to
 give.
+
+## Amendment (2026-08-31): a query the caller re-sends
+
+From #128, the saved filter listing. A filter's `jql` is text somebody typed into a text box, which
+is the side of rule 2's boundary that is excluded — and it is also the one field of that row a
+caller acts on: the tool discovers filters and runs none of them, so the agent's next call is a
+`jira_search` carrying either `filter = <id>` or a narrowed form of that query. Sending it back to
+the prose to copy a query out of a delimited region is the loop rule 2 exists to close.
+
+**Rule 2 admits a query a caller re-sends**: text this server would otherwise ask an agent to
+retype into a following call, carried whole rather than with the prose's truncation marker, which
+is presentation and does not belong in the structured half. It admits nothing else typed into a
+text box — a summary, a description, a comment body and a filter's own description are prose by any
+reading, and none of them is the input to a following call.
+
+The bound rule 2 gave by admitting only short values is weaker here, since a query has no length
+Jira enforces that this server can rely on. It is accepted rather than papered over: one query per
+row, and the cap on rows is what bounds the response.

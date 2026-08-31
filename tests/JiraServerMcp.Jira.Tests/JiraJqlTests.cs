@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text.Json;
+using JiraServerMcp.Jira.Errors;
 using Microsoft.Extensions.DependencyInjection;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -6,8 +9,9 @@ using WireMock.Server;
 namespace JiraServerMcp.Jira.Tests;
 
 /// <summary>
-/// The query catalogue read, against the payloads a real Jira Server 8.20.7 sent: what is asked
-/// of Jira, and what the reader makes of the answer. The fixtures are the point here — every
+/// The query catalogue read, and the saved filters beside it, against the payloads a real Jira
+/// Server 8.20.7 sent: what is asked of Jira, and what the reader makes of the answer. The
+/// fixtures are the point here — every
 /// surprising thing this reader handles (a boolean sent as a string, a pre-quoted value, the
 /// bracket form of a custom field's identifier) is a property of the real payload rather than of
 /// a payload written to suit the reader.
@@ -15,6 +19,59 @@ namespace JiraServerMcp.Jira.Tests;
 public sealed class JiraJqlTests : IDisposable
 {
     private const string Token = "s3cr3t-personal-access-token";
+
+    /// <summary>
+    /// Two favourites as 8.20.7 sends them: the JQL is there without an expand, one row has no
+    /// description, and most of the bytes are the owner's avatars and the sharing envelopes that
+    /// no caller of this client ever sees.
+    /// </summary>
+    private const string FavouritesPayload = """
+        [
+          {
+            "self": "http://jira.invalid/rest/api/2/filter/10001",
+            "id": "10001",
+            "name": "Open payment bugs",
+            "description": "What the payments team triages every morning.",
+            "owner": {
+              "self": "http://jira.invalid/rest/api/2/user?username=grace",
+              "name": "grace",
+              "key": "grace",
+              "displayName": "Grace Hopper",
+              "active": true,
+              "avatarUrls": {
+                "48x48": "http://jira.invalid/secure/useravatar?avatarId=10122",
+                "24x24": "http://jira.invalid/secure/useravatar?size=small&avatarId=10122"
+              }
+            },
+            "jql": "project = PAY AND status != Done ORDER BY created DESC",
+            "viewUrl": "http://jira.invalid/issues/?filter=10001",
+            "searchUrl": "http://jira.invalid/rest/api/2/search?jql=filter%3D10001",
+            "favourite": true,
+            "editable": true,
+            "sharePermissions": [ { "id": 10000, "type": "group", "group": { "name": "jira-users" } } ],
+            "sharedUsers": { "size": 0, "items": [], "max-results": 1000, "start-index": 0, "end-index": 0 },
+            "subscriptions": { "size": 0, "items": [], "max-results": 1000, "start-index": 0, "end-index": 0 }
+          },
+          {
+            "self": "http://jira.invalid/rest/api/2/filter/10002",
+            "id": "10002",
+            "name": "Anything assigned to me",
+            "owner": {
+              "self": "http://jira.invalid/rest/api/2/user?username=ada",
+              "name": "ada",
+              "displayName": "Ada Lovelace",
+              "active": true
+            },
+            "jql": "assignee = currentUser() ORDER BY updated DESC",
+            "viewUrl": "http://jira.invalid/issues/?filter=10002",
+            "favourite": true,
+            "editable": false,
+            "sharePermissions": [],
+            "sharedUsers": { "size": 0, "items": [] },
+            "subscriptions": { "size": 0, "items": [] }
+          }
+        ]
+        """;
 
     private readonly WireMockServer _jira = WireMockServer.Start();
     private readonly List<ServiceProvider> _providers = [];
@@ -124,6 +181,75 @@ public sealed class JiraJqlTests : IDisposable
             TestContext.Current.CancellationToken);
 
         suggestions.Values.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task The_favourites_are_read_from_the_endpoint_that_needs_no_expand()
+    {
+        Stub("/rest/api/2/filter/favourite", FavouritesPayload);
+
+        var filters = await CreateClient().ListFavouriteFiltersAsync(
+            TestContext.Current.CancellationToken);
+
+        filters.Count.ShouldBe(2);
+
+        var request = _jira.LogEntries.ShouldHaveSingleItem().RequestMessage.ShouldNotBeNull();
+
+        request.Path.ShouldBe("/rest/api/2/filter/favourite");
+
+        // The JQL arrives without asking for it: no expand, and so no second call per filter.
+        request.RawQuery.ShouldBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task A_filter_carries_its_query_and_its_owner_and_nothing_else_off_the_payload()
+    {
+        Stub("/rest/api/2/filter/favourite", FavouritesPayload);
+
+        var filters = await CreateClient().ListFavouriteFiltersAsync(
+            TestContext.Current.CancellationToken);
+
+        var open = filters.Single(filter => filter.Id is "10001");
+
+        open.Name.ShouldBe("Open payment bugs");
+        open.Description.ShouldBe("What the payments team triages every morning.");
+        open.Jql.ShouldBe("project = PAY AND status != Done ORDER BY created DESC");
+
+        // A favourite can be somebody else's filter, which is the whole reason it stays current.
+        open.Owner.ShouldNotBeNull().Name.ShouldBe("grace");
+
+        // The projection is what the model declares: the avatar URLs, the share permissions, the
+        // shared users and the subscriptions are most of the payload's bytes and reach no caller.
+        JsonSerializer.Serialize(open).ShouldNotContain("avatar");
+        JsonSerializer.Serialize(open).ShouldNotContain("sharePermissions");
+    }
+
+    [Fact]
+    public async Task A_filter_its_owner_wrote_no_description_for_comes_back_without_one()
+    {
+        Stub("/rest/api/2/filter/favourite", FavouritesPayload);
+
+        var filters = await CreateClient().ListFavouriteFiltersAsync(
+            TestContext.Current.CancellationToken);
+
+        filters.Single(filter => filter.Id is "10002").Description.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_jira_without_the_favourites_endpoint_is_a_jira_api_failure()
+    {
+        // Not the 404 this project probed on /filter/search, but the same shape: an endpoint this
+        // Jira does not serve is a failure the tool reports rather than an empty list.
+        _jira.Given(Request.Create().WithPath("/rest/api/2/filter/favourite").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(404)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""{ "errorMessages": ["The filter service is not available."], "errors": {} }"""));
+
+        var exception = await Should.ThrowAsync<JiraApiException>(
+            () => CreateClient().ListFavouriteFiltersAsync(TestContext.Current.CancellationToken));
+
+        exception.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        exception.ErrorMessages.ShouldContain("The filter service is not available.");
     }
 
     private string SingleQuery() =>
