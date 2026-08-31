@@ -304,6 +304,29 @@ public sealed class TransitionCommentWorklogProtocolTests : IAsyncLifetime
         body.GetProperty("comment").GetString().ShouldBe("Tracked down the 500s.");
     }
 
+    /// <summary>
+    /// The parameter is on the tool surface and reaches Jira, where it is a query parameter rather
+    /// than anything a caller could put in the body themselves.
+    /// </summary>
+    [Fact]
+    public async Task Asking_for_the_remaining_estimate_to_be_left_alone_reaches_jira()
+    {
+        StubWorklog(201);
+
+        await CallAsync(
+            await _seam.ConnectAsync("worklogs:write"),
+            "jira_add_worklog",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["timeSpent"] = "3h 30m",
+                ["leaveRemainingEstimate"] = true,
+            });
+
+        Requests().ShouldHaveSingleItem().Url
+            .ShouldEndWith("/rest/api/2/issue/PROJ-42/worklog?adjustEstimate=leave");
+    }
+
     [Fact]
     public async Task A_duration_reaches_jira_without_the_spaces_around_it()
     {

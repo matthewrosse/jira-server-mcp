@@ -49,6 +49,7 @@ internal sealed class JiraSeeder(HttpClient client, JiraAdministrator administra
         // A scrum project, because Jira Server offers no board-creation API — the template is
         // what brings a board into existence.
         await CreateProjectAsync(cancellationToken);
+        await ShowTimeTrackingAsync(cancellationToken);
 
         var usernames = await CreateUsersAsync(cancellationToken);
         var issueKeys = await CreateIssuesAsync(cancellationToken);
@@ -380,6 +381,98 @@ internal sealed class JiraSeeder(HttpClient client, JiraAdministrator administra
         return sprintId;
     }
 
+    /// <summary>
+    /// Puts the Time Tracking field on the project's own screens, which the scrum template leaves
+    /// it off.
+    /// </summary>
+    /// <remarks>
+    /// Configuring a screen is the harness's job, not a test's: without this no issue in the
+    /// project can be given an original estimate at all — through this server or through Jira's
+    /// own web interface — so the remaining estimate a worklog moves would always be zero and
+    /// what a worklog does to it could not be asserted either way.
+    /// </remarks>
+    private async Task ShowTimeTrackingAsync(CancellationToken cancellationToken)
+    {
+        var (status, screens) = await CallAsync(
+            HttpMethod.Get, "/rest/api/2/screens?startAt=0&maxResults=100", null, cancellationToken);
+
+        if (status is not 200 || screens?.TryGetProperty("screens", out var listed) is not true)
+        {
+            throw new InvalidOperationException($"Listing the screens answered {status}.");
+        }
+
+        // The template names them after the project — "HAR: Scrum Default Issue Screen" — and the
+        // instance-wide Default Screen already carries the field.
+        var ours = listed.EnumerateArray()
+            .Where(screen => screen.GetProperty("name").GetString()?
+                .StartsWith(ProjectKey + ":", StringComparison.Ordinal) is true)
+            .Select(screen => screen.GetProperty("id").GetInt32())
+            .ToArray();
+
+        if (ours.Length is 0)
+        {
+            throw new InvalidOperationException(
+                $"No screen is named after {ProjectKey}, so the project's screens could not be "
+                + "found. The scrum template names them, so this is the template having changed.");
+        }
+
+        foreach (var screen in ours)
+        {
+            var (tabStatus, tabs) = await CallAsync(
+                HttpMethod.Get, $"/rest/api/2/screens/{screen}/tabs", null, cancellationToken);
+
+            if (tabStatus is not 200 || tabs?.ValueKind is not JsonValueKind.Array)
+            {
+                throw new InvalidOperationException(
+                    $"Listing the tabs of screen {screen} answered {tabStatus}.");
+            }
+
+            var tab = tabs.Value.EnumerateArray().FirstOrDefault();
+
+            if (tab.ValueKind is not JsonValueKind.Object)
+            {
+                throw new InvalidOperationException($"Screen {screen} has no tab to add a field to.");
+            }
+
+            // A 400 is not read as success: it is what a re-run against an already-seeded
+            // instance gets, and also what a field identifier Jira does not know gets. The screen
+            // itself is what settles which happened.
+            await CallAsync(
+                HttpMethod.Post,
+                $"/rest/api/2/screens/{screen}/tabs/{tab.GetProperty("id").GetInt32()}/fields",
+                new { fieldId = "timetracking" },
+                cancellationToken);
+
+            if (await IsAvailableAsync(screen, cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    $"Time Tracking is still off screen {screen} after being added to it.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether Time Tracking is still one of the fields a screen could be given — which is Jira's
+    /// way of saying it is not on the screen.
+    /// </summary>
+    private async Task<bool> IsAvailableAsync(int screen, CancellationToken cancellationToken)
+    {
+        var (status, fields) = await CallAsync(
+            HttpMethod.Get,
+            $"/rest/api/2/screens/{screen}/availableFields",
+            null,
+            cancellationToken);
+
+        if (status is not 200 || fields?.ValueKind is not JsonValueKind.Array)
+        {
+            throw new InvalidOperationException(
+                $"Listing the available fields of screen {screen} answered {status}.");
+        }
+
+        return fields.Value.EnumerateArray()
+            .Any(field => field.GetProperty("id").GetString() is "timetracking");
+    }
+
     private async Task<(int Status, JsonElement? Body)> CallAsync(
         HttpMethod method, string path, object? payload, CancellationToken cancellationToken)
     {
@@ -401,7 +494,8 @@ internal sealed class JiraSeeder(HttpClient client, JiraAdministrator administra
 
         JsonElement? body = null;
 
-        if (text.TrimStart().StartsWith('{'))
+        // Arrays as well as objects: a screen's tabs come back as one.
+        if (text.TrimStart() is ['{' or '[', ..])
         {
             body = JsonDocument.Parse(text).RootElement.Clone();
         }

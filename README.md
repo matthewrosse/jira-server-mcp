@@ -301,7 +301,7 @@ context learning that it is forbidden.
 | `jira_update_issue` | `issues:write` | Update fields, including the assignee. There is no separate assign tool. |
 | `jira_transition_issue` | `issues:write` | Transition by transition *name*; the identifier is resolved here. Takes an optional comment and any screen fields the transition demands. |
 | `jira_add_comment` | `comments:write` | Add one comment, in Jira wiki markup, stored as written. |
-| `jira_add_worklog` | `worklogs:write` | Log work, with the time spent in Jira's own duration syntax (`"3h 30m"`), so how long a working day is stays Jira's decision. |
+| `jira_add_worklog` | `worklogs:write` | Log work, with the time spent in Jira's own duration syntax (`"3h 30m"`), so how long a working day is stays Jira's decision. Reduces the issue's remaining estimate by what was logged, as Jira does, unless asked to leave it. |
 | `jira_link_issues` | `links:write` | Link two issues by the relation *phrase* Jira publishes — `"blocks"`, `"is blocked by"` — so the direction reads as English and cannot be got backwards. Takes an optional comment. |
 | `jira_add_remote_link` | `links:write` | Attach a URL to an issue — a pull request, a build — so it lands in Jira's link panel rather than in a comment. The URL is the link's identity, so attaching it twice updates one link and says so. |
 | `jira_add_attachment` | `attachments:write` | Attach one text file to an issue: a test log, a diff, a report. The content is sent as text, never as a path — this server opens no file on the machine it runs on — and is stored as `text/plain` whatever the file is named. Jira appends rather than replaces, so the same file sent twice is two attachments. |
@@ -772,6 +772,18 @@ is stays Jira's decision, not this server's.
   `jira_add_worklog` with an explicit start date.
 - *"How much have I logged against PROJ-123 so far, and add another 45m?"* — `jira_get_issues` with
   `include: ["worklogs"]`, then `jira_add_worklog`.
+- *"Log 2h against PROJ-123 but leave the remaining estimate alone."* — `jira_add_worklog` with
+  `leaveRemainingEstimate: true`.
+
+Logging work reduces the issue's **remaining estimate** by the time logged. That is Jira's own
+behaviour — a human logging 2h in Jira's web interface moves the same number — and it is why the
+default is left as Jira's rather than made this server's. `leaveRemainingEstimate` is the way out
+for a caller who wants the estimate held still.
+
+Correcting an estimate afterwards is a different tool and a different grant: `jira_update_issue`
+with `fields: {"timetracking": {"remainingEstimate": "4h"}}`, which needs `issues:write` and the
+Time Tracking field on the issue's edit screen. A client granted `worklogs:write` alone cannot do
+it.
 
 ### Writing — `links:write`
 

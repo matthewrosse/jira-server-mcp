@@ -245,22 +245,24 @@ no error. `ATL_DB_DRIVER: org.postgresql.Driver` fixes it and the database step 
 
 ## Fixtures
 
-`tests/fixtures/payloads/8.20.7/` holds 26 payloads captured from the canonical version over a
-personal access token — the same authentication path the product uses, not the administrator
-basic-auth path the harness seeds with. `index.json` maps each file to the request that produced
-it.
+`tests/fixtures/payloads/8.20.7/` holds 27 payloads captured from the canonical version, all but
+one of them over a personal access token — the same authentication path the product uses, not the
+administrator basic-auth path the harness seeds with. `index.json` maps each file to the request
+that produced it, and names the method where it is not a `GET`.
 
 They cover the current user, server info, JQL search, an issue both bare and expanded with
 `changelog,renderedFields,transitions`, transitions, comments, worklogs, the project list and
 detail, statuses, components, versions, `createmeta`, `editmeta` for two issue types, user search,
 the field list, the JQL autocomplete data and one field's suggestions, an issue read with its
-sub-tasks, and the board, sprint, backlog and board-issue endpoints of the software API.
+sub-tasks, the board, sprint, backlog and board-issue endpoints of the software API, and what
+Jira answers a worklog `POST` with.
 
-**Five payloads come from a different instance on purpose.** `editmeta-task.json` and
+**Six payloads come from a different instance on purpose.** `editmeta-task.json` and
 `editmeta-bug.json` are `HAR-1` and `HAR-2`, `jql-autocompletedata.json` and
 `jql-suggestions.json` were captured beside them, and `issue-subtasks.json` is `HAR-1` read with
-the sub-tasks the seeder puts under it — all from the long-lived harness instance above; the
-other 21 came from the Phase 0 spike, which seeded project `PZ`. That corpus cannot be reproduced —
+the sub-tasks the seeder puts under it, and `worklog-added.json` is the answer to logging work
+against `HAR-8` — all from the long-lived harness instance above; the other 21 came from the
+Phase 0 spike, which seeded project `PZ`. That corpus cannot be reproduced —
 `scripts/phase0/06-capture.py` reads a `seeded.json` and a token from an instance that no longer
 exists — so these were captured from the instance the repo still supports, over the same
 personal access token path. **Do not re-run that script to add an endpoint.** It rewrites
@@ -269,6 +271,13 @@ rows. The edit-screen pair exists rather than one payload because what they are 
 the difference between them: a Bug's edit screen carries `environment` and `versions` and a Task's
 does not. Both carry `fixVersions`, so the two screens are told apart by a field's name and not by
 its identifier.
+
+**`worklog-added.json` is the one write, and the one captured as administrator.** Every other
+payload answers a `GET`; this one is what a real 8.20.7 answers a `POST` to
+`rest/api/2/issue/{key}/worklog` with, captured while settling what #130 could report back — the
+worklog bean, and nothing about the issue's time tracking. It was taken over the harness's
+administrator basic auth rather than a personal access token, because what was being asked was
+what Jira sends, and a worklog is not answered differently by who logged it.
 
 **The JQL payloads were captured after the instance had settled, and that matters.** The same
 endpoint on the same instance over the same token answered with 28 fields and no custom ones while
