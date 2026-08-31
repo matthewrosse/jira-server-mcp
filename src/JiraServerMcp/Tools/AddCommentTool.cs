@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
@@ -72,6 +73,7 @@ internal sealed class AddCommentTool(
 
                 return new Written(rendered, $"comment {added.Id} on {key}");
             },
-            cancellationToken);
+            cancellationToken,
+            claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.AddComments, key));
     }
 }

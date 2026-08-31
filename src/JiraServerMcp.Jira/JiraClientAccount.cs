@@ -31,6 +31,38 @@ public sealed partial class JiraClient
     }
 
     /// <summary>
+    /// What this account may do in one scope, as Jira's permission scheme decides it — the same
+    /// question as <see cref="GetMyselfAsync"/>'s "who is this account", asked of a project rather
+    /// than of the directory.
+    /// </summary>
+    /// <remarks>
+    /// Scoped to an issue where the caller has one, because a scheme may grant Edit Issues to the
+    /// current assignee or reporter and a project-level evaluation cannot honour that. Exactly one
+    /// of the two is expected; both being absent asks about the instance, which no caller wants.
+    /// The answer is every permission Jira knows either way — Jira Server has no
+    /// <c>permissions=</c> filter — so the map is unwrapped to the one flag per key that is read.
+    /// </remarks>
+    public async Task<IReadOnlyDictionary<string, bool>> GetMyPermissionsAsync(
+        string? issueKey,
+        string? projectKey,
+        CancellationToken cancellationToken)
+    {
+        var scope = issueKey is not null
+            ? $"?issueKey={Uri.EscapeDataString(issueKey)}"
+            : projectKey is not null
+                ? $"?projectKey={Uri.EscapeDataString(projectKey)}"
+                : string.Empty;
+
+        var answered = await GetAsync<JiraMyPermissions>(
+            $"rest/api/2/mypermissions{scope}", cancellationToken).ConfigureAwait(false);
+
+        return answered.Permissions?.ToDictionary(
+                   entry => entry.Key,
+                   entry => entry.Value.HavePermission)
+               ?? new Dictionary<string, bool>();
+    }
+
+    /// <summary>
     /// What this Jira is and what it has: its version, what it calls its deployment, and whether
     /// the software API answers. Two requests, taken together, because they are only ever wanted
     /// together.

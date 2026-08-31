@@ -33,6 +33,17 @@ internal record ToolOutput
     [JsonPropertyOrder(-1)]
     [JsonPropertyName("statusCode")]
     public int? StatusCode { get; init; }
+
+    /// <summary>
+    /// The Jira permission key a refused write claimed and the account turned out not to hold —
+    /// <c>EDIT_ISSUES</c>, bare, as the permission-scheme screen spells it. Present only on that
+    /// branch: not where the account holds it, not where Jira could not be asked, and never on a
+    /// failure that was not a <c>403</c>. A field is added and never removed, so the narrow field
+    /// keeps the wider one available while the wider one could not be taken back.
+    /// </summary>
+    [JsonPropertyOrder(-1)]
+    [JsonPropertyName("missingPermission")]
+    public string? MissingPermission { get; init; }
 }
 
 /// <summary>
@@ -852,6 +863,14 @@ internal static class ToolOutputs
     public static JsonElement Node<T>(T output) where T : ToolOutput =>
         JsonSerializer.SerializeToElement(output, _options);
 
-    public static JsonElement Outcome(string outcome, int? statusCode = null) =>
-        Node(new OutcomeOutput { Outcome = outcome, StatusCode = statusCode });
+    public static JsonElement Outcome(
+        string outcome,
+        int? statusCode = null,
+        string? missingPermission = null) =>
+        Node(new OutcomeOutput
+        {
+            Outcome = outcome,
+            StatusCode = statusCode,
+            MissingPermission = missingPermission,
+        });
 }

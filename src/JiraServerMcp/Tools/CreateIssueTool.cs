@@ -91,14 +91,20 @@ internal sealed class CreateIssueTool(
                 return new Written(rendered, created.Key);
             },
             cancellationToken,
-            describeApiFailure: exception => Describe(exception, projectKey, issueType));
+            describeApiFailure: (exception, permission) =>
+                Describe(exception, projectKey, issueType, permission),
+            claim: PermissionAdvice.OnProject(jira, PermissionAdvice.CreateIssues, projectKey));
     }
 
     /// <summary>
     /// A rejected create is the one failure an agent can fix by itself, so the message says which
     /// fields Jira refused and where the project's real requirements are listed.
     /// </summary>
-    private string Describe(JiraApiException exception, string projectKey, string issueType) =>
+    private string Describe(
+        JiraApiException exception,
+        string projectKey,
+        string issueType,
+        PermissionAnswer? permission) =>
         JiraToolError.Describe(
             exception,
             profile.Name,
@@ -108,7 +114,8 @@ internal sealed class CreateIssueTool(
                   + $"'{issueType}' for the fields this project requires and the values they "
                   + "accept."
                   + FieldAliasAdvice.From(aliases)
-                : null);
+                : null,
+            permission);
 
 
     /// <summary>

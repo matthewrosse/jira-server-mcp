@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
@@ -95,6 +96,7 @@ internal sealed class AddAttachmentTool(
 
                 return new Written(rendered, $"attachment {added.Id} on {key}");
             },
-            cancellationToken);
+            cancellationToken,
+            claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.CreateAttachments, key));
     }
 }

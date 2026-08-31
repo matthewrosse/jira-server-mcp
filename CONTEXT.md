@@ -72,7 +72,16 @@ _Avoid_: handler, invocation, request.
 **Grant** — a named category of write permission (`issues:write`, `comments:write`,
 `worklogs:write`, `links:write`, `attachments:write`) that the operator hands to one MCP client.
 Without a grant, the corresponding tools are not registered, so an agent cannot attempt them.
-_Avoid_: scope, permission, role — all three already mean something inside Jira.
+_Avoid_: scope, permission, role — all three already mean something inside Jira. What
+**Jira permission** names is that other thing.
+
+**Jira permission** — a named right in a project's permission scheme, spelled as Jira's own bare
+key: `EDIT_ISSUES`, `TRANSITION_ISSUES`. A **grant** decides whether this client may attempt a
+write; this decides whether the account the server authenticates as may perform one. Asked about
+only after Jira has already refused a write, never cached, and never a promise about the next
+write — a `403` also comes from a missing cross-site request forgery header, from an instance in
+read-only mode, and from a throttled login. See ADR-0013.
+_Avoid_: grant, right, access level.
 
 **Protocol seam** — the boundary at which an agent observes a tool: a real MCP client and server,
 with Jira replaced by an HTTP double. Where tool-specific branching is proven. See ADR-0008. The

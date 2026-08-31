@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
@@ -97,6 +98,7 @@ internal sealed class AddWorklogTool(
 
                 return new Written(rendered, $"worklog {logged.Id} on {key}");
             },
-            cancellationToken);
+            cancellationToken,
+            claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.WorkOnIssues, key));
     }
 }

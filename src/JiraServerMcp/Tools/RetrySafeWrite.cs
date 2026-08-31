@@ -1,3 +1,4 @@
+using JiraServerMcp.Errors;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
@@ -62,6 +63,7 @@ internal static class RetrySafeWrite
     /// </param>
     /// <param name="cancellationToken">The caller's cancellation.</param>
     /// <param name="describeApiFailure">Passed through to <see cref="ToolCall.RunAsync"/>.</param>
+    /// <param name="claim">Passed through to <see cref="ToolCall.RunAsync"/>.</param>
     public static async Task<CallToolResult> RunAsync(
         WriteAttempts attempts,
         string tool,
@@ -74,7 +76,8 @@ internal static class RetrySafeWrite
         string whenTimedOut,
         Func<Task<Written>> write,
         CancellationToken cancellationToken,
-        Func<JiraApiException, string>? describeApiFailure = null)
+        Func<JiraApiException, PermissionAnswer?, string>? describeApiFailure = null,
+        PermissionClaim? claim = null)
     {
         // Claimed before anything is sent: a key that arrives twice must find the first attempt
         // recorded even when that attempt is what timed out.
@@ -104,7 +107,8 @@ internal static class RetrySafeWrite
                 return written.Rendered;
             },
             cancellationToken,
-            describeApiFailure);
+            describeApiFailure,
+            claim);
     }
 
     /// <summary>

@@ -55,7 +55,7 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
                 $", and it was asked only which transitions {key} has. Nothing was transitioned.",
             () => jira.ListTransitionsAsync(key, cancellationToken),
             cancellationToken,
-            describeApiFailure: exception =>
+            describeApiFailure: (exception, _) =>
                 JiraToolError.Describe(
                     exception,
                     profile.Name,
@@ -107,7 +107,8 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
 
                 return Transitioned(key, matched);
             },
-            cancellationToken);
+            cancellationToken,
+            claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.TransitionIssues, key));
     }
 
     /// <summary>
