@@ -400,6 +400,146 @@ public sealed class WritesProtocolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Adding_and_removing_values_says_which_of_them_was_which()
+    {
+        StubUpdate(204);
+
+        var text = await CallAsync(
+            await _seam.ConnectAsync("issues:write"),
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["fields"] = new Dictionary<string, object?> { ["summary"] = "A better summary" },
+                ["add"] = new Dictionary<string, object?> { ["labels"] = new[] { "regression" } },
+                ["remove"] = new Dictionary<string, object?> { ["components"] = "web" },
+            });
+
+        // The operation is in the prose and not in the structured half: ADR-0009 rule 2 wants the
+        // identifiers a follow-up call must send, and the operation was the caller's own argument.
+        text.ShouldContain("Updated PROJ-42: summary, labels (added), components (removed).");
+
+        var body = Body(SingleRequest());
+
+        body.GetProperty("fields").GetProperty("summary").GetString().ShouldBe("A better summary");
+        body.GetProperty("update").GetProperty("labels").EnumerateArray().Single()
+            .GetProperty("add").GetString().ShouldBe("regression");
+        body.GetProperty("update").GetProperty("components").EnumerateArray().Single()
+            .GetProperty("remove").GetString().ShouldBe("web");
+    }
+
+    [Fact]
+    public async Task An_update_that_only_adds_is_sent_rather_than_refused_as_naming_nothing()
+    {
+        StubUpdate(204);
+
+        await CallAsync(
+            await _seam.ConnectAsync("issues:write"),
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["add"] = new Dictionary<string, object?> { ["labels"] = "regression" },
+            });
+
+        _seam.Jira.LogEntries.Count().ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_link_asked_for_through_the_update_envelope_is_pointed_at_the_link_tool()
+    {
+        var text = await FailedCallAsync(
+            await _seam.ConnectAsync("issues:write"),
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["add"] = new Dictionary<string, object?>
+                {
+                    ["issuelinks"] = new Dictionary<string, object?>
+                    {
+                        ["type"] = new Dictionary<string, object?> { ["name"] = "Relates" },
+                        ["outwardIssue"] = new Dictionary<string, object?> { ["key"] = "PROJ-1" },
+                    },
+                },
+            });
+
+        // Jira takes this, and this server does not — a link's payload names Jira's own inward and
+        // outward slots, which is the direction confusion ADR-0010 exists to remove. So the
+        // refusal says Jira would have taken it, or an agent goes hunting for another way round.
+        text.ShouldContain("jira_link_issues");
+        text.ShouldContain("Jira itself would take a link here");
+
+        _seam.Jira.LogEntries.Count().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_comment_asked_for_through_the_update_envelope_is_pointed_at_the_comment_tool()
+    {
+        var text = await FailedCallAsync(
+            await _seam.ConnectAsync("issues:write"),
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["add"] = new Dictionary<string, object?>
+                {
+                    ["comment"] = new Dictionary<string, object?> { ["body"] = "Looked at it." },
+                },
+            });
+
+        text.ShouldContain("jira_add_comment");
+        text.ShouldContain("comments:write");
+
+        _seam.Jira.LogEntries.Count().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_field_named_in_both_envelopes_is_refused_here_rather_than_by_jira()
+    {
+        var text = await FailedCallAsync(
+            await _seam.ConnectAsync("issues:write"),
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["fields"] = new Dictionary<string, object?>
+                {
+                    ["labels"] = new[] { "regression" },
+                },
+                ["add"] = new Dictionary<string, object?> { ["labels"] = "flaky" },
+            });
+
+        // Jira refuses this itself, with a message naming its own two envelopes and an empty
+        // errors map. Refused here instead, the sentence names the two arguments the caller wrote.
+        text.ShouldContain("labels");
+        text.ShouldContain("fields");
+        text.ShouldContain("add");
+
+        _seam.Jira.LogEntries.Count().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_rejected_update_says_the_edit_screen_publishes_the_operations_too()
+    {
+        StubUpdate(400);
+
+        var text = await FailedCallAsync(
+            await _seam.ConnectAsync("issues:write"),
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["add"] = new Dictionary<string, object?> { ["duedate"] = "2026-09-30" },
+            });
+
+        // A field that publishes set alone is exactly what a rejected add is likely to have named,
+        // and the identifiers are only half of what the screen answers.
+        text.ShouldContain("jira_get_edit_fields");
+        text.ShouldContain("set, add, remove");
+    }
+
+    [Fact]
     public async Task An_update_naming_nothing_to_change_is_refused_without_asking_jira()
     {
         await FailedCallAsync(

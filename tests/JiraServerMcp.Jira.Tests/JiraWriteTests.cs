@@ -148,6 +148,8 @@ public sealed class JiraWriteTests : IDisposable
         await CreateClient().UpdateIssueAsync(
             "PROJ-42",
             Fields(("summary", "\"A better summary\"")),
+            add: null,
+            remove: null,
             assignee: null,
             TestContext.Current.CancellationToken);
 
@@ -171,6 +173,8 @@ public sealed class JiraWriteTests : IDisposable
         await CreateClient().UpdateIssueAsync(
             "PROJ-42",
             Fields(("duedate", "null"), ("summary", "\"A better summary\"")),
+            add: null,
+            remove: null,
             assignee: null,
             TestContext.Current.CancellationToken);
 
@@ -189,6 +193,8 @@ public sealed class JiraWriteTests : IDisposable
         await CreateClient().UpdateIssueAsync(
             "PROJ-42",
             Fields(("summary", "\"A better summary\"")),
+            add: null,
+            remove: null,
             new JiraAssignee("jbloggs"),
             TestContext.Current.CancellationToken);
 
@@ -207,11 +213,84 @@ public sealed class JiraWriteTests : IDisposable
         await CreateClient().UpdateIssueAsync(
             "PROJ-42",
             Fields(),
+            add: null,
+            remove: null,
             new JiraAssignee(null),
             TestContext.Current.CancellationToken);
 
         Body(SingleRequest()).GetProperty("fields").GetProperty("assignee")
             .ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task Values_added_and_removed_ride_jiras_update_envelope_one_operation_per_item()
+    {
+        StubUpdate("/rest/api/2/issue/PROJ-42", 204);
+
+        await CreateClient().UpdateIssueAsync(
+            "PROJ-42",
+            Fields(),
+            Fields(("labels", """["red", "blue"]""")),
+            Fields(("labels", "\"green\"")),
+            assignee: null,
+            TestContext.Current.CancellationToken);
+
+        var body = Body(SingleRequest());
+
+        // Nothing was set, so no fields envelope is sent at all: an empty one is a claim about
+        // nothing, and it is the endpoint that would have to decide what to do with it.
+        body.TryGetProperty("fields", out _).ShouldBeFalse();
+
+        var labels = body.GetProperty("update").GetProperty("labels");
+
+        // One item is one operation object. A list handed to Jira inside a single add would be
+        // taken as one value, which for labels is a label with a space in it.
+        labels.EnumerateArray().Select(operation =>
+                operation.EnumerateObject().Single())
+            .Select(operation => (operation.Name, operation.Value.GetString()))
+            .ShouldBe([("add", "red"), ("add", "blue"), ("remove", "green")]);
+    }
+
+    [Fact]
+    public async Task A_set_and_an_add_ride_the_same_put_so_one_call_is_one_changelog_entry()
+    {
+        StubUpdate("/rest/api/2/issue/PROJ-42", 204);
+
+        await CreateClient().UpdateIssueAsync(
+            "PROJ-42",
+            Fields(("summary", "\"A better summary\"")),
+            Fields(("components", """{"name": "web"}""")),
+            remove: null,
+            new JiraAssignee("jbloggs"),
+            TestContext.Current.CancellationToken);
+
+        var body = Body(SingleRequest());
+
+        body.GetProperty("fields").GetProperty("summary").GetString().ShouldBe("A better summary");
+        body.GetProperty("fields").GetProperty("assignee").GetProperty("name").GetString()
+            .ShouldBe("jbloggs");
+
+        // An item is sent in Jira's own shape for that field, whatever shape that is.
+        body.GetProperty("update").GetProperty("components").EnumerateArray().Single()
+            .GetProperty("add").GetProperty("name").GetString().ShouldBe("web");
+    }
+
+    [Fact]
+    public async Task An_update_naming_nothing_to_add_or_remove_carries_no_update_envelope()
+    {
+        StubUpdate("/rest/api/2/issue/PROJ-42", 204);
+
+        await CreateClient().UpdateIssueAsync(
+            "PROJ-42",
+            Fields(("summary", "\"A better summary\"")),
+            add: null,
+            remove: null,
+            assignee: null,
+            TestContext.Current.CancellationToken);
+
+        // An empty envelope is not the same as no envelope, and Jira has no reason to be handed
+        // one it must decide what to do with.
+        Body(SingleRequest()).TryGetProperty("update", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -223,6 +302,8 @@ public sealed class JiraWriteTests : IDisposable
             () => CreateClient().UpdateIssueAsync(
                 "PROJ-42",
                 Fields(("summary", "\"A better summary\"")),
+                add: null,
+                remove: null,
                 assignee: null,
                 TestContext.Current.CancellationToken));
 
@@ -237,6 +318,8 @@ public sealed class JiraWriteTests : IDisposable
         await CreateClient().UpdateIssueAsync(
             "PROJ 42/../admin",
             Fields(("summary", "\"A better summary\"")),
+            add: null,
+            remove: null,
             assignee: null,
             TestContext.Current.CancellationToken);
 

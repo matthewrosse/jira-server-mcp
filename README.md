@@ -298,7 +298,7 @@ context learning that it is forbidden.
 | `jira_get_sprint_issues` | — | The issues in one sprint. **Jira Software only.** |
 | `jira_get_backlog` | — | A board's backlog: the issues no sprint has taken. **Jira Software only.** |
 | `jira_create_issue` | `issues:write` | Create one issue. Custom fields go in the field map in Jira's own shape. |
-| `jira_update_issue` | `issues:write` | Update fields, including the assignee. There is no separate assign tool. |
+| `jira_update_issue` | `issues:write` | Update fields, including the assignee. There is no separate assign tool. `add` and `remove` append to and take values out of a list field — labels, components, fix versions — rather than replacing it. |
 | `jira_transition_issue` | `issues:write` | Transition by transition *name*; the identifier is resolved here. Takes an optional comment and any screen fields the transition demands. |
 | `jira_add_comment` | `comments:write` | Add one comment, in Jira wiki markup, stored as written. |
 | `jira_add_worklog` | `worklogs:write` | Log work, with the time spent in Jira's own duration syntax (`"3h 30m"`), so how long a working day is stays Jira's decision. Reduces the issue's remaining estimate by what was logged, as Jira does, unless asked to leave it. |
@@ -623,10 +623,15 @@ fails by absence rather than by a permission error.
   discovered at write time, on the write.
 - *"Update PROJ-123: set the fix version to 2.4.0 and add the label `regression`."* —
   `jira_get_project` to confirm the version exists, `jira_get_edit_fields` for what PROJ-123's own
-  edit screen accepts, then `jira_update_issue`.
+  edit screen accepts and which operations each field publishes, then one `jira_update_issue` with
+  the version in `fields` and the label in `add`. The label is added beside whatever labels
+  PROJ-123 already carries, without reading them first.
 - *"Rewrite PROJ-123's description to include the stack trace I just pasted, keeping what is already
-  there."* — `jira_get_issues` to read the current description, then `jira_update_issue`. When the
-  update is rejected, `jira_get_edit_fields` names the identifiers PROJ-123's fields actually have.
+  there."* — `jira_get_issues` to read the current description, then `jira_update_issue`. Reading
+  first is the fallback for a field whose edit screen publishes `set` alone, as a description's
+  does; a list field is appended to with `add` instead, which has no gap for somebody else's edit
+  to fall into. When the update is rejected, `jira_get_edit_fields` names the identifiers
+  PROJ-123's fields actually have.
 - *"Move PROJ-123 to In Review."* — `jira_get_issues` with `include: ["transitions"]`, then
   `jira_transition_issue` by transition name.
 - *"Close PROJ-123 as Won't Do with a comment explaining why."* — `jira_transition_issue`, which
