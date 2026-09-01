@@ -413,8 +413,9 @@ no Jira-authored content.
 
 ## Example prompts
 
-These are prompts you type at the agent, not commands you run — the server exposes no prompt of its
-own, and every one of them is an ordinary sentence that happens to be answerable with the tools
+These are prompts in the other sense of the word: sentences you type at the agent, not the MCP
+prompt the server registers — that one is `implement_issue`, above, and your client surfaces it for
+you to pick. Every one of these is an ordinary sentence that happens to be answerable with the tools
 above. Each example names the tool chain it tends to drive, so you can tell a prompt that costs one
 call from one that costs several. The chains are the typical path, not a guarantee: which tools a
 model reaches for is the model's decision, and a different model may take a different route to the
@@ -1086,8 +1087,8 @@ What is **not** in this server, so you find out here rather than by asking an ag
   credentials should this request use", and that is an authorization design, not a transport
   change. The tools carry no transport knowledge, so it stays additive work.
 - **Basic authentication.** Not supported, so Jira below 8.14 is not supported either.
-- **MCP resources and prompts.** Tools only. Everything here is either a parameterised query or
-  content that changes under the agent's feet, and neither is what a resource is good at.
+- **MCP resources.** None. Everything here is either a parameterised query or content that changes
+  under the agent's feet, and neither is what a resource is good at.
 
 Each of these is additive, and the write path having real usage is what should decide the order.
 
