@@ -304,10 +304,10 @@ context learning that it is forbidden.
 | `jira_add_worklog` | `worklogs:write` | Log work, with the time spent in Jira's own duration syntax (`"3h 30m"`), so how long a working day is stays Jira's decision. Reduces the issue's remaining estimate by what was logged, as Jira does, unless asked to leave it. |
 | `jira_link_issues` | `links:write` | Link two issues by the relation *phrase* Jira publishes — `"blocks"`, `"is blocked by"` — so the direction reads as English and cannot be got backwards. Takes an optional comment. |
 | `jira_add_remote_link` | `links:write` | Attach a URL to an issue — a pull request, a build — so it lands in Jira's link panel rather than in a comment. The URL is the link's identity, so attaching it twice updates one link and says so. |
-| `jira_add_attachment` | `attachments:write` | Attach one text file to an issue: a test log, a diff, a report. The content is sent as text, never as a path — this server opens no file on the machine it runs on — and is stored as `text/plain` whatever the file is named. Jira appends rather than replaces, so the same file sent twice is two attachments. |
+| `jira_add_attachment` | `attachments:write` | Attach one text file to an issue: a test log, a diff, a report. One file per call, at most 64,000 characters in it, and nothing whose bytes are not text — no image, no archive. The content is sent as text, never as a path — this server opens no file on the machine it runs on — and is stored as `text/plain` whatever the file is named. Jira appends rather than replaces, so the same file sent twice is two attachments. |
 
-Deliberately absent: issue deletion, comment editing and deletion, attachment replacement and
-deletion, unlinking, sprint mutation, watchers, and votes. See
+Deliberately absent: deletion, comment and worklog editing, attachment replacement and deletion,
+unlinking, sprint mutation, watchers and votes, and bulk writes. See
 [Known limitations](#known-limitations).
 
 ## Structured content
@@ -1067,23 +1067,23 @@ publishing over OIDC rather than a long-lived API key when it happens.
 
 What is **not** in this server, so you find out here rather than by asking an agent to try:
 
-- **Attachments.** Reading one is `jira_get_attachment`; writing one is `jira_add_attachment`
-  under `attachments:write`. What is absent is the rest: text only — no image, no archive, nothing
-  whose bytes are not text — one file per call, at most 64,000 characters in it, and nothing that
-  replaces or deletes an attachment already on the issue. Neither direction takes a file path:
-  content crosses this server's boundary and nothing here opens a file on the machine it runs on
+- **Attachment replacement and deletion.** Reading an attachment is `jira_get_attachment`; writing
+  one is `jira_add_attachment` under `attachments:write`. Nothing replaces or deletes an
+  attachment already on the issue. Neither direction takes a file path: content crosses this
+  server's boundary and nothing here opens a file on the machine it runs on
   ([ADR-0012](docs/adr/0012-attachments-cross-the-boundary-as-content.md)).
 - **Deletion.** No delete tool of any kind, at any grant. Not issues, not comments, not worklogs.
-- **Comment and worklog editing.** A comment or worklog this server adds cannot be edited or
-  removed through it.
+- **Comment and worklog editing.** A comment or worklog this server adds cannot be edited through
+  it; deletion is absent too, above.
 - **Unlinking.** Links are made with `links:write` and read through `jira_get_issues`' `links`
-  expansion, but nothing removes one. A remote link is keyed by its URL, so the ordinary
-  correction — the same pull request attached again — updates the one link instead; a wrong issue
-  link is a human's cleanup in Jira.
+  expansion, but nothing removes one — neither an issue link nor a remote link. A remote link is
+  keyed by its URL, so the ordinary correction — the same pull request attached again — updates
+  the one link instead; a wrong issue link is a human's cleanup in Jira.
 - **Sprint mutation.** Sprints and boards are read-only here: no creating a sprint, no moving an
   issue into one.
-- **Watchers, votes, and bulk operations.** None of them — "bulk operations" here means bulk
-  *write*. Bulk read exists: `jira_get_issues`.
+- **Watchers and votes.** Neither is readable or writable here.
+- **Bulk writes.** None — one write tool call changes one issue. Bulk read exists:
+  `jira_get_issues`.
 - **OAuth 1.0a.** Personal access tokens are the only credential (ADR-0001), which sets the floor
   at Jira 8.14 and needs no administrator. OAuth 1.0a on Jira Server requires an administrator to
   provision an application link, and the question of who holds the private key has no acceptable

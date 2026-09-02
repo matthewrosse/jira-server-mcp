@@ -60,6 +60,12 @@ capability probe: exactly the tools a server registers. Named once, as a table p
 with what it requires, rather than as control flow scattered through the serve verb.
 _Avoid_: registration logic, the if-chain.
 
+**Claimed absence** — a resource and an action this server does not cover, named in the README so
+a reader learns it here rather than by asking an agent to try. Claimed, not proven: the set is
+enumerated in one place and held against the tool surface, but nothing holds that enumeration
+complete.
+_Avoid_: limitation, gap, missing feature.
+
 **Tool** — one MCP operation an agent can call. The unit an agent sees, chooses between, and
 pays context for. Not a REST endpoint: a tool may combine several, and a REST endpoint may
 surface as no tool at all.

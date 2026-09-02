@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using JiraServerMcp.Grants;
@@ -76,6 +77,21 @@ public class ReadmeTests
             .Select(row => row.Key)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ShouldBe(SoftwareTools().OrderBy(name => name, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// The one limit the README states as a number. No tool shipping can falsify it — only the
+    /// constant changing — so it is held here rather than beside the claimed absences.
+    /// </summary>
+    [Fact]
+    public void The_readme_writes_the_longest_attachment_content_the_upload_takes()
+    {
+        var longest = AttachmentUpload.LongestContent.ToString("N0", CultureInfo.InvariantCulture);
+
+        _readme.ShouldContain(
+            longest,
+            Case.Sensitive,
+            $"The README states the attachment limit as a number, which is now {longest}.");
     }
 
     /// <summary>
