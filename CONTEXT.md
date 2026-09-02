@@ -187,9 +187,19 @@ _Avoid_: filter, field selection.
 screen, the edit screen. Keyed on issue type and operation, never on status — a screen scheme maps
 screens to operations, and a stock scheme maps all of them to one screen, so two screens that
 differ are an administrator's doing. A screen names each field's identifier, whether it is
-required, its allowed values where Jira enumerates them, and which operations it accepts — a field
-can be on the screen and still not be settable.
+required, its allowed values where Jira enumerates them, and which **operations** it accepts — a
+field can be on the screen and still not be settable, and one that is settable may not be settable
+the way the caller meant.
 _Avoid_: form, field configuration (Jira's own, and a different thing), metadata.
+
+**Operation** — what one Jira permits doing to one field on a **screen**: `set`, `add`, `remove`.
+Published per field and per screen, so it is a fact about this field on this issue rather than
+about the field's type: `labels` publishes all three, `issuelinks` publishes `add` and no `set` at
+all, and a field publishing none is on the screen and writable by nothing. Distinct from the tool
+verb carrying it — one call to `jira_update_issue` sets some fields and adds to others — and
+distinct from this project's own prose sense of "operation" as a unit of work, as in "reassignment
+should not cost two operations".
+_Avoid_: action, verb, mutation.
 
 **Response budget** — the limits on what a response is allowed to cost an agent: text per line,
 prose, issue-read expansion entries, and default and largest page sizes. Every renderer and every

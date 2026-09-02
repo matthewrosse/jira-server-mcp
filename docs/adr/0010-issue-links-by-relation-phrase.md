@@ -60,6 +60,11 @@ Matching follows `TransitionIssueTool`: casing and surrounding space ignored, an
   unmatched case hands it for free.
 - There is no unlink tool at any grant, so a reversed link — which this design makes very hard to
   produce, not impossible — is a human's cleanup in Jira.
+- **`jira_update_issue` refuses `issuelinks` in its own add and remove maps**, and points here
+  instead. Jira takes a link through the `update` envelope of an ordinary issue edit — verified on
+  8.20.7, which answers `204` — so this is this server's choice and the refusal says so. What the
+  envelope takes is the raw inward and outward slot pair, with no phrase to resolve, which is the
+  second door onto exactly the bug this decision closed.
 
 ## Not in this decision
 

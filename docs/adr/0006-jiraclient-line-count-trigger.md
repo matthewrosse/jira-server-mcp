@@ -1,6 +1,6 @@
 # ADR-0006: A line-count trigger for splitting JiraClient
 
-**Status:** Accepted (2026-08-17), amended (2026-08-18)
+**Status:** Accepted (2026-08-17), amended (2026-08-18, 2026-08-31, 2026-09-02)
 
 ## Context
 
@@ -144,3 +144,23 @@ With the upload in, the client measures **1,396 across thirteen files**. The thr
 The per-file cap of 250 does not move. It is the guard the split made meaningful, nothing has grown
 back towards it, and moving a number nothing is pressing on would be the ratchet the 2026-08-18
 amendment refused.
+
+## Amendment (2026-09-02): the per-file cap fires; the glob threshold stays
+
+#132's add and remove maps grew `UpdateIssueAsync` and gave it a helper that builds Jira's
+`update` envelope, taking `JiraClientWrites.cs` from 212 lines to 257 — past the per-file cap of
+250, with the glob at 1,496 of 1,550 and untouched by the change.
+
+This is the first firing of the second guard alone, and it is answered with response 1 exactly as
+that guard intends. The issue update moves to a new partial file, `JiraClientIssueUpdate.cs`: it is
+the one write in this client carrying two envelopes, the envelope building is the larger half of
+it, and a reader changing what `add` sends should not be loading the create, the transition, the
+comment and the worklog to do it. `JiraClientWrites.cs` is left at 178 lines and the largest file
+in the client is now `JiraClientAttachments.cs` at 202, where the 2026-08-31 amendment left it.
+
+**Neither threshold moves.** With the feature in, the client measures **1,515 across fourteen
+files** — 35 lines under the glob threshold set on 2026-08-31, which is tighter than the headroom
+this ADR usually leaves, but moving a number the next feature has not yet pressed on is the ratchet
+the 2026-08-18 amendment refused. The next firing of the glob is to be answered the way this ADR
+names: a file for the resource being added, or a deliberate amendment recording why the total
+should be larger.

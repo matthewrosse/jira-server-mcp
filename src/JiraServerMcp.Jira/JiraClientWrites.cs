@@ -49,40 +49,6 @@ public sealed partial class JiraClient
     }
 
     /// <summary>
-    /// Changes the named fields of one issue, and its assignee in the same request. A field whose
-    /// value is JSON null is cleared; a field not named is left alone. Never retried.
-    /// </summary>
-    public async Task UpdateIssueAsync(
-        string key,
-        IReadOnlyDictionary<string, JsonElement> fields,
-        JiraAssignee? assignee,
-        CancellationToken cancellationToken)
-    {
-        var body = fields.ToDictionary(
-            field => field.Key,
-            field => (object?)field.Value,
-            StringComparer.Ordinal);
-
-        if (assignee is { } assigned)
-        {
-            body["assignee"] = assigned.Name is { } name
-                ? new Dictionary<string, string> { ["name"] = name }
-                : null;
-        }
-
-        using var request = WriteFields(
-            HttpMethod.Put,
-            $"rest/api/2/issue/{Uri.EscapeDataString(key)}",
-            body);
-
-        using var response = await httpClient
-            .SendAsync(request, cancellationToken)
-            .ConfigureAwait(false);
-
-        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
     /// The transitions this account can make on this issue right now, named and numbered. Read at
     /// the moment of transitioning: what was available when the issue was read may not be
     /// available now. The screens are not asked for — the issue read's transitions expansion is

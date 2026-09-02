@@ -96,6 +96,61 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
         issue.GetProperty("fields").GetProperty("summary").GetString().ShouldBe(summary);
     }
 
+    /// <summary>
+    /// The request shape #132 exists for, asked of a real Jira. A double answers whatever it was
+    /// told to; that 8.20.7 takes a <c>fields</c> envelope and an <c>update</c> envelope in one
+    /// PUT, and applies both, is a fact about Jira — and a Jira upgrade that stopped taking it
+    /// would otherwise break the add and remove maps silently.
+    /// </summary>
+    [Fact]
+    public async Task Adding_and_removing_values_lands_beside_a_set_in_the_one_update()
+    {
+        var key = await CreateIssueAsync("To be added to and removed from");
+
+        await CallAsync("jira_update_issue", new Dictionary<string, object?>
+        {
+            ["key"] = key,
+            ["fields"] = new Dictionary<string, object?>
+            {
+                ["labels"] = new[] { "alpha", "beta" },
+            },
+        });
+
+        var summary = "Amended through the protocol " + Guid.NewGuid().ToString("N")[..8];
+
+        await CallAsync("jira_update_issue", new Dictionary<string, object?>
+        {
+            ["key"] = key,
+            ["fields"] = new Dictionary<string, object?> { ["summary"] = summary },
+            ["add"] = new Dictionary<string, object?> { ["labels"] = new[] { "gamma" } },
+            ["remove"] = new Dictionary<string, object?> { ["labels"] = "alpha" },
+        });
+
+        var issue = await _session.ReadIssueAsync(key, TestContext.Current.CancellationToken);
+
+        issue.GetProperty("fields").GetProperty("summary").GetString().ShouldBe(summary);
+
+        // The set landed, the add landed, and the remove took away exactly the one value named:
+        // an add that replaced the field would leave "gamma" alone here.
+        issue.GetProperty("fields").GetProperty("labels").EnumerateArray()
+            .Select(label => label.GetString())
+            .ShouldBe(["beta", "gamma"], ignoreOrder: true);
+
+        // Removing a value the field does not carry is a no-op Jira reports as success, which is
+        // why the remove parameter says so rather than leaving an agent to retry it forever.
+        await CallAsync("jira_update_issue", new Dictionary<string, object?>
+        {
+            ["key"] = key,
+            ["remove"] = new Dictionary<string, object?> { ["labels"] = "neverpresent" },
+        });
+
+        var after = await _session.ReadIssueAsync(key, TestContext.Current.CancellationToken);
+
+        after.GetProperty("fields").GetProperty("labels").EnumerateArray()
+            .Select(label => label.GetString())
+            .ShouldBe(["beta", "gamma"], ignoreOrder: true);
+    }
+
     [Fact]
     public async Task Transitioning_an_issue_moves_its_status_in_jira()
     {

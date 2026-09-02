@@ -66,7 +66,7 @@ internal static class ScreenFields
                 body.Append("; allowed: ").Append(AllowedValues(field.AllowedValues));
             }
 
-            if (Operations(field.Operations) is { } operations)
+            if (Operations(field) is { } operations)
             {
                 body.Append(operations);
             }
@@ -74,6 +74,39 @@ internal static class ScreenFields
             body.AppendLine();
         }
     }
+
+    /// <summary>
+    /// What may be done to the field, and where a field the write tools cannot touch is served
+    /// instead. A field is on the screen whether or not any tool here writes it, so the row that
+    /// says "not writable" is exactly the row an agent needs pointing somewhere.
+    /// </summary>
+    private static string? Operations(JiraScreenField field)
+    {
+        var operations = Operations(field.Operations);
+        var served = Served(field.Id);
+
+        return (operations, served) switch
+        {
+            (null, null) => null,
+            (null, _) => $"; {served}",
+            (_, null) => operations,
+            _ => $"{operations} — {served}",
+        };
+    }
+
+    /// <summary>
+    /// The tool that writes a field neither screen's write tool can. Prose rather than a key of
+    /// its own: what a caller does with it is call another tool, not branch on it.
+    /// </summary>
+    private static string? Served(string field) => field.ToLowerInvariant() switch
+    {
+        // issuetype is deliberately absent: nothing here makes it writable, and its bare "not
+        // writable" is the whole truth.
+        "issuelinks" => "links are made with jira_link_issues",
+        "attachment" => "files are attached with jira_add_attachment",
+        "comment" => "comments are added with jira_add_comment",
+        _ => null,
+    };
 
     /// <summary>
     /// What may be done to the field, or null where saying so is worth nothing. Almost every field
