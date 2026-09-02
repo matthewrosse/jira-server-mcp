@@ -374,13 +374,14 @@ public sealed class JiraIssueTests : IDisposable
 
         links.Count.ShouldBe(2);
 
-        // Jira words the direction differently at each end, and only that wording says which end
-        // this issue is on.
-        links[0].Relation.ShouldBe("blocks");
+        // Jira words the direction differently at each end, and the property it fills in names the
+        // end the counterpart is on: PROJ-13 under outwardIssue is the link's outward issue, which
+        // leaves PROJ-12 on the inward end and its line worded with the type's inward phrase.
+        links[0].Relation.ShouldBe("is blocked by");
         links[0].Key.ShouldBe("PROJ-13");
         links[0].Summary.ShouldBe("Rotate the signing key");
 
-        links[1].Relation.ShouldBe("is blocked by");
+        links[1].Relation.ShouldBe("blocks");
         links[1].Key.ShouldBe("PROJ-11");
         links[1].Summary.ShouldBe("Upgrade the auth library");
     }
