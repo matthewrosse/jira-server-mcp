@@ -507,7 +507,7 @@ public sealed class LinksProtocolTests : IAsyncLifetime
                           "inward": "is blocked by",
                           "outward": "blocks"
                         },
-                        "inwardIssue": {
+                        "outwardIssue": {
                           "key": "PROJ-13",
                           "fields": { "summary": "Token refresh drops the session" }
                         }

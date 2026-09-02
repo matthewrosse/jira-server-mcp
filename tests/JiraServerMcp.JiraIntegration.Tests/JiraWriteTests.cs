@@ -257,7 +257,7 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Linking_two_issues_puts_the_link_in_jira()
+    public async Task Linking_two_issues_puts_the_link_in_jira_and_both_ends_read_it_the_same_way()
     {
         var blocker = await CreateIssueAsync("To block another issue");
         var blocked = await CreateIssueAsync("To be blocked by another issue");
@@ -285,14 +285,29 @@ public sealed class JiraWriteTests(JiraHarness harness) : IAsyncLifetime
         // and a KeyNotFoundException hides it.
         //
         // This assertion was inwardIssue and a real 8.20.7 falsified it twice, on two instances
-        // seeded from scratch. IssueDetailReader.Link reads the same payload the other way round —
-        // it takes outwardIssue to mean this issue is on the outward end — so the links expansion
-        // words this link "blocks" when read from the blocked end. Only the wording is wrong, and
-        // fixing it is a change to the reader, filed as #137.
+        // seeded from scratch. IssueDetailReader.Link mirrors the payload read here.
         link.TryGetProperty("outwardIssue", out var outward).ShouldBeTrue(
             $"read from the blocked end, Jira described the link as: {link}");
 
         outward.GetProperty("key").GetString().ShouldBe(blocker);
+
+        // Both ends, because the pair is what proves a mirror rather than one constant phrase:
+        // each end reads the wording its own end publishes.
+        var fromBlocked = await CallAsync("jira_get_issues", new Dictionary<string, object?>
+        {
+            ["keys"] = new[] { blocked },
+            ["include"] = new[] { "links" },
+        });
+
+        fromBlocked.ShouldContain($"is blocked by {blocker}");
+
+        var fromBlocker = await CallAsync("jira_get_issues", new Dictionary<string, object?>
+        {
+            ["keys"] = new[] { blocker },
+            ["include"] = new[] { "links" },
+        });
+
+        fromBlocker.ShouldContain($"blocks {blocked}");
     }
 
     [Fact]

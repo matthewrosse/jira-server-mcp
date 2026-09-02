@@ -253,17 +253,19 @@ internal static class IssueDetailReader
     }
 
     /// <summary>
-    /// Which end of the link this issue is on is told only by which of the two issue properties
-    /// Jira filled in, and that end picks the wording of the relation.
+    /// The property Jira fills in names the end the <em>counterpart</em> is on, not this issue's:
+    /// a counterpart under <c>outwardIssue</c> leaves the issue being read on the inward end, so
+    /// the relation takes the type's inward wording, and the reverse for <c>inwardIssue</c>. A
+    /// symmetric type publishes the same phrase from both ends and reads the same either way.
     /// </summary>
     private static JiraIssueLink? Link(JsonElement link)
     {
         link.TryGetProperty("type", out var type);
 
         var (other, wording) = link.TryGetProperty("outwardIssue", out var outward)
-            ? (outward, "outward")
+            ? (outward, "inward")
             : link.TryGetProperty("inwardIssue", out var inward)
-                ? (inward, "inward")
+                ? (inward, "outward")
                 : (default, "");
 
         if (other.ValueKind is not JsonValueKind.Object)
