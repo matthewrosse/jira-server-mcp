@@ -224,7 +224,7 @@ public sealed class JiraToolErrorTests
     [Fact]
     public void A_permission_the_account_lacks_is_named_before_the_callers_state_clause()
     {
-        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: false, []));
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", PermissionStanding.Absent, []));
 
         message.ShouldContain("does not have EDIT_ISSUES on ABC-1");
 
@@ -242,7 +242,7 @@ public sealed class JiraToolErrorTests
     public void A_permission_the_account_holds_says_so_and_names_what_it_lacks_beside_it()
     {
         var message = Refused(
-            new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: true, ["ASSIGN_ISSUES"]));
+            new PermissionAnswer("EDIT_ISSUES", "ABC-1", PermissionStanding.Held, ["ASSIGN_ISSUES"]));
 
         message.ShouldContain("does have EDIT_ISSUES on ABC-1");
         message.ShouldContain("ASSIGN_ISSUES");
@@ -251,7 +251,7 @@ public sealed class JiraToolErrorTests
     [Fact]
     public void A_permission_answer_with_nothing_else_missing_says_that_rather_than_trailing_off()
     {
-        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: true, []));
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", PermissionStanding.Held, []));
 
         message.ShouldContain("every other write permission");
         message.ShouldContain("read-only");
@@ -274,7 +274,7 @@ public sealed class JiraToolErrorTests
     [Fact]
     public void The_permission_sentence_is_this_servers_own_prose_and_needs_no_framing()
     {
-        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: false, []));
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", PermissionStanding.Absent, []));
 
         message.ShouldNotContain("<jira-data");
     }
@@ -288,7 +288,7 @@ public sealed class JiraToolErrorTests
     public void A_401_that_is_a_refusal_reads_as_one_rather_than_as_a_credential_problem()
     {
         var message = Refused(
-            new PermissionAnswer("LINK_ISSUES", "ABC-1", Held: false, []),
+            new PermissionAnswer("LINK_ISSUES", "ABC-1", PermissionStanding.Absent, []),
             HttpStatusCode.Unauthorized);
 
         message.ShouldContain("does not have LINK_ISSUES on ABC-1");
@@ -299,7 +299,7 @@ public sealed class JiraToolErrorTests
     public void A_401_the_account_could_write_through_rules_out_the_token_as_well()
     {
         var message = Refused(
-            new PermissionAnswer("LINK_ISSUES", "ABC-1", Held: true, []),
+            new PermissionAnswer("LINK_ISSUES", "ABC-1", PermissionStanding.Held, []),
             HttpStatusCode.Unauthorized);
 
         message.ShouldContain("neither invalid nor revoked");
@@ -317,7 +317,7 @@ public sealed class JiraToolErrorTests
     public void A_401_the_account_could_write_through_rules_the_token_out_beside_what_it_lacks_too()
     {
         var message = Refused(
-            new PermissionAnswer("LINK_ISSUES", "ABC-1", Held: true, ["ASSIGN_ISSUES"]),
+            new PermissionAnswer("LINK_ISSUES", "ABC-1", PermissionStanding.Held, ["ASSIGN_ISSUES"]),
             HttpStatusCode.Unauthorized);
 
         message.ShouldContain("ASSIGN_ISSUES");
@@ -327,7 +327,7 @@ public sealed class JiraToolErrorTests
     [Fact]
     public void A_403_the_account_could_write_through_still_names_the_causes_that_are_403s()
     {
-        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: true, []));
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", PermissionStanding.Held, []));
 
         message.ShouldContain("read-only");
         message.ShouldNotContain("neither invalid nor revoked");
@@ -342,7 +342,7 @@ public sealed class JiraToolErrorTests
     public void A_401_whose_lookup_answered_nothing_names_both_causes_rather_than_asserting_one()
     {
         var message = Refused(
-            new PermissionAnswer("LINK_ISSUES", "ABC-1", Held: null, []),
+            new PermissionAnswer("LINK_ISSUES", "ABC-1", PermissionStanding.Unanswered, []),
             HttpStatusCode.Unauthorized);
 
         message.ShouldContain("jira-server-mcp auth login work");
@@ -351,6 +351,41 @@ public sealed class JiraToolErrorTests
         // A diagnostic that reports its own failure teaches nothing about the write (ADR-0013), and
         // a key nobody could confirm is not a key to name.
         message.ShouldNotContain("LINK_ISSUES");
+    }
+
+    /// <summary>
+    /// The state the four-way standing exists for. Jira answered — so the token is live, proved by
+    /// the answer itself — but its enumeration never named the claimed key, which an 8.14-era
+    /// instance may do. Sending this caller to mint a token would be #142's own defect in a quieter
+    /// voice: a rotation spent on a credential that demonstrably works.
+    /// </summary>
+    [Fact]
+    public void A_401_whose_lookup_never_named_the_key_still_rules_the_token_out()
+    {
+        var message = Refused(
+            new PermissionAnswer("LINK_ISSUES", "ABC-1", PermissionStanding.Unlisted, []),
+            HttpStatusCode.Unauthorized);
+
+        message.ShouldContain("neither invalid nor revoked");
+        message.ShouldContain("LINK_ISSUES");
+        message.ShouldNotContain("auth login");
+
+        // Unknown, not absent: Jira never said the account lacks it.
+        message.ShouldNotContain("does not have LINK_ISSUES");
+    }
+
+    /// <summary>
+    /// The same standing under a 403 changes nothing. Ruling the token out is worth a sentence only
+    /// where the token was under suspicion, and on a 403 it never was.
+    /// </summary>
+    [Fact]
+    public void A_403_whose_lookup_never_named_the_key_says_exactly_what_it_always_said()
+    {
+        var message = Refused(
+            new PermissionAnswer("EDIT_ISSUES", "ABC-1", PermissionStanding.Unlisted, []));
+
+        message.ShouldContain("does not have permission for it on");
+        message.ShouldNotContain("EDIT_ISSUES");
     }
 
     [Fact]
@@ -365,7 +400,7 @@ public sealed class JiraToolErrorTests
     [Fact]
     public void A_403_whose_lookup_answered_nothing_says_exactly_what_it_always_said()
     {
-        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: null, []));
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", PermissionStanding.Unanswered, []));
 
         message.ShouldContain("does not have permission for it on");
         message.ShouldNotContain("EDIT_ISSUES");

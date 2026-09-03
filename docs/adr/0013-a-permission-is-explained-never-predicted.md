@@ -173,14 +173,35 @@ Three alternatives were considered again and rejected again:
   the link is alone in it or not, which is precisely why the `401` census #142 asked for is no
   longer worth running.
 
-### Three states, not two
+### Four standings, not a flag
 
-`PermissionAnswer.Held` becomes `bool?`. A null `PermissionAnswer` now means "a read, which claimed
-nothing"; an answer with `Held` of null means "a write claimed a permission and this server could
-not find out". Under a `403` those two want the same sentence — the one this server used before the
-lookup existed — but under a `401` they do not, and collapsing them is what would leave a revoked
-token being told about permissions or a refused link being told to log in again. `AskAsync`
-therefore always returns an answer, because a claim has always been made by the time it is called.
+`PermissionAnswer.Held` becomes `PermissionAnswer.Standing`, one of four. `AskAsync` always returns
+an answer now, because a claim has always been made by the time it is called, so a null
+`PermissionAnswer` means only "a read, which claimed nothing".
+
+| Standing | What happened | What a `401` may conclude |
+|---|---|---|
+| `Held` | Jira named the key and the account has it | the token is live; the permission is not the reason either |
+| `Absent` | Jira named the key and the account lacks it | the token is live; this is the reason |
+| `Unlisted` | Jira answered, and never named the key | the token is live; the claim is unresolved |
+| `Unanswered` | Jira could not be asked | nothing, the token included |
+
+`Unlisted` and `Unanswered` both mean "nothing is known about the key", and an earlier draft of this
+change folded them into one null. That was wrong, and wrong in the direction this ADR exists to
+prevent: `Unlisted` **is** an answer, so it proves the token is live, and collapsing it into
+`Unanswered` sent a caller whose credential demonstrably works off to rotate it — #142's own defect
+in a quieter voice. It is not hypothetical. The comment guarding the branch was written for an
+instance at the 8.14 support floor whose enumeration may not carry a key, and
+`JiraClient.GetMyPermissionsAsync` produces the same empty map from a `200` with no `permissions`
+node at all.
+
+Under a `403` all three of `Absent`'s siblings behave as before, because ruling the token out is
+worth a sentence only where the token was under suspicion, and on a `403` it never was.
+
+`PermissionAdvice.Sentence` returns null for the two standings that have nothing to say about the
+key, and `JiraToolError.Refused` picks its opening from whether a sentence came back. A standing
+with no sentence therefore cannot borrow another standing's — the property the nullable flag left to
+a guard in a different file.
 
 ### The held branch's tail is keyed on the status
 

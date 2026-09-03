@@ -78,8 +78,8 @@ internal static class PermissionAdvice
         new(key, $"project {projectKey}", token => jira.GetMyPermissionsAsync(null, projectKey, token));
 
     /// <summary>
-    /// Asks Jira, and answers <see cref="PermissionAnswer.Held"/> of null where it could not be
-    /// asked. The lookup may not exist on the 8.14 support floor, may time out, and may itself be
+    /// Asks Jira, and answers a standing of <see cref="PermissionStanding.Unanswered"/> where it
+    /// could not be asked. The lookup may not exist on the 8.14 support floor, may time out, and may itself be
     /// refused — and a diagnostic that reports its own failure teaches nothing about the write while
     /// reading like a third failure. The caller's cancellation is the only budget: a separate
     /// timeout for a diagnostic would be policy nobody asked for.
@@ -99,8 +99,6 @@ internal static class PermissionAdvice
         PermissionClaim claim,
         CancellationToken cancellationToken)
     {
-        var unanswered = new PermissionAnswer(claim.Key, claim.Scope, Held: null, []);
-
         IReadOnlyDictionary<string, bool> held;
 
         try
@@ -112,20 +110,22 @@ internal static class PermissionAdvice
         catch (Exception exception) when (
             exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            return unanswered;
+            return new PermissionAnswer(claim.Key, claim.Scope, PermissionStanding.Unanswered, []);
         }
 
         // A key Jira did not answer for is not a key the account lacks: an older Jira may not know
-        // it at all, and reporting an absence there would invent a permission scheme.
+        // it at all, and reporting an absence there would invent a permission scheme. It is kept
+        // apart from the unanswered case even so, because Jira did answer — and under a 401 that
+        // answer is the whole proof that the token is live.
         if (!held.TryGetValue(claim.Key, out var hasClaimed))
         {
-            return unanswered;
+            return new PermissionAnswer(claim.Key, claim.Scope, PermissionStanding.Unlisted, []);
         }
 
         return new PermissionAnswer(
             claim.Key,
             claim.Scope,
-            hasClaimed,
+            hasClaimed ? PermissionStanding.Held : PermissionStanding.Absent,
             hasClaimed
                 ? [.. _writeKeys.Where(key => key != claim.Key
                                               && held.TryGetValue(key, out var has)
@@ -140,15 +140,22 @@ internal static class PermissionAdvice
     /// into an answer.
     /// </summary>
     /// <remarks>
-    /// Only for an answer Jira gave: an unanswered one has no sentence to write, and the caller
-    /// keeps the wording it had before the lookup existed.
+    /// Null where Jira said nothing about the claimed key, which is the caller's signal to keep the
+    /// wording it had before the lookup existed. Returning it rather than leaving the caller to
+    /// guard is what keeps a state with no sentence from silently borrowing another state's.
     /// </remarks>
-    public static string Sentence(PermissionAnswer answer, HttpStatusCode status) =>
-        answer.Held is true
-            ? Held(answer, status)
-            : $"The account does not have {answer.Key} on {answer.Scope}. That is the Jira "
-              + "permission this write claims, so a human with access to the project's permission "
-              + "scheme has to grant it before the write can succeed.";
+    public static string? Sentence(PermissionAnswer answer, HttpStatusCode status) =>
+        answer.Standing switch
+        {
+            PermissionStanding.Held => Held(answer, status),
+
+            PermissionStanding.Absent =>
+                $"The account does not have {answer.Key} on {answer.Scope}. That is the Jira "
+                + "permission this write claims, so a human with access to the project's "
+                + "permission scheme has to grant it before the write can succeed.",
+
+            _ => null,
+        };
 
     /// <summary>
     /// The branch where the account holds what it claimed, so the refusal is something else — and
@@ -197,27 +204,58 @@ internal sealed record PermissionClaim(
     Func<CancellationToken, Task<IReadOnlyDictionary<string, bool>>> LookUp);
 
 /// <summary>
-/// Jira's answer about one claim. <see cref="OtherMissing"/> is empty where the account lacks the
-/// claimed key: that answer is already complete, and listing more would bury it.
+/// What Jira said about the key one write claimed. <see cref="OtherMissing"/> is empty for every
+/// standing but <see cref="PermissionStanding.Held"/>: an account that lacks what it claimed has a
+/// complete answer already, and listing more would bury it.
 /// </summary>
 /// <remarks>
-/// <c>Held</c> is null where Jira could not be asked, and that third state is not the same as no
-/// answer object at all: this one says a write claimed a permission and this server failed to find
-/// out, where a null <see cref="PermissionAnswer"/> says a read claimed nothing. Under a <c>401</c>
-/// the two want different sentences.
+/// A null <see cref="PermissionAnswer"/> is a fifth thing and means a read, which claimed no
+/// permission at all. Under a <c>401</c> that read keeps the credential sentence, while every
+/// standing here says something a write's <c>401</c> needs and a read's does not.
 /// </remarks>
 internal sealed record PermissionAnswer(
     string Key,
     string Scope,
-    bool? Held,
+    PermissionStanding Standing,
     IReadOnlyList<string> OtherMissing)
 {
+    /// <summary>
+    /// Whether Jira answered the lookup at all — which is to say whether the personal access token
+    /// it travelled on is one Jira accepts. This, and not the standing, is what tells a refused
+    /// write apart from a revoked credential on a <c>401</c>: a Jira that answered without naming
+    /// the claimed key has still proved the token is live.
+    /// </summary>
+    public bool Answered => Standing is not PermissionStanding.Unanswered;
+
     /// <summary>
     /// What the structured half carries, and only on the absent branch (ADR-0009). Rule 3 promises
     /// structure on every result rather than a field for every sentence, and a field is added and
     /// never removed — so the narrow field keeps the wider one available, while the wider one could
-    /// not be taken back. An unanswered claim names nothing: a key nobody confirmed is not a key
-    /// the account is missing.
+    /// not be taken back. A key Jira never named is not a key the account is missing.
     /// </summary>
-    public string? Missing => Held is false ? Key : null;
+    public string? Missing => Standing is PermissionStanding.Absent ? Key : null;
+}
+
+/// <summary>
+/// What became of one claim's lookup. Four states rather than a nullable flag, because two of them
+/// mean "nothing is known about the key" for opposite reasons, and a <c>401</c> has to tell those
+/// two apart: one proves the token is live and the other proves nothing at all.
+/// </summary>
+internal enum PermissionStanding
+{
+    /// <summary>
+    /// Jira could not be asked — the endpoint may not exist on the 8.14 support floor, may have
+    /// timed out, and may itself have been refused. Nothing follows from this, the token included.
+    /// </summary>
+    Unanswered,
+
+    /// <summary>
+    /// Jira answered and its enumeration did not name the claimed key. Whether the account holds it
+    /// is unknown, but the answer arrived, so the token is not the problem.
+    /// </summary>
+    Unlisted,
+
+    Held,
+
+    Absent,
 }

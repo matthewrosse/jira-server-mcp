@@ -216,6 +216,27 @@ public sealed class PermissionAdviceProtocolTests : IAsyncLifetime
         Text(result).ShouldNotContain("read-only");
     }
 
+    /// <summary>
+    /// Jira answered the lookup and its enumeration did not carry the claimed key — what an older
+    /// instance may do, and what <c>JiraClient.GetMyPermissionsAsync</c> also produces from a 200
+    /// with no <c>permissions</c> node. The answer still proves the token is live, so the message
+    /// must not send the caller to mint a new one.
+    /// </summary>
+    [Fact]
+    public async Task A_401_whose_lookup_never_named_the_key_does_not_send_the_caller_to_log_in()
+    {
+        StubUpdate(401);
+        StubPermissions(("BROWSE_PROJECTS", true));
+
+        var result = await CallAsync("jira_update_issue", Update());
+
+        Text(result).ShouldContain("neither invalid nor revoked");
+        Text(result).ShouldNotContain("auth login");
+
+        // Nothing is known about the claim itself, so nothing is claimed about it.
+        Structured(result).TryGetProperty("missingPermission", out _).ShouldBeFalse();
+    }
+
     [Fact]
     public async Task A_read_refused_401_asks_nothing_because_a_read_claims_no_permission()
     {
