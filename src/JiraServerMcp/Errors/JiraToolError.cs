@@ -32,6 +32,28 @@ internal static class JiraToolError
         PermissionAnswer? permission = null) =>
         exception.StatusCode switch
         {
+            // A 401 is two different failures wearing one status: a token Jira will not accept, and
+            // — measured on 8.20.7 — a write refused for a missing Jira permission. The lookup is
+            // what tells them apart, because it travels on the same token: an answer arriving at
+            // all proves the credential is live (ADR-0013, amended).
+            HttpStatusCode.Unauthorized when permission is { Held: not null } =>
+                Assembled(Refused(operation, exception, permission), advice, exception),
+
+            // A write claimed a permission and this server could not find out. The login command
+            // stays, because it is still the likelier cause and still the right first move; what
+            // changes is that it stops being asserted as the only one.
+            HttpStatusCode.Unauthorized when permission is not null =>
+                Assembled(
+                    $"The personal access token for profile '{profileName}' may be invalid or "
+                    + $"revoked — run 'jira-server-mcp auth login {profileName}' to store a new "
+                    + "one. Jira also answers 401 when it refuses a write for a missing Jira "
+                    + "permission, so if a new token fails the same way, check the account's "
+                    + "permissions on this project rather than the token.",
+                    advice,
+                    exception),
+
+            // A read, claiming nothing. There is no permission story to tell here, so this is the
+            // sentence it has always had, unhedged.
             HttpStatusCode.Unauthorized =>
                 Assembled(
                     $"The personal access token for profile '{profileName}' is invalid or "
@@ -100,13 +122,13 @@ internal static class JiraToolError
         string operation,
         JiraApiException exception,
         PermissionAnswer? permission) =>
-        permission is null
+        permission is not { Held: not null }
             ? $"Jira refused {operation}: the account this server is authenticated as does not "
               + $"have permission for it on {exception.Endpoint}. The request was not retried, "
               + "and repeating it will not help."
             : $"Jira refused {operation} on {exception.Endpoint}. The request was not retried, "
               + "and repeating it will not help.\n"
-              + PermissionAdvice.Sentence(permission);
+              + PermissionAdvice.Sentence(permission, exception.StatusCode);
 
     /// <summary>
     /// An endpoint naming one issue. The create metadata lives under the same path and names no

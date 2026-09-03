@@ -914,9 +914,18 @@ all, which is why every `ConfigurationException` exits `2` and why `serve` exits
 token where `auth status` exits `1` on the same condition: `serve` cannot start without one, and
 `auth status` was only ever asked to check.
 
-**`401` — the token is invalid or revoked.** Tools report which profile, and
-`jira-server-mcp auth status <profile>` says the same. There is nothing to retry: create a new
-token in Jira and run `jira-server-mcp auth login <profile>`.
+**`401` — usually the token, sometimes a refused write.** For a read, and for
+`jira-server-mcp auth status <profile>`, it means what it has always meant: the token is invalid or
+revoked, there is nothing to retry, and the fix is a new token in Jira followed by
+`jira-server-mcp auth login <profile>`.
+
+For a *write* it is ambiguous, because on 8.20.7 a write refused for a missing Jira permission also
+answers `401` — an issue link is the one measured to do it. So a refused write asks Jira which
+permissions the account holds, on the same token, and that answer is what separates the two: a token
+Jira has revoked cannot read the permission list either, so a list coming back at all proves the
+credential is live. Where it comes back, the message names the permission instead of sending you to
+mint a token that would fail the same way. Where it does not, the message still points at
+`auth login` first and names the other cause beside it rather than asserting one (ADR-0013).
 
 **`403` — Jira refused the operation.** The message names the operation and the endpoint. Where the
 refusal was a *write*, it also names the Jira permission that write claims — `EDIT_ISSUES`,
@@ -929,9 +938,9 @@ promise that the next write will succeed (ADR-0013). Check which account it is w
 then take the permission key to whoever administers the project.
 
 Be aware that on Jira Server most missing permissions never reach a `403` at all. Measured on
-8.20.7: a comment, a worklog, an edit, a create and a transition are all refused with a `400`, and
-an issue link with a `401`. Only an attachment and a remote link answer `403`. ADR-0013 has the
-table.
+8.20.7: a comment, a worklog, an edit, a create and a transition are all refused with a `400`, which
+carries Jira's own words but no permission key. Only an attachment and a remote link answer `403`,
+and an issue link answers `401` — see above. ADR-0013 has the table.
 
 **`404` — which means two different things.** Jira answers `404` both when something does not
 exist and when it exists but your account cannot see it, and it does not distinguish them. So a

@@ -134,6 +134,106 @@ public sealed class PermissionAdviceProtocolTests : IAsyncLifetime
         Paths().ShouldNotContain(Endpoint);
     }
 
+    /// <summary>
+    /// The refusal #142 was filed for. A link refused for a missing Jira permission answers 401 on
+    /// 8.20.7 — the same status a revoked token answers — and the lookup is what tells the two
+    /// apart: it is made with the same token, so an answer coming back at all proves the credential
+    /// is live. The write is a stand-in for the link here; the gate is on the status and the claim,
+    /// not on the endpoint.
+    /// </summary>
+    [Fact]
+    public async Task A_401_that_is_a_refusal_names_the_permission_instead_of_the_login_command()
+    {
+        StubUpdate(401);
+        StubPermissions(("EDIT_ISSUES", false));
+
+        var result = await CallAsync("jira_update_issue", Update());
+
+        Text(result).ShouldContain("EDIT_ISSUES");
+        Text(result).ShouldContain("does not have");
+
+        // The whole defect: an unattended loop told to mint a token burns a credential rotation on
+        // a permission problem.
+        Text(result).ShouldNotContain("auth login");
+
+        Asked().ShouldContain("issueKey=PROJ-42");
+    }
+
+    [Fact]
+    public async Task A_401_that_is_a_refusal_carries_the_permission_as_a_field_too()
+    {
+        StubUpdate(401);
+        StubPermissions(("EDIT_ISSUES", false));
+
+        var structured = Structured(await CallAsync("jira_update_issue", Update()));
+
+        structured.GetProperty("missingPermission").GetString().ShouldBe("EDIT_ISSUES");
+        structured.GetProperty("statusCode").GetInt32().ShouldBe(401);
+    }
+
+    /// <summary>
+    /// The token really is revoked. It cannot read <c>mypermissions</c> either, so the lookup
+    /// answers nothing and the message falls back — still naming the login command, because that is
+    /// still the right first move, and now also naming the other cause rather than asserting one.
+    /// </summary>
+    [Fact]
+    public async Task A_401_nobody_could_ask_about_still_names_the_login_command_and_the_other_cause()
+    {
+        StubUpdate(401);
+
+        _seam.Jira.Given(Request.Create().WithPath(Endpoint).UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(401));
+
+        var result = await CallAsync("jira_update_issue", Update());
+
+        Text(result).ShouldContain("jira-server-mcp auth login work");
+        Text(result).ShouldContain("missing Jira permission");
+        Text(result).ShouldNotContain("EDIT_ISSUES");
+
+        // A diagnostic that reports its own failure teaches nothing about the write (ADR-0013).
+        Text(result).ShouldNotContain("mypermissions");
+        Structured(result).TryGetProperty("missingPermission", out _).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Both causes ruled out at once, which is the one genuinely new sentence this change makes: the
+    /// lookup answered, so the token is live, and it answered "held", so the permission is not it
+    /// either. Without this an agent has nothing to stop it looping on <c>auth login</c>.
+    /// </summary>
+    [Fact]
+    public async Task A_401_where_the_account_holds_the_permission_rules_out_the_token_as_well()
+    {
+        StubUpdate(401);
+        StubPermissions(("EDIT_ISSUES", true), ("ASSIGN_ISSUES", false));
+
+        var result = await CallAsync("jira_update_issue", Update());
+
+        Text(result).ShouldContain("does have EDIT_ISSUES");
+        Text(result).ShouldContain("neither invalid nor revoked");
+
+        // The 403 tail names causes that are 403's alone; saying them under a 401 would be the same
+        // defect this issue exists to fix, one status code along.
+        Text(result).ShouldNotContain("read-only");
+    }
+
+    [Fact]
+    public async Task A_read_refused_401_asks_nothing_because_a_read_claims_no_permission()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/search").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(401));
+
+        StubPermissions(("BROWSE_PROJECTS", false));
+
+        var result = await CallAsync(
+            "jira_search",
+            new Dictionary<string, object?> { ["jql"] = "project = PROJ" });
+
+        Paths().ShouldNotContain(Endpoint);
+
+        // The sentence a read has always had, unhedged: there is no permission story to tell here.
+        Text(result).ShouldContain("is invalid or revoked");
+    }
+
     private static Dictionary<string, object?> Update() =>
         new()
         {

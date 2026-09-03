@@ -1,3 +1,4 @@
+using System.Net;
 using JiraServerMcp.Jira;
 
 namespace JiraServerMcp.Errors;
@@ -77,16 +78,29 @@ internal static class PermissionAdvice
         new(key, $"project {projectKey}", token => jira.GetMyPermissionsAsync(null, projectKey, token));
 
     /// <summary>
-    /// Asks Jira, and answers null where it could not be asked. The lookup may not exist on the
-    /// 8.14 support floor, may time out, and may itself be refused — and a diagnostic that reports
-    /// its own failure teaches nothing about the write while reading like a third failure. The
-    /// caller's cancellation is the only budget: a separate timeout for a diagnostic would be
-    /// policy nobody asked for.
+    /// Asks Jira, and answers <see cref="PermissionAnswer.Held"/> of null where it could not be
+    /// asked. The lookup may not exist on the 8.14 support floor, may time out, and may itself be
+    /// refused — and a diagnostic that reports its own failure teaches nothing about the write while
+    /// reading like a third failure. The caller's cancellation is the only budget: a separate
+    /// timeout for a diagnostic would be policy nobody asked for.
     /// </summary>
-    public static async Task<PermissionAnswer?> AskAsync(
+    /// <remarks>
+    /// An answer is always returned, because a claim was always made by the time this is called —
+    /// which is what lets a null <see cref="PermissionAnswer"/> mean "a read, claiming nothing"
+    /// while an unanswered one means "a write, and this server could not find out". Under a
+    /// <c>401</c> those two want different sentences, and under a <c>403</c> the unanswered one
+    /// wants the sentence this server has always used.
+    ///
+    /// The lookup travels on the same personal access token as the write, which is why it is its own
+    /// discriminator: a token Jira has revoked cannot read <c>mypermissions</c> either, so an answer
+    /// arriving at all proves the credential is live (ADR-0013, amended).
+    /// </remarks>
+    public static async Task<PermissionAnswer> AskAsync(
         PermissionClaim claim,
         CancellationToken cancellationToken)
     {
+        var unanswered = new PermissionAnswer(claim.Key, claim.Scope, Held: null, []);
+
         IReadOnlyDictionary<string, bool> held;
 
         try
@@ -98,14 +112,14 @@ internal static class PermissionAdvice
         catch (Exception exception) when (
             exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            return null;
+            return unanswered;
         }
 
         // A key Jira did not answer for is not a key the account lacks: an older Jira may not know
         // it at all, and reporting an absence there would invent a permission scheme.
         if (!held.TryGetValue(claim.Key, out var hasClaimed))
         {
-            return null;
+            return unanswered;
         }
 
         return new PermissionAnswer(
@@ -125,20 +139,50 @@ internal static class PermissionAdvice
     /// scope, because that is what turns a create refused for <c>ASSIGN_ISSUES</c> from a dead end
     /// into an answer.
     /// </summary>
-    public static string Sentence(PermissionAnswer answer) =>
-        answer.Held
-            ? answer.OtherMissing.Count is 0
-                ? $"The account does have {answer.Key} on {answer.Scope}, and every other write "
-                  + "permission this server can claim there, so a missing permission is not the "
-                  + "reason. Jira also answers 403 for an instance in read-only or maintenance "
-                  + "mode and for a throttled login."
-                : $"The account does have {answer.Key} on {answer.Scope}, so a missing permission "
-                  + "is not the reason for this refusal. It does not have "
-                  + $"{string.Join(", ", answer.OtherMissing)} there, which is what would refuse a "
-                  + "write that claims one of those."
+    /// <remarks>
+    /// Only for an answer Jira gave: an unanswered one has no sentence to write, and the caller
+    /// keeps the wording it had before the lookup existed.
+    /// </remarks>
+    public static string Sentence(PermissionAnswer answer, HttpStatusCode status) =>
+        answer.Held is true
+            ? Held(answer, status)
             : $"The account does not have {answer.Key} on {answer.Scope}. That is the Jira "
               + "permission this write claims, so a human with access to the project's permission "
               + "scheme has to grant it before the write can succeed.";
+
+    /// <summary>
+    /// The branch where the account holds what it claimed, so the refusal is something else — and
+    /// what that something else can be depends on the status.
+    /// </summary>
+    /// <remarks>
+    /// The <c>403</c> tail names causes that belong to <c>403</c> alone, so writing it under a
+    /// <c>401</c> would state a falsehood in place of the one this change removes. The <c>401</c>
+    /// tail is the useful half of the same thought and hangs off both branches rather than only the
+    /// one, because ruling the token out is the whole reason a <c>401</c> reaches here at all.
+    /// </remarks>
+    private static string Held(PermissionAnswer answer, HttpStatusCode status)
+    {
+        var opening = answer.OtherMissing.Count is 0
+            ? $"The account does have {answer.Key} on {answer.Scope}, and every other write "
+              + "permission this server can claim there, so a missing permission is not the reason."
+            : $"The account does have {answer.Key} on {answer.Scope}, so a missing permission "
+              + "is not the reason for this refusal. It does not have "
+              + $"{string.Join(", ", answer.OtherMissing)} there, which is what would refuse a "
+              + "write that claims one of those.";
+
+        if (status is HttpStatusCode.Unauthorized)
+        {
+            return opening
+                   + " The lookup that answered was made with this same token, so the token is "
+                   + "neither invalid nor revoked.";
+        }
+
+        return answer.OtherMissing.Count is 0
+            ? opening
+              + " Jira also answers 403 for an instance in read-only or maintenance mode and for a "
+              + "throttled login."
+            : opening;
+    }
 }
 
 /// <summary>
@@ -156,17 +200,24 @@ internal sealed record PermissionClaim(
 /// Jira's answer about one claim. <see cref="OtherMissing"/> is empty where the account lacks the
 /// claimed key: that answer is already complete, and listing more would bury it.
 /// </summary>
+/// <remarks>
+/// <c>Held</c> is null where Jira could not be asked, and that third state is not the same as no
+/// answer object at all: this one says a write claimed a permission and this server failed to find
+/// out, where a null <see cref="PermissionAnswer"/> says a read claimed nothing. Under a <c>401</c>
+/// the two want different sentences.
+/// </remarks>
 internal sealed record PermissionAnswer(
     string Key,
     string Scope,
-    bool Held,
+    bool? Held,
     IReadOnlyList<string> OtherMissing)
 {
     /// <summary>
     /// What the structured half carries, and only on the absent branch (ADR-0009). Rule 3 promises
     /// structure on every result rather than a field for every sentence, and a field is added and
     /// never removed — so the narrow field keeps the wider one available, while the wider one could
-    /// not be taken back.
+    /// not be taken back. An unanswered claim names nothing: a key nobody confirmed is not a key
+    /// the account is missing.
     /// </summary>
-    public string? Missing => Held ? null : Key;
+    public string? Missing => Held is false ? Key : null;
 }

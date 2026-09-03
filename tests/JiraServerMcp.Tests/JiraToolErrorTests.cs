@@ -279,10 +279,104 @@ public sealed class JiraToolErrorTests
         message.ShouldNotContain("<jira-data");
     }
 
-    private static string Refused(PermissionAnswer? permission) =>
+    /// <summary>
+    /// The defect #142 was filed for. A write refused for a missing Jira permission answers 401 on
+    /// 8.20.7, and the credential sentence sent the caller to mint a token that would fail the same
+    /// way. The lookup answering at all is what proves the token is live.
+    /// </summary>
+    [Fact]
+    public void A_401_that_is_a_refusal_reads_as_one_rather_than_as_a_credential_problem()
+    {
+        var message = Refused(
+            new PermissionAnswer("LINK_ISSUES", "ABC-1", Held: false, []),
+            HttpStatusCode.Unauthorized);
+
+        message.ShouldContain("does not have LINK_ISSUES on ABC-1");
+        message.ShouldNotContain("auth login");
+    }
+
+    [Fact]
+    public void A_401_the_account_could_write_through_rules_out_the_token_as_well()
+    {
+        var message = Refused(
+            new PermissionAnswer("LINK_ISSUES", "ABC-1", Held: true, []),
+            HttpStatusCode.Unauthorized);
+
+        message.ShouldContain("neither invalid nor revoked");
+
+        // Read-only mode and throttling are 403's causes. Naming them under a 401 would be this
+        // issue's own defect one status code along.
+        message.ShouldNotContain("read-only");
+    }
+
+    /// <summary>
+    /// The clause hangs off both held branches under a 401, unlike the 403 tail, because ruling the
+    /// token out is the whole reason this arm exists.
+    /// </summary>
+    [Fact]
+    public void A_401_the_account_could_write_through_rules_the_token_out_beside_what_it_lacks_too()
+    {
+        var message = Refused(
+            new PermissionAnswer("LINK_ISSUES", "ABC-1", Held: true, ["ASSIGN_ISSUES"]),
+            HttpStatusCode.Unauthorized);
+
+        message.ShouldContain("ASSIGN_ISSUES");
+        message.ShouldContain("neither invalid nor revoked");
+    }
+
+    [Fact]
+    public void A_403_the_account_could_write_through_still_names_the_causes_that_are_403s()
+    {
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: true, []));
+
+        message.ShouldContain("read-only");
+        message.ShouldNotContain("neither invalid nor revoked");
+    }
+
+    /// <summary>
+    /// A revoked token cannot read <c>mypermissions</c> either, so this is the shape a genuinely
+    /// revoked one takes on a write. The login command stays — it is still the right first move —
+    /// and the other cause is named beside it rather than the first being asserted alone.
+    /// </summary>
+    [Fact]
+    public void A_401_whose_lookup_answered_nothing_names_both_causes_rather_than_asserting_one()
+    {
+        var message = Refused(
+            new PermissionAnswer("LINK_ISSUES", "ABC-1", Held: null, []),
+            HttpStatusCode.Unauthorized);
+
+        message.ShouldContain("jira-server-mcp auth login work");
+        message.ShouldContain("missing Jira permission");
+
+        // A diagnostic that reports its own failure teaches nothing about the write (ADR-0013), and
+        // a key nobody could confirm is not a key to name.
+        message.ShouldNotContain("LINK_ISSUES");
+    }
+
+    [Fact]
+    public void A_401_that_claimed_no_permission_says_exactly_what_it_always_said()
+    {
+        var message = Describe(HttpStatusCode.Unauthorized, "/rest/api/2/myself");
+
+        message.ShouldContain("is invalid or revoked");
+        message.ShouldNotContain("missing Jira permission");
+    }
+
+    [Fact]
+    public void A_403_whose_lookup_answered_nothing_says_exactly_what_it_always_said()
+    {
+        var message = Refused(new PermissionAnswer("EDIT_ISSUES", "ABC-1", Held: null, []));
+
+        message.ShouldContain("does not have permission for it on");
+        message.ShouldNotContain("EDIT_ISSUES");
+    }
+
+    private static string Refused(
+        PermissionAnswer? permission,
+        HttpStatusCode status = HttpStatusCode.Forbidden) =>
         JiraToolError.Describe(
             new JiraApiException(
-                HttpStatusCode.Forbidden,
+                status,
                 "/rest/api/2/issue/ABC-1",
                 [],
                 new Dictionary<string, string>()),
