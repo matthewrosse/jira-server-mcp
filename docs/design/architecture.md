@@ -199,6 +199,12 @@ Invalidation therefore surfaces as a `401`, and the response an agent gets must 
 
 The same message is produced by `auth status`, which validates without printing anything secret.
 
+A `401` on a **write** is not read this way, because on Jira Server a write refused for a missing
+Jira permission answers `401` too. Such a refusal asks Jira which permissions the account holds, on
+the same token, and an answer of any kind proves the credential is live — so the message names the
+permission, or at least rules the token out, rather than sending an agent to rotate a working
+credential. See ADR-0013 and its 2026-09-03 amendment.
+
 ### Credential storage
 
 `ICredentialStore` with `Get`, `Set`, `Delete`, and `Describe`, selected at runtime and
