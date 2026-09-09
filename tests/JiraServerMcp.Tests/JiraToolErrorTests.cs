@@ -333,6 +333,45 @@ public sealed class JiraToolErrorTests
         message.ShouldNotContain("neither invalid nor revoked");
     }
 
+    [Fact]
+    public void A_400_confirmed_absent_names_the_permission_without_403_specific_prose()
+    {
+        var message = Refused(
+            new PermissionAnswer("ADD_COMMENTS", "ABC-1", PermissionStanding.Absent, []),
+            HttpStatusCode.BadRequest);
+
+        message.ShouldContain("does not have ADD_COMMENTS on ABC-1");
+        message.ShouldNotContain("read-only");
+    }
+
+    [Fact]
+    public void A_400_confirmed_held_says_so_without_borrowing_the_403_tail()
+    {
+        var message = Refused(
+            new PermissionAnswer("WORK_ON_ISSUES", "ABC-1", PermissionStanding.Held, []),
+            HttpStatusCode.BadRequest);
+
+        message.ShouldContain("does have WORK_ON_ISSUES on ABC-1");
+        message.ShouldNotContain("read-only");
+        message.ShouldNotContain("neither invalid nor revoked");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void An_unresolved_400_keeps_the_prior_failure_wording(bool jiraAnswered)
+    {
+        var standing = jiraAnswered
+            ? PermissionStanding.Unlisted
+            : PermissionStanding.Unanswered;
+        var message = Refused(
+            new PermissionAnswer("ADD_COMMENTS", "ABC-1", standing, []),
+            HttpStatusCode.BadRequest);
+
+        message.ShouldContain("updating ABC-1 failed");
+        message.ShouldNotContain("ADD_COMMENTS");
+    }
+
     /// <summary>
     /// A revoked token cannot read <c>mypermissions</c> either, so this is the shape a genuinely
     /// revoked one takes on a write. The login command stays — it is still the right first move —

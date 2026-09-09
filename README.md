@@ -938,9 +938,14 @@ promise that the next write will succeed (ADR-0013). Check which account it is w
 then take the permission key to whoever administers the project.
 
 Be aware that on Jira Server most missing permissions never reach a `403` at all. Measured on
-8.20.7: a comment, a worklog, an edit, a create and a transition are all refused with a `400`, which
-carries Jira's own words but no permission key. Only an attachment and a remote link answer `403`,
-and an issue link answers `401` — see above. ADR-0013 has the table.
+8.20.7: a comment and a worklog are refused with a `400`; those two paths perform the same
+post-refusal permission diagnosis and name `ADD_COMMENTS` or `WORK_ON_ISSUES` only when Jira
+confirms it absent. An edit and a create answer with field errors indistinguishable in shape from
+ordinary validation, so they perform no lookup: the message preserves the screen guidance and
+names `EDIT_ISSUES` or `CREATE_ISSUES` only as something to investigate when the screen says the
+field should be writable. A missing transition permission publishes an empty transition list; that
+local refusal is diagnosed, but no HTTP status is invented. Only an attachment and a remote link
+answer `403`, and an issue link answers `401` — see above. ADR-0013 has the full table and decision.
 
 **`404` — which means two different things.** Jira answers `404` both when something does not
 exist and when it exists but your account cannot see it, and it does not distinguish them. So a

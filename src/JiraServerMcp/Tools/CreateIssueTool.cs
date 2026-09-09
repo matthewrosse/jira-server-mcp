@@ -113,9 +113,24 @@ internal sealed class CreateIssueTool(
                 ? $"Call jira_get_create_fields with projectKey '{projectKey}' and issueType "
                   + $"'{issueType}' for the fields this project requires and the values they "
                   + "accept."
+                  + PermissionPossibility(exception)
                   + FieldAliasAdvice.From(aliases)
                 : null,
             permission);
+
+    /// <summary>
+    /// A missing create permission and ordinary field validation have the same field-error shape
+    /// on Jira Server 8.20.7. The screen remains the first fact to inspect, and only a field the
+    /// screen says is writable makes the permission worth investigating. Nothing here claims the
+    /// permission is missing, because no lookup is made on this dominant validation path.
+    /// </summary>
+    private static string PermissionPossibility(JiraApiException exception) =>
+        exception.FieldErrors.Count is 0
+            ? string.Empty
+            : " Jira Server can return the same field-shaped refusal when the account lacks "
+              + $"{PermissionAdvice.CreateIssues}. If jira_get_create_fields says a refused field "
+              + "should be writable, investigate that Jira permission with whoever administers "
+              + "the project.";
 
 
     /// <summary>

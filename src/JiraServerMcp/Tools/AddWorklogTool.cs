@@ -111,6 +111,7 @@ internal sealed class AddWorklogTool(
                 return new Written(rendered, $"worklog {logged.Id} on {key}");
             },
             cancellationToken,
-            claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.WorkOnIssues, key));
+            claim: PermissionAdvice.OnIssue(
+                jira, PermissionAdvice.WorkOnIssues, key, diagnoseBadRequest: true));
     }
 }

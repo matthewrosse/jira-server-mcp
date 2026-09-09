@@ -33,9 +33,11 @@ internal static class ToolCall
     /// say, such as where to look after a rejected create.
     ///
     /// <c>claim</c> is the Jira permission a write claims, which only a write passes. Where Jira
-    /// answers <c>403</c> or <c>401</c> it is looked up — after the refusal, never before — and the
-    /// answer is handed to the formatter and to <c>describeApiFailure</c> alike, so that a tool with
-    /// its own wording still says why. See <see cref="PermissionAdvice"/> and ADR-0013.
+    /// answers <c>403</c> or <c>401</c> it is looked up — after the refusal, never before. A claim
+    /// may also opt into diagnosis after a <c>400</c>, which only comment and worklog do because
+    /// their obvious validation failures are refused locally. The answer is handed to the
+    /// formatter and to <c>describeApiFailure</c> alike, so that a tool with its own wording still
+    /// says why. See <see cref="PermissionAdvice"/> and ADR-0013.
     /// </remarks>
     public static async Task<CallToolResult> RunAsync(
         ServedProfile profile,
@@ -90,9 +92,10 @@ internal static class ToolCall
             // them without parsing anything: it travels on the same personal access token, so a
             // token Jira has revoked cannot answer it either (ADR-0013, amended). The cost is one
             // extra round trip before a genuinely revoked token is reported.
-            var permission =
-                exception.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized
-                && claim is not null
+            var permission = claim is not null
+                && (exception.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized
+                    || exception.StatusCode is HttpStatusCode.BadRequest
+                    && claim.DiagnoseBadRequest)
                     ? await PermissionAdvice.AskAsync(claim, cancellationToken)
                     : null;
 
@@ -152,6 +155,14 @@ internal static class ToolCall
     /// could not read, a key cap exceeded. Nothing was attempted, which is what the outcome says.
     /// </summary>
     public static CallToolResult Error(string text) => Failed(text, Outcomes.Refused);
+
+    /// <summary>
+    /// A local refusal whose diagnostic confirmed a missing Jira permission. There is no HTTP
+    /// status to invent: transition discovery succeeded and published an empty vocabulary, so the
+    /// outcome remains refused while the confirmed permission is still available as structure.
+    /// </summary>
+    public static CallToolResult Error(string text, string? missingPermission) =>
+        Failed(text, Outcomes.Refused, missingPermission: missingPermission);
 
     /// <summary>
     /// A refusal that carries the renderer's own structure — the bulk read's, whose shape must not

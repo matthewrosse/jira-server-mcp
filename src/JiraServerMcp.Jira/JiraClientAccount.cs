@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using JiraServerMcp.Jira.Capabilities;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
+using JiraServerMcp.Jira.Resilience;
 namespace JiraServerMcp.Jira;
 
 /// <summary>
@@ -53,8 +54,26 @@ public sealed partial class JiraClient
                 ? $"?projectKey={Uri.EscapeDataString(projectKey)}"
                 : string.Empty;
 
-        var answered = await GetAsync<JiraMyPermissions>(
-            $"rest/api/2/mypermissions{scope}", cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"rest/api/2/mypermissions{scope}");
+
+        // This is a diagnostic after a write already failed. It is safe in the HTTP sense, but
+        // issue #148 bounds the diagnosis itself to one lookup, and retrying it would hide two
+        // more round trips behind the one call PermissionAdvice made.
+        request.Options.Set(JiraRequestOptions.NoRetry, true);
+
+        using var response = await httpClient
+            .SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        await JiraResponse.EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var answered = await response.Content
+            .ReadFromJsonAsync<JiraMyPermissions>(cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                "Jira returned an empty body for /rest/api/2/mypermissions.");
 
         return answered.Permissions?.ToDictionary(
                    entry => entry.Key,

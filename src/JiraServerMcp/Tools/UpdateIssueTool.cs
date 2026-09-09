@@ -3,6 +3,7 @@ using System.Net;
 using System.Text.Json;
 using JiraServerMcp.Errors;
 using JiraServerMcp.Jira;
+using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
 using JiraServerMcp.Rendering;
@@ -128,7 +129,8 @@ internal sealed class UpdateIssueTool(
                 advice: exception.StatusCode is HttpStatusCode.BadRequest
                     ? "Call jira_get_edit_fields for the identifiers this issue's fields have, "
                       + "which of them it will accept, and which operations — set, add, remove — "
-                      + "each publishes." + FieldAliasAdvice.From(aliases)
+                      + "each publishes." + PermissionPossibility(exception)
+                      + FieldAliasAdvice.From(aliases)
                       + AssigneeAdvice(assignee)
                     : null,
                 permission),
@@ -139,6 +141,19 @@ internal sealed class UpdateIssueTool(
         ToolCall.Error(
             $"{collided} name the same field on {key}, and they were given different values, "
             + "so nothing was sent. Name it once — either by its alias or by its identifier.");
+
+    /// <summary>
+    /// Jira Server 8.20.7 gives a missing edit permission the same field-error shape as ordinary
+    /// validation. The edit screen can rule the field explanation in or out; this tool does not
+    /// turn that ambiguity into a permission assertion or a diagnostic round trip.
+    /// </summary>
+    private static string PermissionPossibility(JiraApiException exception) =>
+        exception.FieldErrors.Count is 0
+            ? string.Empty
+            : " Jira Server can return the same field-shaped refusal when the account lacks "
+              + $"{PermissionAdvice.EditIssues}. If jira_get_edit_fields says a refused field "
+              + "should be writable, investigate that Jira permission with whoever administers "
+              + "the project.";
 
     /// <summary>
     /// The two fields Jira does take through its update envelope and this server does not. Both

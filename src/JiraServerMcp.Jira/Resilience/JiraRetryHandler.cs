@@ -28,6 +28,11 @@ public sealed class JiraRetryHandler : DelegatingHandler
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
+        if (request.Options.TryGetValue(JiraRequestOptions.NoRetry, out var noRetry) && noRetry)
+        {
+            return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+
         // Only a read is safe to repeat. Everything else is surfaced the first time it fails.
         if (!IsSafeToRepeat(request))
         {

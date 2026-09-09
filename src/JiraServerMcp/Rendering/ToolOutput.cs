@@ -37,9 +37,11 @@ internal record ToolOutput
     /// <summary>
     /// The Jira permission key a refused write claimed and the account turned out not to hold —
     /// <c>EDIT_ISSUES</c>, bare, as the permission-scheme screen spells it. Present only on that
-    /// branch: not where the account holds it, not where Jira could not be asked, and never on a
-    /// failure that was not a <c>403</c>. A field is added and never removed, so the narrow field
-    /// keeps the wider one available while the wider one could not be taken back.
+    /// branch: not where the account holds it and not where Jira could not be asked. It may follow
+    /// a <c>401</c> or <c>403</c> refusal, the selected comment and worklog <c>400</c> paths, or an
+    /// empty transition list; it never appears merely because a failure looked permission-shaped.
+    /// A field is added and never removed, so the narrow field keeps the wider one available while
+    /// the wider one could not be taken back.
     /// </summary>
     [JsonPropertyOrder(-1)]
     [JsonPropertyName("missingPermission")]

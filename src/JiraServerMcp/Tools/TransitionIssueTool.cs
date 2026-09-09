@@ -69,6 +69,17 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
 
         var available = listed.Value;
 
+        if (available.Count is 0)
+        {
+            var permission = await PermissionAdvice.AskAsync(
+                PermissionAdvice.OnIssue(jira, PermissionAdvice.TransitionIssues, key),
+                cancellationToken);
+
+            return ToolCall.Error(
+                NoTransitions(key, transition, permission),
+                permission.Missing);
+        }
+
         // Jira lets one status offer two transitions of the same name — a global one and a local
         // one — going to different statuses. Picking either would move the issue somewhere the
         // agent did not ask for and report it as success, so the ambiguous case is a refusal.
@@ -147,12 +158,40 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
         string key,
         string transition,
         IReadOnlyList<JiraTransition> available) =>
-        available.Count is 0
-            ? $"'{transition}' is not a transition on {key}, and neither is anything else: this "
-              + "account cannot move that issue from the status it is in."
-            : UntrustedContent.Envelope(
-                $"'{transition}' is not a transition available on {key}. The ones that are follow.",
-                Listed(available));
+        UntrustedContent.Envelope(
+            $"'{transition}' is not a transition available on {key}. The ones that are follow.",
+            Listed(available));
+
+    /// <summary>
+    /// An empty published vocabulary is the only local transition refusal that asks about a Jira
+    /// permission. Where Jira did not answer the claim, the two genuine causes stay ambiguous;
+    /// where it did, only the claimed permission is discussed and unrelated missing permissions
+    /// are deliberately omitted.
+    /// </summary>
+    private static string NoTransitions(
+        string key,
+        string transition,
+        PermissionAnswer permission)
+    {
+        var opening =
+            $"'{transition}' is not a transition on {key}, and neither is anything else: Jira "
+            + "published no transition this account can use from the issue's current status.";
+
+        return permission.Standing switch
+        {
+            PermissionStanding.Absent =>
+                opening + $" The account does not have {permission.Key} on {permission.Scope}. "
+                + "That is the Jira permission this write claims, so a human with access to the "
+                + "project's permission scheme has to grant it before the issue can be moved.",
+            PermissionStanding.Held =>
+                opening + $" The account does have {permission.Key} on {permission.Scope}, so "
+                + "the issue's workflow or status conditions, rather than that permission, leave "
+                + "no transition available.",
+            _ =>
+                opening + " Jira Server does not distinguish here between workflow or status "
+                + $"conditions and an account that lacks {permission.Key}, so investigate both.",
+        };
+    }
 
     /// <summary>
     /// Two transitions of one name, which a workflow may legitimately offer. Naming their target

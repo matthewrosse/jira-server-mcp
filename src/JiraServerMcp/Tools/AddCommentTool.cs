@@ -74,6 +74,7 @@ internal sealed class AddCommentTool(
                 return new Written(rendered, $"comment {added.Id} on {key}");
             },
             cancellationToken,
-            claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.AddComments, key));
+            claim: PermissionAdvice.OnIssue(
+                jira, PermissionAdvice.AddComments, key, diagnoseBadRequest: true));
     }
 }
