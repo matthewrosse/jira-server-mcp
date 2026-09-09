@@ -68,8 +68,16 @@ internal static class PermissionAdvice
     /// project-scoped wherever a key exists: a scheme may grant Edit Issues to the current assignee
     /// or reporter, and only an issue-scoped evaluation honours that.
     /// </summary>
-    public static PermissionClaim OnIssue(JiraClient jira, string key, string issueKey) =>
-        new(key, issueKey, token => jira.GetMyPermissionsAsync(issueKey, null, token));
+    public static PermissionClaim OnIssue(
+        JiraClient jira,
+        string key,
+        string issueKey,
+        bool diagnoseBadRequest = false) =>
+        new(
+            key,
+            issueKey,
+            token => jira.GetMyPermissionsAsync(issueKey, null, token),
+            diagnoseBadRequest);
 
     /// <summary>
     /// What a create claimed. There is no issue yet, so the project is the only scope there is.
@@ -184,7 +192,7 @@ internal static class PermissionAdvice
                    + "neither invalid nor revoked.";
         }
 
-        return answer.OtherMissing.Count is 0
+        return status is HttpStatusCode.Forbidden && answer.OtherMissing.Count is 0
             ? opening
               + " Jira also answers 403 for an instance in read-only or maintenance mode and for a "
               + "throttled login."
@@ -201,7 +209,8 @@ internal static class PermissionAdvice
 internal sealed record PermissionClaim(
     string Key,
     string Scope,
-    Func<CancellationToken, Task<IReadOnlyDictionary<string, bool>>> LookUp);
+    Func<CancellationToken, Task<IReadOnlyDictionary<string, bool>>> LookUp,
+    bool DiagnoseBadRequest = false);
 
 /// <summary>
 /// What Jira said about the key one write claimed. <see cref="OtherMissing"/> is empty for every

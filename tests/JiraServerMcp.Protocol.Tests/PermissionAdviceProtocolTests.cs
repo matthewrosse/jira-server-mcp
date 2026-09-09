@@ -255,6 +255,326 @@ public sealed class PermissionAdviceProtocolTests : IAsyncLifetime
         Text(result).ShouldContain("is invalid or revoked");
     }
 
+    [Fact]
+    public async Task A_comment_400_confirmed_absent_names_one_permission_after_one_lookup()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
+            .RespondWith(JiraResponse.Json(
+                400,
+                """{"errorMessages":["words authored in Jira"],"errors":{}}"""));
+        StubPermissions(("ADD_COMMENTS", false));
+
+        var result = await CallAsync(
+            "jira_add_comment",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["body"] = "A non-empty comment",
+            },
+            "comments:write");
+
+        Text(result).ShouldContain("does not have ADD_COMMENTS on PROJ-42");
+        Structured(result).GetProperty("missingPermission").GetString()
+            .ShouldBe("ADD_COMMENTS");
+        Structured(result).GetProperty("statusCode").GetInt32().ShouldBe(400);
+        Asked().ShouldContain("issueKey=PROJ-42");
+
+        // Jira's useful words remain in the untrusted region after the trusted diagnosis.
+        var text = Text(result);
+        text.IndexOf("ADD_COMMENTS", StringComparison.Ordinal)
+            .ShouldBeLessThan(text.IndexOf("<jira-data", StringComparison.Ordinal));
+        text.ShouldContain("words authored in Jira");
+    }
+
+    [Fact]
+    public async Task A_worklog_400_with_the_permission_held_preserves_jiras_error()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/worklog").UsingPost())
+            .RespondWith(JiraResponse.Json(
+                400,
+                """{"errorMessages":["a useful worklog validation"],"errors":{}}"""));
+        StubPermissions(("WORK_ON_ISSUES", true));
+
+        var result = await CallAsync(
+            "jira_add_worklog",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["timeSpent"] = "1m",
+            },
+            "worklogs:write");
+
+        Text(result).ShouldContain("does have WORK_ON_ISSUES on PROJ-42");
+        Text(result).ShouldContain("a useful worklog validation");
+        Structured(result).TryGetProperty("missingPermission", out _).ShouldBeFalse();
+        Asked().ShouldContain("issueKey=PROJ-42");
+    }
+
+    [Fact]
+    public async Task An_unlisted_comment_permission_preserves_the_prior_400_wording()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/comment").UsingPost())
+            .RespondWith(JiraResponse.Json(
+                400,
+                """{"errorMessages":["the original refusal"],"errors":{}}"""));
+        StubPermissions(("BROWSE_PROJECTS", true));
+
+        var result = await CallAsync(
+            "jira_add_comment",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["body"] = "A non-empty comment",
+            },
+            "comments:write");
+
+        Text(result).ShouldContain("commenting on PROJ-42 failed");
+        Text(result).ShouldContain("the original refusal");
+        Text(result).ShouldNotContain("ADD_COMMENTS");
+        Structured(result).TryGetProperty("missingPermission", out _).ShouldBeFalse();
+        Asked().ShouldContain("issueKey=PROJ-42");
+    }
+
+    [Fact]
+    public async Task An_unanswered_worklog_lookup_preserves_the_prior_400_wording()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42/worklog").UsingPost())
+            .RespondWith(JiraResponse.Json(
+                400,
+                """{"errorMessages":["the original refusal"],"errors":{}}"""));
+        _seam.Jira.Given(Request.Create().WithPath(Endpoint).UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(500));
+
+        var result = await CallAsync(
+            "jira_add_worklog",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["timeSpent"] = "1m",
+            },
+            "worklogs:write");
+
+        Text(result).ShouldContain("logging work against PROJ-42 failed");
+        Text(result).ShouldContain("the original refusal");
+        Text(result).ShouldNotContain("WORK_ON_ISSUES");
+        Text(result).ShouldNotContain("mypermissions");
+        Structured(result).TryGetProperty("missingPermission", out _).ShouldBeFalse();
+        Asked().ShouldContain("issueKey=PROJ-42");
+    }
+
+    [Fact]
+    public async Task A_create_field_400_names_the_permission_as_a_possibility_without_asking()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(JiraResponse.Json(
+                400,
+                """{"errorMessages":[],"errors":{"summary":"not on the appropriate screen"}}"""));
+        StubPermissions(("CREATE_ISSUES", false));
+
+        var result = await CallAsync(
+            "jira_create_issue",
+            new Dictionary<string, object?>
+            {
+                ["projectKey"] = "PROJ",
+                ["issueType"] = "Bug",
+                ["summary"] = "A valid summary",
+            });
+
+        Text(result).ShouldContain("jira_get_create_fields");
+        Text(result).ShouldContain("can return the same field-shaped refusal");
+        Text(result).ShouldContain("CREATE_ISSUES");
+        Text(result).ShouldContain("should be writable");
+        Paths().ShouldNotContain(Endpoint);
+        Structured(result).TryGetProperty("missingPermission", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task An_edit_field_400_keeps_assignability_advice_and_asks_no_permission()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingPut())
+            .RespondWith(JiraResponse.Json(
+                400,
+                """{"errorMessages":[],"errors":{"assignee":"not on the appropriate screen"}}"""));
+        StubPermissions(("EDIT_ISSUES", false));
+
+        var result = await CallAsync(
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["assignee"] = "jbloggs",
+            });
+
+        Text(result).ShouldContain("jira_get_edit_fields");
+        Text(result).ShouldContain("EDIT_ISSUES");
+        Text(result).ShouldContain("jira_search_users");
+        Text(result).ShouldNotContain("ASSIGN_ISSUES");
+        Paths().ShouldNotContain(Endpoint);
+        Structured(result).TryGetProperty("missingPermission", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task A_bare_create_400_keeps_its_old_guidance_without_permission_prose()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue").UsingPost())
+            .RespondWith(Response.Create().WithStatusCode(400));
+
+        var result = await CallAsync(
+            "jira_create_issue",
+            new Dictionary<string, object?>
+            {
+                ["projectKey"] = "PROJ",
+                ["issueType"] = "Bug",
+                ["summary"] = "A valid summary",
+            });
+
+        Text(result).ShouldContain("jira_get_create_fields");
+        Text(result).ShouldNotContain("CREATE_ISSUES");
+        Paths().ShouldNotContain(Endpoint);
+    }
+
+    [Fact]
+    public async Task A_bare_edit_400_keeps_its_old_guidance_without_permission_prose()
+    {
+        _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingPut())
+            .RespondWith(Response.Create().WithStatusCode(400));
+
+        var result = await CallAsync(
+            "jira_update_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["fields"] = new Dictionary<string, object?> { ["summary"] = "Renamed" },
+            });
+
+        Text(result).ShouldContain("jira_get_edit_fields");
+        Text(result).ShouldNotContain("EDIT_ISSUES");
+        Paths().ShouldNotContain(Endpoint);
+    }
+
+    [Fact]
+    public async Task An_empty_transition_list_confirmed_absent_is_a_structured_local_refusal()
+    {
+        StubTransitions("""{"transitions":[]}""");
+        StubPermissions(("TRANSITION_ISSUES", false));
+
+        var result = await CallAsync(
+            "jira_transition_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["transition"] = "Done",
+            });
+
+        Text(result).ShouldContain("does not have TRANSITION_ISSUES on PROJ-42");
+        var structured = Structured(result);
+        structured.GetProperty("outcome").GetString().ShouldBe("refused");
+        structured.GetProperty("missingPermission").GetString().ShouldBe("TRANSITION_ISSUES");
+        structured.TryGetProperty("statusCode", out _).ShouldBeFalse();
+        Asked().ShouldContain("issueKey=PROJ-42");
+        Paths().Count(path => path.EndsWith("/transitions", StringComparison.Ordinal)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task An_empty_transition_list_with_permission_held_keeps_the_workflow_explanation()
+    {
+        StubTransitions("""{"transitions":[]}""");
+        StubPermissions(("TRANSITION_ISSUES", true), ("EDIT_ISSUES", false));
+
+        var result = await CallAsync(
+            "jira_transition_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["transition"] = "Done",
+            });
+
+        Text(result).ShouldContain("does have TRANSITION_ISSUES");
+        Text(result).ShouldContain("workflow or status conditions");
+        Text(result).ShouldNotContain("EDIT_ISSUES");
+        Structured(result).TryGetProperty("missingPermission", out _).ShouldBeFalse();
+        Asked().ShouldContain("issueKey=PROJ-42");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task An_unresolved_empty_transition_list_names_only_the_two_possible_causes(
+        bool jiraAnswered)
+    {
+        StubTransitions("""{"transitions":[]}""");
+
+        if (jiraAnswered)
+        {
+            StubPermissions(("BROWSE_PROJECTS", true));
+        }
+        else
+        {
+            _seam.Jira.Given(Request.Create().WithPath(Endpoint).UsingGet())
+                .RespondWith(Response.Create().WithStatusCode(500));
+        }
+
+        var result = await CallAsync(
+            "jira_transition_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["transition"] = "Done",
+            });
+
+        Text(result).ShouldContain("workflow or status conditions");
+        Text(result).ShouldContain("lacks TRANSITION_ISSUES");
+        Text(result).ShouldNotContain("does not have TRANSITION_ISSUES");
+        Text(result).ShouldNotContain("mypermissions");
+        Structured(result).TryGetProperty("missingPermission", out _).ShouldBeFalse();
+        Asked().ShouldContain("issueKey=PROJ-42");
+    }
+
+    [Fact]
+    public async Task A_published_transition_with_an_unmatched_name_asks_no_permission()
+    {
+        StubTransitions(
+            """{"transitions":[{"id":"21","name":"Start Progress","to":{"name":"In Progress"}}]}""");
+        StubPermissions(("TRANSITION_ISSUES", false));
+
+        var result = await CallAsync(
+            "jira_transition_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["transition"] = "Done",
+            });
+
+        Text(result).ShouldContain("Start Progress");
+        Paths().ShouldNotContain(Endpoint);
+    }
+
+    [Fact]
+    public async Task Published_ambiguous_transitions_ask_no_permission()
+    {
+        StubTransitions(
+            """
+            {
+              "transitions": [
+                {"id":"21","name":"Done","to":{"name":"Closed"}},
+                {"id":"31","name":"Done","to":{"name":"Resolved"}}
+              ]
+            }
+            """);
+        StubPermissions(("TRANSITION_ISSUES", false));
+
+        var result = await CallAsync(
+            "jira_transition_issue",
+            new Dictionary<string, object?>
+            {
+                ["key"] = "PROJ-42",
+                ["transition"] = "Done",
+            });
+
+        Text(result).ShouldContain("names 2 different transitions");
+        Paths().ShouldNotContain(Endpoint);
+    }
+
     private static Dictionary<string, object?> Update() =>
         new()
         {
@@ -265,6 +585,11 @@ public sealed class PermissionAdviceProtocolTests : IAsyncLifetime
     private void StubUpdate(int status) =>
         _seam.Jira.Given(Request.Create().WithPath("/rest/api/2/issue/PROJ-42").UsingPut())
             .RespondWith(Response.Create().WithStatusCode(status));
+
+    private void StubTransitions(string payload) =>
+        _seam.Jira.Given(
+                Request.Create().WithPath("/rest/api/2/issue/PROJ-42/transitions").UsingGet())
+            .RespondWith(JiraResponse.Json(200, payload));
 
     /// <summary>
     /// Jira Server answers with its whole enumeration whatever is asked for — there is no
@@ -311,9 +636,11 @@ public sealed class PermissionAdviceProtocolTests : IAsyncLifetime
 
     private async Task<CallToolResult> CallAsync(
         string tool,
-        IReadOnlyDictionary<string, object?> arguments)
+        IReadOnlyDictionary<string, object?> arguments,
+        params string[] grants)
     {
-        var client = await _seam.ConnectAsync("issues:write");
+        var client = await _seam.ConnectAsync(
+            grants.Length is 0 ? ["issues:write"] : grants);
 
         var result = await client.CallToolAsync(
             tool,

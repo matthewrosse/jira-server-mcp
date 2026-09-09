@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using JiraServerMcp.Jira.Resilience;
 using Microsoft.Extensions.DependencyInjection;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -80,6 +81,21 @@ public sealed class JiraResilienceTests : IDisposable
         Stub(Request.Create().WithPath("/read").UsingGet(), Response.Create().WithStatusCode(status));
 
         using var response = await Send(HttpMethod.Get, "read");
+
+        ReceivedRequests().Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_diagnostic_read_marked_no_retry_is_sent_once_even_for_a_transient_status()
+    {
+        Stub(Request.Create().WithPath("/diagnostic").UsingGet(),
+            Response.Create().WithStatusCode(503));
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "diagnostic");
+        request.Options.Set(JiraRequestOptions.NoRetry, true);
+
+        using var response = await CreateClient()
+            .SendAsync(request, TestContext.Current.CancellationToken);
 
         ReceivedRequests().Count.ShouldBe(1);
     }

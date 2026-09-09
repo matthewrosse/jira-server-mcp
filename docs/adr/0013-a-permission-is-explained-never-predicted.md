@@ -1,6 +1,6 @@
 # ADR-0013: A Jira permission is explained, never predicted
 
-**Status:** Accepted (2026-08-31), amended (2026-09-03)
+**Status:** Accepted (2026-08-31), amended (2026-09-03 and 2026-09-09)
 
 ## Context
 
@@ -241,3 +241,45 @@ The five writes whose missing permission arrives as a `400` — comment, worklog
 transition — are filed as #148. That advice is thin rather than wrong, and it turns on a different
 question: a `403` is rare enough to afford an unconditional round trip and a `400`, which is mostly
 ordinary field validation, is not.
+
+## Amendment (2026-09-09): selected 400s and an empty published vocabulary
+
+#148 measured the five remaining permission refusals again on the canonical Jira Server 8.20.7,
+this time beside immediate `mypermissions` reads on the same personal access token and beside
+ordinary create/edit validation controls. The full observations were recorded on the issue before
+implementation.
+
+| Write | Refusal shape | Scoped answer |
+|---|---|---|
+| Comment | `400`, permission prose in `errorMessages` | issue-scoped `ADD_COMMENTS: false` |
+| Worklog | `400`, permission prose in `errorMessages` | issue-scoped `WORK_ON_ISSUES: false` |
+| Edit | `400`, screen-shaped field error | issue-scoped `EDIT_ISSUES: false` |
+| Create | `400`, the same screen-shaped field error | project-scoped `CREATE_ISSUES: false` |
+| Transition | successful discovery carrying an empty `transitions` list | issue-scoped `TRANSITION_ISSUES: false` |
+
+Ordinary create validation (a missing summary) and ordinary edit validation (an unknown field)
+also answered `400` with field errors. The permission refusal is therefore structurally entangled
+with the dominant validation path for those two tools. No discriminator exists there that does not
+parse Jira-authored words.
+
+The post-refusal gate is widened narrowly:
+
+- Comment and worklog opt their Jira `400` into one diagnostic lookup. Their obvious invalid inputs
+  are already refused locally, so this does not turn every bad request into a round trip. The four
+  standings keep their established meanings: only `Absent` asserts and structures a missing key;
+  `Held` says the claimed permission is held before preserving Jira's words; `Unlisted` and
+  `Unanswered` preserve the prior failure.
+- Create and edit never look up a permission after `400`. A field-error response keeps the screen
+  and assignability guidance and gains trusted prose saying Jira Server can produce the same shape
+  when `CREATE_ISSUES` or `EDIT_ISSUES` is missing. The permission is something to investigate only
+  when the corresponding screen says the field should be writable, never something asserted or
+  emitted as `missingPermission`.
+- Transition discovery is a separate local-refusal seam. Only an empty published transition list
+  asks once for `TRANSITION_ISSUES`; an unmatched or ambiguous name in a non-empty list asks
+  nothing. `Absent` names and structures the missing key, `Held` leaves workflow/status conditions
+  as the explanation, and the unresolved standings name only the ambiguity between those causes.
+  The outcome remains `refused`, with no invented HTTP status.
+
+The diagnostic GET is marked not to retry in the resilience pipeline. Calling the lookup delegate
+once while its underlying GET silently retries would violate the one-lookup bound just as surely as
+calling the delegate repeatedly. Other reads retain their normal retry policy.

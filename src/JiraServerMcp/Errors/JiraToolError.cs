@@ -114,6 +114,13 @@ internal static class JiraToolError
                     + "URL, including any context path such as /jira.",
                     advice),
 
+            // Jira Server 8.20.7 answers a comment or worklog refused for its permission with a
+            // 400 in errorMessages. Those tools opt into one diagnostic lookup after the refusal;
+            // no body text is matched, and create/edit stay on the ordinary field-error arm below.
+            HttpStatusCode.BadRequest when permission is
+            { Standing: PermissionStanding.Held or PermissionStanding.Absent } =>
+                Assembled(Refused(operation, exception, permission), advice, exception),
+
             HttpStatusCode.BadRequest when exception.FieldErrors.Count > 0 =>
                 Assembled(
                     $"Jira rejected {operation}. Its own message for each field follows.",

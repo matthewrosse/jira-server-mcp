@@ -12,4 +12,11 @@ public static class JiraRequestOptions
     /// ever carry this — a repeated write creates the same issue twice.
     /// </summary>
     public static readonly HttpRequestOptionsKey<bool> RetrySafe = new("JiraRetrySafe");
+
+    /// <summary>
+    /// Marks a diagnostic read that must be attempted only once. A permission lookup explains a
+    /// write that has already failed; retrying the explanation would turn one bounded diagnostic
+    /// into several hidden round trips and still must never replace the original failure.
+    /// </summary>
+    public static readonly HttpRequestOptionsKey<bool> NoRetry = new("JiraNoRetry");
 }
