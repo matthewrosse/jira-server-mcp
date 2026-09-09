@@ -104,7 +104,7 @@ internal sealed class CreateIssueTool(
         JiraApiException exception,
         string projectKey,
         string issueType,
-        PermissionAnswer? permission) =>
+        PermissionDiagnosis? permission) =>
         JiraToolError.Describe(
             exception,
             profile.Name,
@@ -127,10 +127,7 @@ internal sealed class CreateIssueTool(
     private static string PermissionPossibility(JiraApiException exception) =>
         exception.FieldErrors.Count is 0
             ? string.Empty
-            : " Jira Server can return the same field-shaped refusal when the account lacks "
-              + $"{PermissionAdvice.CreateIssues}. If jira_get_create_fields says a refused field "
-              + "should be writable, investigate that Jira permission with whoever administers "
-              + "the project.";
+            : PermissionAdvice.Possibility(PermissionAdvice.CreateIssues, "jira_get_create_fields");
 
 
     /// <summary>

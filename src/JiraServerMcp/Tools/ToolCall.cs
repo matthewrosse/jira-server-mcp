@@ -1,4 +1,3 @@
-using System.Net;
 using JiraServerMcp.Errors;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Profiles;
@@ -32,12 +31,12 @@ internal static class ToolCall
     /// profile/operation wording for a Jira API failure when a tool has something more specific to
     /// say, such as where to look after a rejected create.
     ///
-    /// <c>claim</c> is the Jira permission a write claims, which only a write passes. Where Jira
-    /// answers <c>403</c> or <c>401</c> it is looked up — after the refusal, never before. A claim
-    /// may also opt into diagnosis after a <c>400</c>, which only comment and worklog do because
-    /// their obvious validation failures are refused locally. The answer is handed to the
-    /// formatter and to <c>describeApiFailure</c> alike, so that a tool with its own wording still
-    /// says why. See <see cref="PermissionAdvice"/> and ADR-0013.
+    /// <c>claim</c> is the Jira permission a write claims, which only a write passes. What becomes
+    /// of it — whether Jira is asked at all, and what a refusal is told — belongs to
+    /// <see cref="PermissionAdvice"/>, which is handed the claim and the shape of the refusal and
+    /// answers with finished prose. The diagnosis is passed to the formatter and to
+    /// <c>describeApiFailure</c> alike, so that a tool with its own wording still says why. See
+    /// ADR-0013.
     /// </remarks>
     public static async Task<CallToolResult> RunAsync(
         ServedProfile profile,
@@ -46,7 +45,7 @@ internal static class ToolCall
         string whenTimedOut,
         Func<Task<Rendered>> work,
         CancellationToken cancellationToken,
-        Func<JiraApiException, PermissionAnswer?, string>? describeApiFailure = null,
+        Func<JiraApiException, PermissionDiagnosis?, string>? describeApiFailure = null,
         PermissionClaim? claim = null)
     {
         var step = await StepAsync(
@@ -75,7 +74,7 @@ internal static class ToolCall
         string whenTimedOut,
         Func<Task<T>> work,
         CancellationToken cancellationToken,
-        Func<JiraApiException, PermissionAnswer?, string>? describeApiFailure = null,
+        Func<JiraApiException, PermissionDiagnosis?, string>? describeApiFailure = null,
         PermissionClaim? claim = null)
     {
         try
@@ -84,20 +83,15 @@ internal static class ToolCall
         }
         catch (JiraApiException exception)
         {
-            // Only here, and only for a write that named a permission: one round trip on a path
-            // where one has already failed, and nothing an agent can call early.
-            //
-            // A 401 as well as a 403, because on 8.20.7 a refused issue link answers 401 — the same
-            // status a revoked token answers. The lookup is what separates them, and it separates
-            // them without parsing anything: it travels on the same personal access token, so a
-            // token Jira has revoked cannot answer it either (ADR-0013, amended). The cost is one
-            // extra round trip before a genuinely revoked token is reported.
-            var permission = claim is not null
-                && (exception.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized
-                    || exception.StatusCode is HttpStatusCode.BadRequest
-                    && claim.DiagnoseBadRequest)
-                    ? await PermissionAdvice.AskAsync(claim, cancellationToken)
-                    : null;
+            // Every failed call enters the seam and a read leaves it on the first line, having
+            // claimed nothing. Which refusals are worth a lookup, and what one is worth saying, is
+            // the seam's to decide: this is the failure orchestrator, not a second opinion on what
+            // Jira meant (ADR-0013, amended).
+            var permission = await PermissionAdvice.DiagnoseAsync(
+                claim,
+                new RefusalShape.Refused(
+                    exception.StatusCode, exception.Endpoint, operation, profile.Name),
+                cancellationToken);
 
             return Step<T>.Fail(
                 Failed(

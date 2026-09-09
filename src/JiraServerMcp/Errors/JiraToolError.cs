@@ -20,53 +20,32 @@ namespace JiraServerMcp.Errors;
 internal static class JiraToolError
 {
     /// <remarks>
-    /// <c>permission</c> is what Jira said about the key a refused write claimed, where it was
-    /// asked and answered. This module stays a pure formatter: the lookup is
-    /// <see cref="Tools.ToolCall"/>'s to orchestrate, and the answer arrives here as a parameter.
+    /// <c>permission</c> is the finished diagnosis of a refused write, where one was made. This
+    /// module stays a pure formatter: the lookup and every word it produces are
+    /// <see cref="PermissionAdvice"/>'s, and what arrives here is prose to assemble rather than an
+    /// answer to interpret.
     /// </remarks>
     public static string Describe(
         JiraApiException exception,
         string profileName,
         string operation,
         string? advice = null,
-        PermissionAnswer? permission = null) =>
+        PermissionDiagnosis? permission = null) =>
+        permission is { } diagnosed
+            ? Assembled(diagnosed.Prose, advice, exception)
+            : ByStatus(exception, profileName, operation, advice);
+
+    /// <summary>
+    /// What a failure says where no permission was diagnosed: a read's expired token, a refusal
+    /// nobody could ask about, a missing issue, a rejected field map.
+    /// </summary>
+    private static string ByStatus(
+        JiraApiException exception,
+        string profileName,
+        string operation,
+        string? advice) =>
         exception.StatusCode switch
         {
-            // A 401 is two different failures wearing one status: a token Jira will not accept, and
-            // — measured on 8.20.7 — a write refused for a missing Jira permission. The lookup is
-            // what tells them apart, because it travels on the same token: an answer arriving at
-            // all proves the credential is live (ADR-0013, amended).
-            HttpStatusCode.Unauthorized when permission is
-            { Standing: PermissionStanding.Held or PermissionStanding.Absent } =>
-                Assembled(Refused(operation, exception, permission), advice, exception),
-
-            // Jira answered but never named the key this write claimed, so the claim is unresolved
-            // — and the token is not, because a revoked one could not have been answered at all.
-            // Sending this caller to mint a token would be the same wrong advice in a quieter voice.
-            HttpStatusCode.Unauthorized when permission is { Answered: true } =>
-                Assembled(
-                    $"Jira refused {operation} on {exception.Endpoint}. The request was not "
-                    + "retried, and repeating it will not help. The account's permissions were "
-                    + "readable with this same token, so it is neither invalid nor revoked, and a "
-                    + $"new one will not change this. This Jira did not report {permission.Key}, "
-                    + "which is the permission this write claims, so take that key to whoever "
-                    + "administers the project.",
-                    advice,
-                    exception),
-
-            // A write claimed a permission and this server could not find out. The login command
-            // stays, because it is still the likelier cause and still the right first move; what
-            // changes is that it stops being asserted as the only one.
-            HttpStatusCode.Unauthorized when permission is not null =>
-                Assembled(
-                    $"The personal access token for profile '{profileName}' may be invalid or "
-                    + $"revoked — run 'jira-server-mcp auth login {profileName}' to store a new "
-                    + "one. Jira also answers 401 when it refuses a write for a missing Jira "
-                    + "permission, so if a new token fails the same way, check the account's "
-                    + "permissions on this project rather than the token.",
-                    advice,
-                    exception),
-
             // A read, claiming nothing. There is no permission story to tell here, so this is the
             // sentence it has always had, unhedged.
             HttpStatusCode.Unauthorized =>
@@ -77,8 +56,15 @@ internal static class JiraToolError
                     advice,
                     exception),
 
+            // Nothing was asked, or nothing came back that says anything about the key. This is
+            // the sentence a refusal has always had: it is all this server knows.
             HttpStatusCode.Forbidden =>
-                Assembled(Refused(operation, exception, permission), advice, exception),
+                Assembled(
+                    $"Jira refused {operation}: the account this server is authenticated as does "
+                    + $"not have permission for it on {exception.Endpoint}. The request was not "
+                    + "retried, and repeating it will not help.",
+                    advice,
+                    exception),
 
             // Jira answers the same way whether an issue or a project does not exist and whether
             // it exists but is not visible, so the bare 404 already says everything Jira has to
@@ -114,13 +100,6 @@ internal static class JiraToolError
                     + "URL, including any context path such as /jira.",
                     advice),
 
-            // Jira Server 8.20.7 answers a comment or worklog refused for its permission with a
-            // 400 in errorMessages. Those tools opt into one diagnostic lookup after the refusal;
-            // no body text is matched, and create/edit stay on the ordinary field-error arm below.
-            HttpStatusCode.BadRequest when permission is
-            { Standing: PermissionStanding.Held or PermissionStanding.Absent } =>
-                Assembled(Refused(operation, exception, permission), advice, exception),
-
             HttpStatusCode.BadRequest when exception.FieldErrors.Count > 0 =>
                 Assembled(
                     $"Jira rejected {operation}. Its own message for each field follows.",
@@ -129,31 +108,6 @@ internal static class JiraToolError
 
             _ => Assembled($"{operation} failed.", advice, exception),
         };
-
-    /// <summary>
-    /// What Jira refused, and then why. Cause before consequence, and both before the caller's
-    /// state clause — a refusal reads as one account of one failure rather than as two.
-    ///
-    /// The two openings differ on purpose. Where nothing was asked, or the lookup answered nothing
-    /// about the key, this is today's sentence to the character: it is all this server knows. Where
-    /// Jira did name the key, the opening stops asserting a missing permission, because the next
-    /// line says whether there is one — and on the branch where the account holds what it claimed,
-    /// the old opening would contradict it. Which of the two applies is decided by whether
-    /// <see cref="PermissionAdvice.Sentence"/> has anything to say, so a standing with no sentence
-    /// cannot silently borrow another standing's.
-    /// </summary>
-    private static string Refused(
-        string operation,
-        JiraApiException exception,
-        PermissionAnswer? permission) =>
-        permission is not null
-        && PermissionAdvice.Sentence(permission, exception.StatusCode) is { } why
-            ? $"Jira refused {operation} on {exception.Endpoint}. The request was not retried, "
-              + "and repeating it will not help.\n"
-              + why
-            : $"Jira refused {operation}: the account this server is authenticated as does not "
-              + $"have permission for it on {exception.Endpoint}. The request was not retried, "
-              + "and repeating it will not help.";
 
     /// <summary>
     /// An endpoint naming one issue. The create metadata lives under the same path and names no

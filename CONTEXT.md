@@ -91,6 +91,18 @@ credential as the refused write, so an answer coming back at all also says the c
 which is what tells a refused write apart from a revoked one. See ADR-0013.
 _Avoid_: grant, right, access level.
 
+**Permission diagnosis** — the finished explanation of one refused write: this server's trusted
+prose, and, only where Jira confirmed the account lacks the key it claimed, the bare key that
+reaches structured content. Produced once, from one place, and never re-derived by a consumer. What
+a **Jira permission** turns into once a write has already been refused.
+_Avoid_: permission answer, standing — both name states inside the seam that no caller sees.
+
+**Refusal shape** — the closed set of ways a write can be refused such that a **Jira permission** is
+worth asking about: Jira's `403`, Jira's `401`, a `400` a tool opted into, and an empty
+**published vocabulary**, which is not an HTTP failure at all. It decides whether a lookup happens
+and which tail the answer gets, never what the account holds.
+_Avoid_: status code, which names only three of the four.
+
 **Protocol seam** — the boundary at which an agent observes a tool: a real MCP client and server,
 with Jira replaced by an HTTP double. Where tool-specific branching is proven. See ADR-0008. The
 staging it takes — the double, a registered profile, a stored token, a client over stdio — lives in

@@ -71,13 +71,14 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
 
         if (available.Count is 0)
         {
-            var permission = await PermissionAdvice.AskAsync(
+            var opening = NoTransitions(key, transition);
+
+            var diagnosis = await PermissionAdvice.DiagnoseAsync(
                 PermissionAdvice.OnIssue(jira, PermissionAdvice.TransitionIssues, key),
+                new RefusalShape.NoPublishedVocabulary(opening),
                 cancellationToken);
 
-            return ToolCall.Error(
-                NoTransitions(key, transition, permission),
-                permission.Missing);
+            return ToolCall.Error(diagnosis?.Prose ?? opening, diagnosis?.Missing);
         }
 
         // Jira lets one status offer two transitions of the same name — a global one and a local
@@ -163,35 +164,13 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
             Listed(available));
 
     /// <summary>
-    /// An empty published vocabulary is the only local transition refusal that asks about a Jira
-    /// permission. Where Jira did not answer the claim, the two genuine causes stay ambiguous;
-    /// where it did, only the claimed permission is discussed and unrelated missing permissions
-    /// are deliberately omitted.
+    /// What an empty published vocabulary says before anything is known about the permission. It
+    /// is the only local transition refusal that asks about one at all, so what the answer adds is
+    /// the seam's to word (ADR-0013, amended) and this stays the sentence that is true either way.
     /// </summary>
-    private static string NoTransitions(
-        string key,
-        string transition,
-        PermissionAnswer permission)
-    {
-        var opening =
-            $"'{transition}' is not a transition on {key}, and neither is anything else: Jira "
-            + "published no transition this account can use from the issue's current status.";
-
-        return permission.Standing switch
-        {
-            PermissionStanding.Absent =>
-                opening + $" The account does not have {permission.Key} on {permission.Scope}. "
-                + "That is the Jira permission this write claims, so a human with access to the "
-                + "project's permission scheme has to grant it before the issue can be moved.",
-            PermissionStanding.Held =>
-                opening + $" The account does have {permission.Key} on {permission.Scope}, so "
-                + "the issue's workflow or status conditions, rather than that permission, leave "
-                + "no transition available.",
-            _ =>
-                opening + " Jira Server does not distinguish here between workflow or status "
-                + $"conditions and an account that lacks {permission.Key}, so investigate both.",
-        };
-    }
+    private static string NoTransitions(string key, string transition) =>
+        $"'{transition}' is not a transition on {key}, and neither is anything else: Jira "
+        + "published no transition this account can use from the issue's current status.";
 
     /// <summary>
     /// Two transitions of one name, which a workflow may legitimately offer. Naming their target

@@ -76,7 +76,7 @@ internal static class RetrySafeWrite
         string whenTimedOut,
         Func<Task<Written>> write,
         CancellationToken cancellationToken,
-        Func<JiraApiException, PermissionAnswer?, string>? describeApiFailure = null,
+        Func<JiraApiException, PermissionDiagnosis?, string>? describeApiFailure = null,
         PermissionClaim? claim = null)
     {
         // Claimed before anything is sent: a key that arrives twice must find the first attempt
