@@ -33,9 +33,9 @@ internal static class ToolCall
     /// say, such as where to look after a rejected create.
     ///
     /// <c>claim</c> is the Jira permission a write claims, which only a write passes. Where Jira
-    /// answers <c>403</c> it is looked up — after the refusal, never before — and the answer is
-    /// handed to the formatter and to <c>describeApiFailure</c> alike, so that a tool with its own
-    /// wording still says why. See <see cref="PermissionAdvice"/> and ADR-0013.
+    /// answers <c>403</c> or <c>401</c> it is looked up — after the refusal, never before — and the
+    /// answer is handed to the formatter and to <c>describeApiFailure</c> alike, so that a tool with
+    /// its own wording still says why. See <see cref="PermissionAdvice"/> and ADR-0013.
     /// </remarks>
     public static async Task<CallToolResult> RunAsync(
         ServedProfile profile,
@@ -84,9 +84,17 @@ internal static class ToolCall
         {
             // Only here, and only for a write that named a permission: one round trip on a path
             // where one has already failed, and nothing an agent can call early.
-            var permission = exception.StatusCode is HttpStatusCode.Forbidden && claim is not null
-                ? await PermissionAdvice.AskAsync(claim, cancellationToken)
-                : null;
+            //
+            // A 401 as well as a 403, because on 8.20.7 a refused issue link answers 401 — the same
+            // status a revoked token answers. The lookup is what separates them, and it separates
+            // them without parsing anything: it travels on the same personal access token, so a
+            // token Jira has revoked cannot answer it either (ADR-0013, amended). The cost is one
+            // extra round trip before a genuinely revoked token is reported.
+            var permission =
+                exception.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized
+                && claim is not null
+                    ? await PermissionAdvice.AskAsync(claim, cancellationToken)
+                    : null;
 
             return Step<T>.Fail(
                 Failed(

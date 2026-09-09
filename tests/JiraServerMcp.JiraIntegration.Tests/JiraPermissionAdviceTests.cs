@@ -99,6 +99,34 @@ public sealed class JiraPermissionAdviceTests(JiraHarness harness) : IAsyncLifet
     }
 
     /// <summary>
+    /// What makes the lookup its own discriminator (ADR-0013, amended, and #142). A refused issue
+    /// link and a revoked token both answer <c>401</c>, and this server tells them apart by asking
+    /// <c>mypermissions</c> on the same personal access token: a token Jira will not accept cannot
+    /// read it either, so an answer arriving at all proves the credential is live.
+    ///
+    /// That argument is only sound if a token Jira does not recognise really is refused here. If
+    /// this endpoint ever answered anonymously — with the public permissions, say — the discriminator
+    /// would report a live credential for a dead one, which is the wrong answer in exactly the case
+    /// the whole feature exists for.
+    /// </summary>
+    [Fact]
+    public async Task A_token_jira_does_not_recognise_cannot_read_the_permission_lookup_either()
+    {
+        using var stranger = new HttpClient { BaseAddress = _jira.BaseUrl };
+
+        stranger.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "not-a-token-this-jira-ever-minted");
+
+        using var response = await stranger.GetAsync(
+            $"rest/api/2/mypermissions?issueKey={_jira.Seeded.TaskIssueKey}",
+            TestContext.Current.CancellationToken);
+
+        response.IsSuccessStatusCode.ShouldBeFalse(
+            "mypermissions answered a token this Jira never minted, so a lookup that comes back " +
+            "no longer proves the credential is live and the 401 discriminator is unsound.");
+    }
+
+    /// <summary>
     /// The fact the whole design rests on. The <c>permissions=</c> filter is a Jira Cloud v3
     /// addition; Server ignores it and answers with the full enumeration whatever is asked. That is
     /// why the client filters locally, and it is also what makes naming the *other* permissions the
