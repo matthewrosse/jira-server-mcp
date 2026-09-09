@@ -146,9 +146,11 @@ internal static class PermissionAdvice
 
             RefusalShape.Refused { Status: HttpStatusCode.BadRequest } => claim.DiagnoseBadRequest,
 
-            RefusalShape.Refused => false,
+            RefusalShape.NoPublishedVocabulary => true,
 
-            _ => true,
+            // A shape neither arm above names has no wording either, and asking about one would
+            // spend the round trip only to discard the answer.
+            _ => false,
         };
 
     /// <summary>
@@ -435,6 +437,13 @@ internal sealed record PermissionClaim(
 /// </summary>
 internal abstract record RefusalShape
 {
+    /// <summary>
+    /// Closes the set: only the two cases below, which are the only two this file words.
+    /// </summary>
+    private RefusalShape()
+    {
+    }
+
     /// <summary>
     /// Jira refused the write itself: a <c>403</c>, a <c>401</c>, or a <c>400</c> the tool opted
     /// into. What the seam needs to author the opening paragraph travels with it, because a
