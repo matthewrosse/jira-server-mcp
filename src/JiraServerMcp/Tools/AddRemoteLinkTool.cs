@@ -70,22 +70,7 @@ internal sealed class AddRemoteLinkTool(JiraClient jira, ServedProfile profile)
                     relationship,
                     cancellationToken);
 
-                // Which of the two it was is the whole value of keying the link by its URL: an
-                // agent told "updated" learns that an earlier call of its own already landed. It
-                // is a field rather than a second outcome, so that "did this work" stays one
-                // equality against ok and the vocabulary does not grow a value per tool.
-                return new Rendered(
-                    created
-                        ? $"Attached {url.Trim()} to {key}."
-                        : $"{url.Trim()} was already attached to {key}; its title and relationship "
-                          + "were updated. There is one link, not two.",
-                    ToolOutputs.Node(new AddedRemoteLinkOutput
-                    {
-                        Outcome = Outcomes.Ok,
-                        Key = key.Trim(),
-                        Url = url.Trim(),
-                        Created = created,
-                    }));
+                return AddedRemoteLink.Render(key, url, created);
             },
             cancellationToken,
             claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.LinkIssues, key.Trim()));

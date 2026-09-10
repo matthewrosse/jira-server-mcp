@@ -119,7 +119,7 @@ internal sealed class UpdateIssueTool(
                         : new JiraAssignee(assignee.Length is 0 ? null : assignee),
                     cancellationToken);
 
-                return Confirm(key, resolved, added, removed, assignee);
+                return UpdatedIssue.Render(key, resolved, added, removed, assignee, aliases);
             },
             cancellationToken,
             describeApiFailure: (exception, permission) => JiraToolError.Describe(
@@ -218,63 +218,4 @@ internal sealed class UpdateIssueTool(
             : $" If it was the assignee Jira rejected, '{assignee}' may exist without being "
               + "assignable here — call jira_search_users with assignableTo set to this issue's "
               + "key for the people it will accept.";
-
-    /// <summary>
-    /// What was sent, named as the prose names it. The structured half carries the same list, off
-    /// the same traversal: it is the field ids the caller asked for, which is what a workflow
-    /// checking its own write needs.
-    /// </summary>
-    /// <summary>
-    /// What was changed, named as the caller would recognise it. The prose labels an aliased field
-    /// with both names, so an agent that wrote "story_points" can match the answer to its own
-    /// request, and says which of a field's operations carried the change; the structured half
-    /// carries the identifiers alone, which is what rule 2 of ADR-0009 admits and what a follow-up
-    /// call must send. The operation is left out of it deliberately: it was the caller's own
-    /// argument, which the caller already holds.
-    /// </summary>
-    private Rendered Confirm(
-        string key,
-        IReadOnlyDictionary<string, JsonElement>? fields,
-        IReadOnlyDictionary<string, JsonElement> added,
-        IReadOnlyDictionary<string, JsonElement> removed,
-        string? assignee)
-    {
-        var changed = new List<string>();
-        var named = new List<string>();
-
-        void Note(IEnumerable<string> operated, string? how)
-        {
-            foreach (var field in operated)
-            {
-                if (!changed.Contains(field, StringComparer.Ordinal))
-                {
-                    changed.Add(field);
-                }
-
-                named.Add(how is null ? aliases.Label(field) : $"{aliases.Label(field)} ({how})");
-            }
-        }
-
-        Note(fields?.Keys ?? [], null);
-        Note(added.Keys, "added");
-        Note(removed.Keys, "removed");
-
-        if (assignee is not null)
-        {
-            var how = assignee.Length is 0 ? "assignee (cleared)" : "assignee";
-
-            changed.Add(how);
-            named.Add(how);
-        }
-
-        return new Rendered(
-            $"Updated {key}: {string.Join(", ", named)}.",
-            ToolOutputs.Node(new UpdatedIssueOutput
-            {
-                Outcome = Outcomes.Ok,
-                Key = key,
-                Changed = changed,
-            }));
-    }
-
 }
