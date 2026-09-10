@@ -150,10 +150,7 @@ internal sealed class UpdateIssueTool(
     private static string PermissionPossibility(JiraApiException exception) =>
         exception.FieldErrors.Count is 0
             ? string.Empty
-            : " Jira Server can return the same field-shaped refusal when the account lacks "
-              + $"{PermissionAdvice.EditIssues}. If jira_get_edit_fields says a refused field "
-              + "should be writable, investigate that Jira permission with whoever administers "
-              + "the project.";
+            : PermissionAdvice.Possibility(PermissionAdvice.EditIssues, "jira_get_edit_fields");
 
     /// <summary>
     /// The two fields Jira does take through its update envelope and this server does not. Both

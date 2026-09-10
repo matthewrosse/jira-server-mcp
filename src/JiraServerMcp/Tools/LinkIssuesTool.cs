@@ -133,7 +133,7 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
         string profileName,
         string from,
         string to,
-        PermissionAnswer? permission) =>
+        PermissionDiagnosis? permission) =>
         exception.StatusCode is HttpStatusCode.NotFound
             ? $"Jira answered 404 for the link between {from} and {to}. One of the two does not "
               + "exist or is not visible to this account, and Jira does not say which. Nothing "

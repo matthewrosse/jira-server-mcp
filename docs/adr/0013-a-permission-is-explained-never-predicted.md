@@ -283,3 +283,62 @@ The post-refusal gate is widened narrowly:
 The diagnostic GET is marked not to retry in the resilience pipeline. Calling the lookup delegate
 once while its underlying GET silently retries would violate the one-lookup bound just as surely as
 calling the delegate repeatedly. Other reads retain their normal retry policy.
+
+## Amendment (2026-09-09): one diagnosis seam, and why the state count did not fall
+
+Interpreting what Jira said about a claimed permission had spread across four modules, two of which
+authored permission prose independently: `ToolCall` decided whether a lookup was eligible,
+`PermissionAdvice` performed it and wrote one sentence, `JiraToolError` switched on the standing in
+five places to pick an opening and a `401` paragraph, and `TransitionIssueTool` switched on it again
+for an empty published vocabulary. `missingPermission` was emitted from two of them. The last two
+changes here touched ten and seventeen files.
+
+**The shape × standing grid was enumerated before deciding, to test whether one seam collapses the
+state count. It does not.** Four refusal shapes against four standings yields about ten distinct
+cells, and they do not sit in one table — they factor into pieces keyed on different things:
+
+| Piece | Keyed on | Cells |
+|---|---|---|
+| Which explanation the claimed key gets | standing | 4 (`Absent`, `Held`, `Unlisted` and `Unanswered` → none) |
+| Which tail hangs off `Held` | status | 3 (the `403` causes, the `401` token clause, neither) |
+| The `401` arms where the account does not demonstrably hold the key | standing | 2 bespoke paragraphs |
+| The empty-published-vocabulary wording | standing | 4, none shared with the HTTP shapes |
+
+So the claim for this change is **locality, not simplification**. Parameterising by refusal shape
+relocates three switches into one file; it removes no state. This is written down because a reader
+who expects a state reduction and does not find one will file the concern again.
+
+### The seam
+
+One entry point on `PermissionAdvice` takes the claim and a **refusal shape** and answers with a
+**permission diagnosis**: the finished trusted prose, and the bare key only where Jira confirmed an
+absence. Eligibility moved into it, so `ToolCall` no longer holds the status matrix and a null claim
+short-circuits on the first line — a failed read still costs no round trip. `PermissionAnswer` and
+`PermissionStanding` are private to that file; `JiraToolError` is a pure formatter again, keeping the
+`404` arms, the field-error arm, the framing, and the single `401` for a read that claimed nothing.
+The empty published vocabulary hands its own opening in and takes the finished sentence back, since
+that refusal is local and has no HTTP status to invent.
+
+The next seam, if this file grows, is the lookup against the prose. It is named here so it is not
+re-invented as something else.
+
+### Rejected
+
+- **Tidying in place** — extracting the duplicated possibility sentence and leaving the standing
+  switches where they are. It leaves the failure mode intact: prose and structured content authored
+  in different files can disagree.
+- **Leaving it alone**, which the finding above makes defensible. Rejected because the four-file
+  spread is what makes a wording change a ten-file change, and because a new standing could be added
+  with an arm silently unhandled in a file nobody opened.
+- **Returning prose plus a `TokenRuledOut` flag** for `JiraToolError` to assemble the opening from.
+  That is standing interpretation wearing a bool, and reintroduces the leak.
+- **Converging the empty-vocabulary wording with the HTTP wording.** That is a behavioural change,
+  and this one changes no behaviour.
+- **Renaming `PermissionAdvice`**, which would churn four documents that already use the name.
+
+### What proves nothing moved
+
+No live-Jira evidence was taken, because this asserts nothing new about Jira.
+`PermissionAdviceProtocolTests` passes unmodified — that file is the proof, and editing it would
+have meant behaviour moved. The permission unit tests moved out of `JiraToolErrorTests` into
+`PermissionDiagnosisTests` with every assertion string copied character for character.
