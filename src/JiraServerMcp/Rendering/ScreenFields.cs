@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
 
@@ -186,4 +187,53 @@ internal sealed record ScreenSections(
     /// to build a write must see exactly what the prose showed it.
     /// </summary>
     public IReadOnlyList<ScreenFieldOutput> Rows => [.. Required.Concat(Optional).Select(ScreenFields.Field)];
+}
+
+/// <summary>
+/// One field on a screen. The name is a selection label under ADR-0009's amended rule 2:
+/// <c>customfield_10010</c> tells an agent nothing, and the name is what makes the identifier it
+/// must send actionable.
+/// </summary>
+internal sealed record ScreenFieldOutput
+{
+    /// <summary>What a write must send. For a custom field, nothing else will do.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("required")]
+    public required bool Required { get; init; }
+
+    /// <summary>
+    /// Jira's own <c>schema.type</c>, passed through unchanged and absent where Jira sent none.
+    /// Normalising it into a vocabulary this server owns would mean maintaining a mapping across
+    /// every Jira Server version, and a mistranslation is worse than an unfamiliar string: an
+    /// agent can match an unfamiliar string against the prose, but cannot detect a wrong one.
+    /// </summary>
+    [JsonPropertyName("type")]
+    public string? Type { get; init; }
+
+    /// <summary>
+    /// Whether Jira constrains this field to a list. Kept beside <see cref="AllowedValues"/> so
+    /// that "constrained, but the list was cut" stays distinguishable from "unconstrained".
+    /// </summary>
+    [JsonPropertyName("hasAllowedValues")]
+    public required bool HasAllowedValues { get; init; }
+
+    [JsonPropertyName("allowedValues")]
+    public IReadOnlyList<string>? AllowedValues { get; init; }
+
+    [JsonPropertyName("allowedValuesTruncated")]
+    public bool? AllowedValuesTruncated { get; init; }
+
+    /// <summary>
+    /// What Jira says may be done to this field — <c>set</c>, <c>add</c>, <c>remove</c> — carried
+    /// verbatim under rule 2 of ADR-0009, which admits a value Jira itself enumerates. An empty
+    /// list is a real answer: the field is on the screen and cannot be written at all. Absent
+    /// where Jira said nothing, which is the different claim ADR-0009 forbids collapsing into it.
+    /// </summary>
+    [JsonPropertyName("operations")]
+    public IReadOnlyList<string>? Operations { get; init; }
 }

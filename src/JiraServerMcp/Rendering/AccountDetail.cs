@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using JiraServerMcp.Jira.Models;
 
 namespace JiraServerMcp.Rendering;
@@ -27,4 +28,18 @@ internal static class AccountDetail
                 Username = user.Name,
                 Active = user.Active,
             }));
+}
+
+/// <summary>
+/// The account a profile is authenticated as. Small on purpose: rule 3 puts an outcome on this
+/// result whatever else it carries, and the username is the value most likely to be fed straight
+/// into an assignee field.
+/// </summary>
+internal sealed record AccountOutput : ToolOutput
+{
+    [JsonPropertyName("username")]
+    public string? Username { get; init; }
+
+    [JsonPropertyName("active")]
+    public bool? Active { get; init; }
 }

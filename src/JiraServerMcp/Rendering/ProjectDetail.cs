@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using JiraServerMcp.Jira.Models;
 
 namespace JiraServerMcp.Rendering;
@@ -153,4 +154,57 @@ internal static class ProjectDetail
             : shown < total
                 ? $"(showing the {which} {shown} of {total})"
                 : $"({total})";
+}
+
+/// <summary>
+/// One project: what a create call may name in it. The names are selection labels under ADR-0009's
+/// amended rule 2 — a version name is what <c>fixVersions</c> must be given verbatim, and its id
+/// is opaque.
+/// </summary>
+/// <remarks>
+/// The project lead is deliberately absent. It is a username, which rule 2 admits on its face, but
+/// nothing branches on it — and rule 1 makes carrying a field permanent while leaving it out stays
+/// reversible. The description is prose and is not carried at all.
+/// </remarks>
+internal sealed record ProjectDetailOutput : ToolOutput
+{
+    [JsonPropertyName("key")]
+    public string? Key { get; init; }
+
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; init; }
+
+    [JsonPropertyName("issueTypeNames")]
+    public IReadOnlyList<string>? IssueTypeNames { get; init; }
+
+    [JsonPropertyName("issueTypeCount")]
+    public int? IssueTypeCount { get; init; }
+
+    [JsonPropertyName("issueTypesTruncated")]
+    public bool? IssueTypesTruncated { get; init; }
+
+    /// <summary>
+    /// The most recent versions, which are the ones a create would name — Jira orders them oldest
+    /// first, so a cut taken from the front would carry only releases from years ago.
+    /// </summary>
+    [JsonPropertyName("versionNames")]
+    public IReadOnlyList<string>? VersionNames { get; init; }
+
+    [JsonPropertyName("versionCount")]
+    public int? VersionCount { get; init; }
+
+    [JsonPropertyName("versionsTruncated")]
+    public bool? VersionsTruncated { get; init; }
+
+    [JsonPropertyName("componentNames")]
+    public IReadOnlyList<string>? ComponentNames { get; init; }
+
+    [JsonPropertyName("componentCount")]
+    public int? ComponentCount { get; init; }
+
+    [JsonPropertyName("componentsTruncated")]
+    public bool? ComponentsTruncated { get; init; }
 }

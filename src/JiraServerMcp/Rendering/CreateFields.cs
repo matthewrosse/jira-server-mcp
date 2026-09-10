@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
 
@@ -43,4 +44,38 @@ internal static class CreateFields
                 FieldsTruncated = sections.OptionalWasCut,
             }));
     }
+}
+
+/// <summary>
+/// The create screen: what a create call must send, and what each field will accept. The most
+/// machine-shaped answer this server gives — an agent reads it to build its next call, and every
+/// value in it is one that call must send verbatim.
+/// </summary>
+internal sealed record CreateFieldsOutput : ToolOutput
+{
+    [JsonPropertyName("projectKey")]
+    public string? ProjectKey { get; init; }
+
+    [JsonPropertyName("issueTypeName")]
+    public string? IssueTypeName { get; init; }
+
+    /// <summary>
+    /// The fields the prose shows, in the order it shows them: required first, then as many
+    /// optional ones as the response budget allows. Both halves are cut together.
+    /// </summary>
+    [JsonPropertyName("fields")]
+    public IReadOnlyList<ScreenFieldOutput>? Fields { get; init; }
+
+    /// <summary>Every field on the create screen, including the optional ones that were cut.</summary>
+    [JsonPropertyName("totalFields")]
+    public int? TotalFields { get; init; }
+
+    /// <summary>
+    /// Whether optional fields were left out. Without it, a field's absence from
+    /// <see cref="Fields"/> could mean "not on this screen" or "cut", which is the confusion
+    /// <c>hasAllowedValues</c> exists to prevent one level down. Required fields are never cut —
+    /// a create fails without every one of them.
+    /// </summary>
+    [JsonPropertyName("fieldsTruncated")]
+    public bool? FieldsTruncated { get; init; }
 }

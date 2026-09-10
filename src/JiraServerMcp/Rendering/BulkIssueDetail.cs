@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json.Serialization;
 using JiraServerMcp.Errors;
 using JiraServerMcp.Jira.Errors;
 using JiraServerMcp.Jira.Models;
@@ -153,4 +154,36 @@ internal static class BulkIssueDetail
         failure is JiraApiException { StatusCode: not HttpStatusCode.NotFound } exception
             ? JiraToolError.JiraWords(exception)
             : null;
+}
+
+/// <summary>
+/// A bulk read, which keeps one shape whether or not <c>isError</c> is set: a partial success is
+/// not an error, and the shape must not appear and vanish with the number of bad keys.
+/// </summary>
+internal sealed record BulkIssuesOutput : ToolOutput
+{
+    [JsonPropertyName("asked")]
+    public int? Asked { get; init; }
+
+    [JsonPropertyName("returned")]
+    public int? Returned { get; init; }
+
+    [JsonPropertyName("issues")]
+    public IReadOnlyList<IssueRowOutput>? Issues { get; init; }
+
+    [JsonPropertyName("failures")]
+    public IReadOnlyList<BulkFailureOutput>? Failures { get; init; }
+}
+
+/// <summary>One key that did not come back, and why, in the outcome vocabulary.</summary>
+internal sealed record BulkFailureOutput
+{
+    [JsonPropertyName("key")]
+    public required string Key { get; init; }
+
+    [JsonPropertyName("outcome")]
+    public required string Outcome { get; init; }
+
+    [JsonPropertyName("statusCode")]
+    public int? StatusCode { get; init; }
 }

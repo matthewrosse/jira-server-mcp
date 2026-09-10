@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
@@ -134,4 +135,37 @@ internal static class SearchResults
 
         return line.ToString();
     }
+}
+
+/// <summary>A page of issues: a search, a canned query, a sprint, or a backlog.</summary>
+internal sealed record IssuePageOutput : ToolOutput
+{
+    /// <summary>Jira's count of everything the query matched, not of what this page carries.</summary>
+    [JsonPropertyName("total")]
+    public int? Total { get; init; }
+
+    [JsonPropertyName("startAt")]
+    public int? StartAt { get; init; }
+
+    /// <summary>The rows in <see cref="Issues"/>, which is what the prose shows too.</summary>
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    /// <summary>Absent when no more pages exist.</summary>
+    [JsonPropertyName("nextStartAt")]
+    public int? NextStartAt { get; init; }
+
+    /// <summary>Whether the response budget, rather than Jira's page, ended the list.</summary>
+    [JsonPropertyName("cutByBudget")]
+    public bool? CutByBudget { get; init; }
+
+    /// <summary>
+    /// Where the change feed resumes: a paging position by another name, and so carried under the
+    /// same rule. Absent from every other page of issues, none of which is a feed.
+    /// </summary>
+    [JsonPropertyName("nextSince")]
+    public string? NextSince { get; init; }
+
+    [JsonPropertyName("issues")]
+    public IReadOnlyList<IssueRowOutput>? Issues { get; init; }
 }
