@@ -241,7 +241,7 @@ public class SearchRenderingTests
         rendered.ShouldNotContain("Sub-tasks as a section");
     }
 
-    private static string Render(JiraSearchPage page) => SearchResults.Render(page).Text;
+    private static string Render(JiraSearchPage page) => IssuePageResults.Render(page).Text;
 
     private static JiraIssue Issue(string key, string fields) =>
         new(key, JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fields)!);

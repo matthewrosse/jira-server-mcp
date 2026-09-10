@@ -7,11 +7,13 @@ using JiraServerMcp.Profiles;
 namespace JiraServerMcp.Rendering;
 
 /// <summary>
-/// A page of search results as compact text: one line per issue, the key first so a follow-up
-/// call is cheap, and Jira's own wiki markup passed through unconverted — models read it, and
-/// converting risks corrupting text that will be written back.
+/// One page of issues as compact text, however it was asked for — a search, this account's open
+/// issues, the change feed, a canned query, a backlog or a sprint all reach it through
+/// <see cref="Tools.IssuePage"/>. One line per issue, the key first so a follow-up call is cheap,
+/// and Jira's own wiki markup passed through unconverted — models read it, and converting risks
+/// corrupting text that will be written back.
 /// </summary>
-internal static class SearchResults
+internal static class IssuePageResults
 {
     /// <param name="page">The page Jira answered with.</param>
     /// <param name="watermark">

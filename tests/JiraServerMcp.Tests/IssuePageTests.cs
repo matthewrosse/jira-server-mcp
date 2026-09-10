@@ -135,7 +135,7 @@ public class IssuePageTests
         rendered.Text.ShouldStartWith("jql: project = PROJ\n");
         rendered.Text.ShouldContain("PROJ-12");
         rendered.Structure.ShouldNotBeNull().GetRawText()
-            .ShouldBe(SearchResults.Render(page, aliases: FieldAliases.None).Structure!.Value.GetRawText());
+            .ShouldBe(IssuePageResults.Render(page, aliases: FieldAliases.None).Structure!.Value.GetRawText());
     }
 
     [Fact]
