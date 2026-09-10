@@ -1,6 +1,6 @@
 # ADR-0009: Structured content beside the prose, carrying identifiers only
 
-**Status:** Accepted (2026-08-18), amended (2026-08-18, 2026-08-31)
+**Status:** Accepted (2026-08-18), amended (2026-08-18, 2026-08-31, 2026-09-11)
 
 ## Context
 
@@ -144,3 +144,32 @@ reading, and none of them is the input to a following call.
 The bound rule 2 gave by admitting only short values is weaker here, since a query has no length
 Jira enforces that this server can rely on. It is accepted rather than papered over: one query per
 row, and the cap on rows is what bounds the response.
+
+## Amendment (2026-09-11): rule 3 held by the type, and a contract beside its producer
+
+From #152. Two things changed about how this decision is carried out. Neither changes a byte a
+client receives.
+
+**Rule 3 is enforced by the type rather than repaired.** A rendered answer used to permit a missing
+structured half, and `ToolCall` filled one in with the outcome alone. No production renderer ever
+took that path, so the promise was being kept by a fallback nobody reached. The structured half is
+now required wherever a rendered answer is constructed, and the retry-safe write record keeps it on
+the successful ending, the only ending that has one, instead of beside a nullable detail. A
+`default` rendered answer can still be written deliberately; no call site does, and closing that
+last hole would cost an allocation on every result.
+
+**A contract lives beside its producer.** Each output record sits in the file of the rendering
+module that builds it rather than in a shared catalogue, and a guard test fails on an envelope
+declared anywhere else. The write confirmations are rendering modules on the same terms as every
+read, so no tool builds structured content itself. This is safe under rule 1 because the output
+schema is generated from a record's shape, not its name or its file: what the SDK emits carries no
+`title`, `$defs` or `$ref`, so where a record lives is invisible to a client.
+
+**What stays shared** is what more than one place needs: the envelope base with its outcome, status
+code and missing permission; the outcome vocabulary; the issue row, which a page of issues and a
+bulk read both build; and the serializer that turns a record into the node the protocol carries.
+
+Rejected: splitting the catalogue by theme, which keeps the contract away from its producer in
+smaller pieces; a sibling file per module, which is locality by directory listing at twice the
+files; and a line-count trigger on the shared file, which ADR-0006 already declines to become and
+which would not catch the actual defect — where a contract lives, not how many there are.

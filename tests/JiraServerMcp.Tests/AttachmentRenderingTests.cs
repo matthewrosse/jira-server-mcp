@@ -191,9 +191,9 @@ public class AttachmentRenderingTests
         new("10100", "notes.csv", size, "text/csv", Content);
 
     private static string Structure(Rendered rendered) =>
-        rendered.Structure.ShouldNotBeNull().GetRawText();
+        rendered.Structure.GetRawText();
 
     private static AttachmentOutput Deserialize(Rendered rendered) =>
-        rendered.Structure.ShouldNotBeNull().Deserialize<AttachmentOutput>()
+        rendered.Structure.Deserialize<AttachmentOutput>()
         ?? throw new InvalidOperationException("The structured half deserialized to nothing.");
 }

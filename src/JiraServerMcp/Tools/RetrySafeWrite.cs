@@ -116,12 +116,10 @@ internal static class RetrySafeWrite
     /// the three are told apart rather than collapsed into one refusal.
     /// </summary>
     private static CallToolResult Replayed(WriteAttempt prior, string noun, string howToCheck) =>
-        prior.Outcome switch
+        prior.Ended switch
         {
-            WriteOutcome.Ok => ToolCall.Text(new Rendered(
-                Ok(noun, prior.Detail ?? noun),
-                prior.Structure)),
-            WriteOutcome.Rejected => ToolCall.Error(Rejected(noun)),
+            WriteAttempt.OkEnding ok => ToolCall.Text(new Rendered(Ok(noun, ok.Detail), ok.Structure)),
+            WriteAttempt.RejectedEnding => ToolCall.Error(Rejected(noun)),
             _ => ToolCall.Error(Unknown(noun, howToCheck)),
         };
 

@@ -112,7 +112,7 @@ public class JqlFieldsTests
         rendered.Text.ShouldNotContain("startAt");
         rendered.Text.ShouldNotContain("resume");
 
-        var structure = rendered.Structure.ShouldNotBeNull();
+        var structure = rendered.Structure;
 
         structure.GetProperty("totalFields").GetInt32().ShouldBe(fields.Length);
         structure.GetProperty("fieldsTruncated").GetBoolean().ShouldBeTrue();
@@ -135,7 +135,7 @@ public class JqlFieldsTests
     [Fact]
     public void The_structured_half_carries_jiras_own_type_names_in_full()
     {
-        var structure = Catalogue([_storyPoints]).Structure.ShouldNotBeNull();
+        var structure = Catalogue([_storyPoints]).Structure;
 
         var field = structure.GetProperty("fields").EnumerateArray().ShouldHaveSingleItem();
 
@@ -153,7 +153,7 @@ public class JqlFieldsTests
 
         rendered.Text.ShouldContain("\"In Progress\"");
 
-        var structure = rendered.Structure.ShouldNotBeNull();
+        var structure = rendered.Structure;
 
         structure.GetProperty("field").GetString().ShouldBe("status");
         structure.GetProperty("outcome").GetString().ShouldBe("ok");
@@ -169,7 +169,7 @@ public class JqlFieldsTests
         rendered.Text.ShouldContain("enumerate nothing");
         rendered.Text.ShouldContain("jira_get_jql_fields");
 
-        rendered.Structure.ShouldNotBeNull().GetProperty("outcome").GetString()
+        rendered.Structure.GetProperty("outcome").GetString()
             .ShouldBe("refused");
     }
 

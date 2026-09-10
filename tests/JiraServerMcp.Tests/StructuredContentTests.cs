@@ -787,12 +787,12 @@ public class StructuredContentTests
     }
 
     private static string Structure(Rendered rendered) =>
-        Raw(rendered.Structure.ShouldNotBeNull());
+        Raw(rendered.Structure);
 
     private static string Raw(JsonElement structure) => structure.GetRawText();
 
     private static T Deserialize<T>(Rendered rendered) =>
-        rendered.Structure.ShouldNotBeNull().Deserialize<T>()
+        rendered.Structure.Deserialize<T>()
         ?? throw new InvalidOperationException("The structured half deserialized to nothing.");
 
     private static JiraIssue Issue(string key, string fields) =>

@@ -107,7 +107,7 @@ public sealed class RetrySafeWriteTests
         {
             await inFlight.Task;
 
-            return new Written(new Rendered("Added comment 10200 to PROJ-42."), "comment 10200");
+            return new Written(new Rendered("Added comment 10200 to PROJ-42.", Structure()), "comment 10200");
         });
 
         var replay = await Run(attempts, "k", NeverCalled);
@@ -159,7 +159,7 @@ public sealed class RetrySafeWriteTests
             CancellationToken.None);
 
     private static Task<Written> Wrote() => Task.FromResult(
-        new Written(new Rendered("Added comment 10200 to PROJ-42."), "comment 10200 on PROJ-42"));
+        new Written(new Rendered("Added comment 10200 to PROJ-42.", Structure()), "comment 10200 on PROJ-42"));
 
     private static Task<Written> NeverCalled() =>
         throw new Xunit.Sdk.XunitException("A spent key must not reach the write.");

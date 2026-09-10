@@ -13,8 +13,8 @@ namespace JiraServerMcp.Tools;
 ///
 /// It owns the same three arms in the structured half (ADR-0009, rule 3): every result carries an
 /// outcome, so "was this a permissions problem or a dead network" is a field to read rather than a
-/// sentence to parse. A renderer's own structure rides beside it; a renderer that has none yet
-/// still answers with the envelope.
+/// sentence to parse. A renderer's own structure rides beside it, and a failure carries the
+/// envelope alone.
 /// </summary>
 internal static class ToolCall
 {
@@ -133,15 +133,14 @@ internal static class ToolCall
     }
 
     /// <summary>
-    /// A successful result: the renderer's prose, and its structure where it has one. A renderer
-    /// that does not yet build a structured half still answers with the outcome, because rule 3
-    /// promises structure on every result rather than on some of them.
+    /// A successful result: the renderer's prose and its structure, both as the renderer built
+    /// them.
     /// </summary>
     public static CallToolResult Text(Rendered rendered) =>
         new()
         {
             Content = [new TextContentBlock { Text = rendered.Text }],
-            StructuredContent = rendered.Structure ?? ToolOutputs.Outcome(Outcomes.Ok),
+            StructuredContent = rendered.Structure,
         };
 
     /// <summary>
@@ -166,7 +165,7 @@ internal static class ToolCall
         new()
         {
             Content = [new TextContentBlock { Text = rendered.Text }],
-            StructuredContent = rendered.Structure ?? ToolOutputs.Outcome(Outcomes.Refused),
+            StructuredContent = rendered.Structure,
             IsError = true,
         };
 

@@ -172,7 +172,7 @@ public class SavedFilterRenderingTests
         new(id, name, Description: null, Jql: "project = PAY", Owner: null);
 
     private static JsonElement Structure(Rendered rendered) =>
-        rendered.Structure.ShouldNotBeNull();
+        rendered.Structure;
 
     /// <summary>The lines that start a filter's block, which are the ones the cap counts.</summary>
     private static string[] Rows(string text) =>

@@ -111,9 +111,9 @@ internal sealed record IssueRowOutput
 }
 
 /// <summary>
-/// The envelope on its own, for a tool whose payload is not yet structured. Rule 3 of ADR-0009 is
-/// that structure is present on every result, so these still answer "did this work, and if not
-/// why" — they simply carry nothing else yet.
+/// The envelope on its own, which is what a call that failed answers with. Rule 3 of ADR-0009 is
+/// that structure is present on every result, so a failure still answers "did this work, and if
+/// not why" — it simply carries nothing else.
 /// </summary>
 internal sealed record OutcomeOutput : ToolOutput;
 
