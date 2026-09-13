@@ -55,14 +55,20 @@ _Avoid_: Agile API when precision matters — the term names a licence, not a me
 
 ## Tool surface
 
-**Tool surface** — the value produced by pairing an operator's grant set with a profile's
-capability probe: exactly the tools a server registers. Named once, as a table pairing each tool
-with what it requires, rather than as control flow scattered through the serve verb.
+**Tool catalogue** — the tools this repository ships, each paired with what it requires: nothing,
+a named grant, or a Jira Software licence. Named once, as a table, rather than as control flow
+scattered through the serve verb. What the README documents and a claimed absence is held against,
+because neither can speak for a deployment's own queries.
+_Avoid_: tool surface, when the tools every deployment gets are meant.
+
+**Tool surface** — exactly the tools one run registers, and what `tools/list` answers: the tool
+catalogue after an operator's grant set and a profile's capability probe have gated it, plus that
+profile's operator-defined queries. Not what the repository offers, which is the tool catalogue.
 _Avoid_: registration logic, the if-chain.
 
 **Claimed absence** — a resource and an action this server does not cover, named in the README so
 a reader learns it here rather than by asking an agent to try. Claimed, not proven: the set is
-enumerated in one place and held against the tool surface, but nothing holds that enumeration
+enumerated in one place and held against the tool catalogue, but nothing holds that enumeration
 complete.
 _Avoid_: limitation, gap, missing feature.
 

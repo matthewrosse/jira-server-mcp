@@ -10,7 +10,7 @@ namespace JiraServerMcp.Prompts;
 /// where every tool it names is registered.
 /// </summary>
 /// <remarks>
-/// The gate is derived from <see cref="ToolSurface"/> rather than declared again here. Giving a
+/// The gate is derived from <see cref="ToolCatalogue"/> rather than declared again here. Giving a
 /// prompt row its own <c>RequiredGrant</c> would duplicate the tools' gate and let the two drift:
 /// a tool moved to another grant would silently leave its prompt registered against a client that
 /// can no longer follow it.
@@ -32,13 +32,13 @@ internal static class PromptSurface
 
     /// <summary>
     /// The prompts to register for a grant set and a recorded capability probe: the ones every
-    /// tool of which survived the tool surface's own gate.
+    /// tool of which survived the tool catalogue's own gate.
     /// </summary>
     public static IReadOnlyList<Type> PromptsToRegister(
         GrantSet grants,
         JiraCapabilities? capabilities)
     {
-        var registered = ToolSurface.ToolsToRegister(grants, capabilities).ToHashSet();
+        var registered = ToolCatalogue.ToolsToRegister(grants, capabilities).ToHashSet();
 
         return
         [

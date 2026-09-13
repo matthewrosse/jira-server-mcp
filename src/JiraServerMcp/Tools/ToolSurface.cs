@@ -1,99 +1,58 @@
 using JiraServerMcp.Grants;
-using JiraServerMcp.Jira.Capabilities;
 using JiraServerMcp.Profiles;
+using ModelContextProtocol.Server;
 
 namespace JiraServerMcp.Tools;
 
 /// <summary>
-/// Which tools a client gets: nothing, a named grant, or a Jira Software licence, named once here
-/// as a value rather than as control flow scattered through the serve verb. A tool that satisfies
-/// nobody is absent from registration, so an agent never discovers it, attempts it, and burns
-/// context learning it is forbidden.
+/// The tool surface: exactly the tools one run registers — the <see cref="ToolCatalogue"/> after
+/// its grant-and-licence gate, then this profile's operator-defined queries. One ordered list, so
+/// startup registers what this value says and a test can hold <c>tools/list</c> to it.
 /// </summary>
-internal static class ToolSurface
+/// <remarks>
+/// A pure value. How a row reaches the MCP SDK is the serve verb's registration concern, not this
+/// module's, and nothing here names a server builder. The profile is taken whole because it
+/// carries both halves: the capability probe the catalogue's gate reads, and the declared queries.
+/// </remarks>
+internal sealed class ToolSurface
 {
-    /// <summary>
-    /// Exposed for the README test, which holds the catalogue to this table rather than to a
-    /// second copy of the mapping.
-    /// </summary>
-    internal static IReadOnlyList<ToolSurfaceEntry> Entries => _entries;
+    private ToolSurface(IReadOnlyList<ToolSurfaceRow> rows) => Rows = rows;
 
-    private static readonly IReadOnlyList<ToolSurfaceEntry> _entries =
-    [
-        new(typeof(WhoamiTool)),
-        new(typeof(SearchTool)),
-        new(typeof(GetJqlFieldsTool)),
-        new(typeof(ListSavedFiltersTool)),
-        new(typeof(MyOpenIssuesTool)),
-        new(typeof(ChangedSinceTool)),
-        new(typeof(GetIssuesTool)),
-        new(typeof(GetAttachmentTool)),
-        new(typeof(ListProjectsTool)),
-        new(typeof(GetProjectTool)),
-        new(typeof(GetCreateFieldsTool)),
-        new(typeof(SearchUsersTool)),
-        new(typeof(ListBoardsTool), RequiresSoftwareLicence: true),
-        new(typeof(ListSprintsTool), RequiresSoftwareLicence: true),
-        new(typeof(GetSprintIssuesTool), RequiresSoftwareLicence: true),
-        new(typeof(GetBacklogTool), RequiresSoftwareLicence: true),
-        new(typeof(CreateIssueTool), RequiredGrant: Grant.IssuesWrite),
-        new(typeof(UpdateIssueTool), RequiredGrant: Grant.IssuesWrite),
-        new(typeof(GetEditFieldsTool), RequiredGrant: Grant.IssuesWrite),
-        new(typeof(TransitionIssueTool), RequiredGrant: Grant.IssuesWrite),
-        new(typeof(AddCommentTool), RequiredGrant: Grant.CommentsWrite),
-        new(typeof(AddWorklogTool), RequiredGrant: Grant.WorklogsWrite),
-        new(typeof(LinkIssuesTool), RequiredGrant: Grant.LinksWrite),
-        new(typeof(AddRemoteLinkTool), RequiredGrant: Grant.LinksWrite),
-        new(typeof(AddAttachmentTool), RequiredGrant: Grant.AttachmentsWrite),
-    ];
+    /// <summary>Every tool this run registers, in registration order.</summary>
+    public IReadOnlyList<ToolSurfaceRow> Rows { get; }
 
-    /// <summary>
-    /// The tools to register for a grant set and a recorded capability probe. A profile with no
-    /// probe at all answers the licence question the same way an unlicensed one does: no.
-    /// </summary>
-    public static IReadOnlyList<Type> ToolsToRegister(GrantSet grants, JiraCapabilities? capabilities) =>
-        [.. _entries
-            .Where(entry => entry.IsSatisfiedBy(grants, capabilities))
-            .Select(entry => entry.ToolType)];
+    /// <summary>The name an agent sees for each row, in the same order.</summary>
+    public IReadOnlyList<string> Names => [.. Rows.Select(row => row.Name)];
 
-    /// <summary>
-    /// A missing or stale capability probe is not an error — the tools registered are the ones the
-    /// profile knows about — but the operator is told, because a Jira that has since been licensed
-    /// for Jira Software will otherwise look as though this server cannot see its boards.
-    /// </summary>
-    public static async Task WarnAboutTheProbeAsync(string profileName, Profile profile)
-    {
-        var refresh = $"Run 'jira-server-mcp profile refresh {profileName}'.";
-
-        if (profile.Capabilities is not { } capabilities)
-        {
-            await Console.Error.WriteLineAsync(
-                $"Profile '{profileName}' has no capability probe, so the Jira Software tools are "
-                + $"not registered. {refresh}");
-
-            return;
-        }
-
-        if (capabilities.IsStale(DateTimeOffset.UtcNow))
-        {
-            await Console.Error.WriteLineAsync(
-                $"The capability probe for profile '{profileName}' was taken on "
-                + $"{capabilities.ProbedAt:yyyy-MM-dd} and has expired. The tools registered are "
-                + $"the ones it recorded. {refresh}");
-        }
-    }
+    public static ToolSurface For(GrantSet grants, Profile profile) =>
+        new(
+        [
+            .. ToolCatalogue.ToolsToRegister(grants, profile.Capabilities)
+                .Select(toolType => new ToolSurfaceRow.BuiltInRow(toolType)),
+            .. ProfileQuerySurface.RowsFor(profile),
+        ]);
 }
 
 /// <summary>
-/// One row of the tool surface table: a tool type paired with what it requires to be registered.
+/// One tool on the surface. The two kinds reach the SDK differently — a built-in tool is a type
+/// the SDK builds, an operator-defined query is a tool built from a delegate — and this is where
+/// that difference is stated, rather than at every place that registers or names a tool.
 /// </summary>
-internal sealed record ToolSurfaceEntry(
-    Type ToolType,
-    Grant? RequiredGrant = null,
-    bool RequiresSoftwareLicence = false)
+internal abstract record ToolSurfaceRow
 {
-    public bool IsSatisfiedBy(GrantSet grants, JiraCapabilities? capabilities) =>
-        RequiredGrant is { } grant ? grants.Allows(grant)
-        : RequiresSoftwareLicence ? capabilities is { SoftwareLicensed: true }
-        : true;
+    /// <summary>Closes the set: a tool is one of the two kinds below.</summary>
+    private ToolSurfaceRow(string name) => Name = name;
+
+    public string Name { get; }
+
+    /// <summary>A tool this repository ships, named from the attribute its type declares.</summary>
+    internal sealed record BuiltInRow(Type ToolType)
+        : ToolSurfaceRow(ToolCatalogue.NameOf(ToolType));
+
+    /// <summary>
+    /// A profile's operator-defined query. Its tool is built from the host's container rather than
+    /// ahead of it, because the client it runs against only exists once there is a container.
+    /// </summary>
+    internal sealed record QueryRow(string Name, Func<IServiceProvider, McpServerTool> Build)
+        : ToolSurfaceRow(Name);
 }

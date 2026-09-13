@@ -3,11 +3,11 @@ using JiraServerMcp.Tools;
 namespace JiraServerMcp.Tests;
 
 /// <summary>
-/// The README's claimed absences, held to the tool surface. A row cannot name the tool that would
+/// The README's claimed absences, held to the tool catalogue. A row cannot name the tool that would
 /// falsify it — <c>(Issues, Delete)</c> is absent precisely because no delete tool exists to
 /// reference — so the check is inverted: every registered tool declares the one pair it covers,
 /// and a claimed absence is falsified by appearing in that coverage. A delete tool therefore has
-/// to be added to <see cref="ToolSurface"/>, which forces its author to write the pair here, and
+/// to be added to <see cref="ToolCatalogue"/>, which forces its author to write the pair here, and
 /// this suite fires on its own rather than waiting to be remembered.
 ///
 /// <para>Two things this deliberately does not hold. The table's rows are its universe: a resource
@@ -131,7 +131,7 @@ public class ClaimedAbsenceTests
         // This is the forcing function: the tool that would falsify a row cannot be registered
         // without its author writing the pair that falsifies it.
         _coverage.Keys.Select(type => type.Name).OrderBy(name => name, StringComparer.Ordinal)
-            .ShouldBe(ToolSurface.Entries
+            .ShouldBe(ToolCatalogue.Entries
                 .Select(entry => entry.ToolType.Name)
                 .OrderBy(name => name, StringComparer.Ordinal));
     }

@@ -6,7 +6,7 @@ using JiraServerMcp.Tools;
 namespace JiraServerMcp.Tests;
 
 /// <summary>
-/// The prompt surface as a value, exhaustively across grant sets. Like the tool surface it reads,
+/// The prompt surface as a value, exhaustively across grant sets. Like the tool catalogue it reads,
 /// <see cref="PromptSurface.PromptsToRegister"/> is a pure function and nothing here launches a
 /// process.
 /// </summary>
@@ -59,10 +59,10 @@ public sealed class PromptSurfaceTests
     [Fact]
     public void Every_tool_a_prompt_names_is_a_tool_the_server_actually_registers()
     {
-        // The gate is derived from the tool surface, so a prompt naming a tool that is not in that
+        // The gate is derived from the tool catalogue, so a prompt naming a tool that is not in that
         // table would be gated on something that can never be satisfied — and would vanish
         // silently rather than failing.
-        var known = ToolSurface.Entries.Select(entry => entry.ToolType).ToHashSet();
+        var known = ToolCatalogue.Entries.Select(entry => entry.ToolType).ToHashSet();
 
         foreach (var entry in PromptSurface.Entries)
         {
@@ -70,8 +70,8 @@ public sealed class PromptSurfaceTests
             {
                 known.ShouldContain(
                     required,
-                    $"{entry.PromptType.Name} names {required.Name}, which the tool surface does "
-                    + "not register.");
+                    $"{entry.PromptType.Name} names {required.Name}, which is not in the tool "
+                    + "catalogue.");
             }
         }
     }

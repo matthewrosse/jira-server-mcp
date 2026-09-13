@@ -25,7 +25,7 @@ comments, and the commit message. Read any ADR the issue references.
   including the text Jira returns when it refuses a request.
 - Response limits come from `ResponseBudget`, not from constants at the call site.
 - If the change adds, renames or re-grants a tool, the README tool catalogue must be updated in
-  the same change. `ReadmeTests` holds it to `ToolSurface` and will fail otherwise.
+  the same change. `ReadmeTests` holds it to `ToolCatalogue` and will fail otherwise.
 - `CONTEXT.md` is a glossary of domain language and nothing else. Add a term only if the work
   introduced a genuinely new domain concept; never put implementation decisions there. Those go
   in an ADR, and only when the decision is hard to reverse, surprising without context, and the

@@ -38,14 +38,14 @@ wrong on the first instance that calls it something else.
 
 The gate is **derived, never re-declared**. A prompt row names the tools its procedure calls, and
 `PromptSurface` registers the prompt only where every one of those tools survived
-`ToolSurface`'s own gate. A `RequiredGrant` on a prompt row would be a second copy of the tools'
+`ToolCatalogue`'s own gate. A `RequiredGrant` on a prompt row would be a second copy of the tools'
 gate, free to drift: a tool moved to another grant would leave its prompt registered against a
 client that can no longer follow it. Because `implement_issue` requires `jira_get_issues`,
 `jira_transition_issue` and `jira_add_comment`, the grant set it runs under is constant — so the
 message needs no sentence about which writes are permitted and no licence branch.
 
-`ToolSurface` is unchanged. A second table reads it, rather than one table growing a column that
-means something different per row.
+The prompt gate derives from the *tool catalogue*, `ToolCatalogue`: a second table reads it, rather
+than one table growing a column that means something different per row.
 
 ## Rejected: an agent-callable briefing tool
 
