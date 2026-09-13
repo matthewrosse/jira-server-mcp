@@ -110,6 +110,70 @@ public sealed class RetrySafeWritesProtocolTests : IAsyncLifetime
         attempted.ShouldBeGreaterThan(0);
     }
 
+    /// <summary>
+    /// The sentence an agent reads after replaying a key whose first attempt never came back, for
+    /// every keyed write. Each is told how to find out what became of its own kind of write, and
+    /// none names the issue: a key reused against another one would send the agent to the wrong
+    /// issue.
+    /// </summary>
+    [Fact]
+    public async Task Each_keyed_write_replays_an_unknown_outcome_with_its_own_recovery_advice()
+    {
+        // From the outcome on: the article before the noun is not recovery advice, and "a
+        // attachment" is a slip in every replay sentence rather than something to pin here.
+        const string Unknown =
+            "whose outcome is unknown: it was sent once and no answer came back. Nothing was "
+            + "written again. ";
+
+        var rows = new (string Tool, string Path, Dictionary<string, object?> Arguments, string Replay)[]
+        {
+            (
+                "jira_create_issue",
+                "/rest/api/2/issue",
+                new() { ["projectKey"] = "PROJ", ["issueType"] = "Bug", ["summary"] = "It fell over" },
+                Unknown + "The issue may or may not exist: search for the summary with jira_search "
+                + "before sending it again under a new key."),
+            (
+                "jira_add_comment",
+                "/rest/api/2/issue/PROJ-42/comment",
+                new() { ["key"] = "PROJ-42", ["body"] = "Looked at it." },
+                Unknown + "Read the issue with jira_get_issues and the comments expansion before "
+                + "sending it again under a new key."),
+            (
+                "jira_add_worklog",
+                "/rest/api/2/issue/PROJ-42/worklog",
+                new() { ["key"] = "PROJ-42", ["timeSpent"] = "1h" },
+                Unknown + "Read the issue with jira_get_issues and the worklogs expansion before "
+                + "sending it again under a new key."),
+            (
+                "jira_add_attachment",
+                "/rest/api/2/issue/PROJ-42/attachments",
+                new() { ["key"] = "PROJ-42", ["fileName"] = "notes.md", ["content"] = "a line" },
+                Unknown + "Read the issue with jira_get_issues and the attachments expansion before "
+                + "sending it again under a new key — Jira appends an attachment rather than "
+                + "replacing one, so a blind retry is a second copy of the file."),
+        };
+
+        foreach (var row in rows)
+        {
+            _seam.Jira.Reset();
+            _seam.Jira.Given(Request.Create().WithPath(row.Path).UsingPost())
+                .RespondWith(Response.Create().WithFault(FaultType.EMPTY_RESPONSE));
+
+            row.Arguments["idempotencyKey"] = "run-42-step-1";
+
+            await _client.CallToolAsync(
+                row.Tool, row.Arguments, cancellationToken: TestContext.Current.CancellationToken);
+
+            var replay = await _client.CallToolAsync(
+                row.Tool, row.Arguments, cancellationToken: TestContext.Current.CancellationToken);
+
+            replay.IsError.ShouldBe(true, $"{row.Tool} should replay an unknown outcome as an error.");
+            TextOf(replay).ShouldEndWith(
+                row.Replay, Case.Sensitive, customMessage: $"{row.Tool} replayed the wrong recovery advice.");
+        }
+    }
+
     [Fact]
     public async Task A_key_spent_on_a_create_jira_rejected_is_not_reusable_for_the_corrected_call()
     {

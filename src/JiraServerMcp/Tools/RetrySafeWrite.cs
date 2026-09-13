@@ -43,17 +43,11 @@ internal static class RetrySafeWrite
         + "out. A key names one attempt: a corrected call after a rejection needs a new one.";
 
     /// <param name="attempts">What this process has already written under a key.</param>
-    /// <param name="tool">The tool's protocol name, which is half of what a key is claimed under.</param>
+    /// <param name="keyed">
+    /// The write as a replay names it: the tool a key is claimed under, its noun, and how the
+    /// caller finds out what became of it when the outcome is unknown.
+    /// </param>
     /// <param name="idempotencyKey">The caller's key, if it sent one. Whitespace is no key.</param>
-    /// <param name="noun">
-    /// What the write is, in the words a replay uses: "comment", "worklog", "create".
-    /// </param>
-    /// <param name="howToCheck">
-    /// How the caller finds out what became of a write whose outcome is unknown, told after "this
-    /// key was already used". Deliberately not the same string as <paramref name="whenTimedOut"/>:
-    /// the two sit in different frames, and only this one may say "under a new key", because only
-    /// here has the key already been spent.
-    /// </param>
     /// <param name="profile">The profile being served, for the failure vocabulary.</param>
     /// <param name="operation">What was being done, as <see cref="ToolCall"/> tells it.</param>
     /// <param name="whenUnreachable">Passed through to <see cref="ToolCall.RunAsync"/>.</param>
@@ -66,10 +60,8 @@ internal static class RetrySafeWrite
     /// <param name="claim">Passed through to <see cref="ToolCall.RunAsync"/>.</param>
     public static async Task<CallToolResult> RunAsync(
         WriteAttempts attempts,
-        string tool,
+        KeyedWrite keyed,
         string? idempotencyKey,
-        string noun,
-        string howToCheck,
         ServedProfile profile,
         string operation,
         string whenUnreachable,
@@ -85,9 +77,9 @@ internal static class RetrySafeWrite
 
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
         {
-            if (!attempts.TryBegin(tool, idempotencyKey, out var claimed))
+            if (!attempts.TryBegin(keyed.Tool, idempotencyKey, out var claimed))
             {
-                return Replayed(claimed, noun, howToCheck);
+                return Replayed(claimed, keyed);
             }
 
             attempt = claimed;
@@ -115,12 +107,13 @@ internal static class RetrySafeWrite
     /// A key this process has already spent. What the caller may do next differs per ending, so
     /// the three are told apart rather than collapsed into one refusal.
     /// </summary>
-    private static CallToolResult Replayed(WriteAttempt prior, string noun, string howToCheck) =>
+    private static CallToolResult Replayed(WriteAttempt prior, KeyedWrite keyed) =>
         prior.Ended switch
         {
-            WriteAttempt.OkEnding ok => ToolCall.Text(new Rendered(Ok(noun, ok.Detail), ok.Structure)),
-            WriteAttempt.RejectedEnding => ToolCall.Error(Rejected(noun)),
-            _ => ToolCall.Error(Unknown(noun, howToCheck)),
+            WriteAttempt.OkEnding ok => ToolCall.Text(new Rendered(Ok(keyed.Noun, ok.Detail), ok.Structure)),
+            WriteAttempt.RejectedEnding => ToolCall.Error(Rejected(keyed.Noun)),
+            // Sent, never answered, and possibly committed: a repeat is the duplicate a key prevents.
+            _ => ToolCall.Error(WriteRecovery.AfterSpentKey(keyed.Noun, keyed.Recovery)),
         };
 
     /// <summary>
@@ -130,15 +123,6 @@ internal static class RetrySafeWrite
     private static string Ok(string what, string detail) =>
         $"This key was already used by a {what} that succeeded: {detail}. Nothing was written "
         + "again.";
-
-    /// <summary>
-    /// The case the whole feature exists for. The write was sent, no answer came back, and Jira
-    /// may or may not have committed it — so a repeat would be exactly the duplicate a key is
-    /// there to prevent.
-    /// </summary>
-    private static string Unknown(string what, string howToCheck) =>
-        $"This key was already used by a {what} whose outcome is unknown: it was sent once and no "
-        + $"answer came back. Nothing was written again. {howToCheck}";
 
     /// <summary>
     /// Jira refused, so nothing was written then either. The key is spent all the same — it names
@@ -156,3 +140,15 @@ internal static class RetrySafeWrite
 /// rendering, which is why it rides back beside it rather than being read out of it.
 /// </summary>
 internal readonly record struct Written(Rendered Rendered, string Detail);
+
+/// <summary>
+/// A keyed write as a replay names it. Built per call, because the recovery advice needs the
+/// call's own arguments.
+/// </summary>
+/// <param name="Tool">The tool's protocol name, which is half of what a key is claimed under.</param>
+/// <param name="Noun">What the write is, in the words a replay uses: "comment", "worklog", "create".</param>
+/// <param name="Recovery">
+/// How the caller finds out what became of a write whose outcome is unknown. A write that is safe
+/// to repeat has no reason to take a key, so this is never <see cref="WriteRecovery.Safe"/>.
+/// </param>
+internal readonly record struct KeyedWrite(string Tool, string Noun, WriteRecovery.Check Recovery);

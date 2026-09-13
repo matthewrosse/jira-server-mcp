@@ -104,9 +104,7 @@ internal sealed class UpdateIssueTool(
             profile,
             $"updating {key}",
             whenUnreachable: $", and {key} was not changed",
-            whenTimedOut:
-                $". The update was sent once and was not repeated, so read {key} with "
-                + "jira_get_issues to see whether it landed.",
+            whenTimedOut: WriteRecovery.AfterTimeout("update", WriteRecovery.ByReading(key)),
             async () =>
             {
                 await jira.UpdateIssueAsync(

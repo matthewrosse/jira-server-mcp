@@ -58,9 +58,10 @@ internal sealed class AddRemoteLinkTool(JiraClient jira, ServedProfile profile)
             profile,
             $"attaching {url} to {key}",
             whenUnreachable: $", and nothing was attached to {key}",
-            whenTimedOut:
-                $". The link was sent once and was not repeated. Sending it again is safe — the "
-                + "URL identifies the link, so a repeat updates rather than duplicates.",
+            whenTimedOut: WriteRecovery.AfterTimeout(
+                "link",
+                WriteRecovery.Safe(
+                    "the URL identifies the link, so a repeat updates rather than duplicates")),
             async () =>
             {
                 var created = await jira.AddRemoteLinkAsync(

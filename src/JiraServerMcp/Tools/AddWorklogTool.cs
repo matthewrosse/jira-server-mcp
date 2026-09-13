@@ -74,20 +74,17 @@ internal sealed class AddWorklogTool(
                 + "\"2026-08-16T09:00:00+02:00\".");
         }
 
+        var keyed = new KeyedWrite(
+            Name, "worklog", WriteRecovery.ByExpansion(key, Expansion.Worklogs));
+
         return await RetrySafeWrite.RunAsync(
             attempts,
-            Name,
+            keyed,
             idempotencyKey,
-            noun: "worklog",
-            howToCheck:
-                "Read the issue with jira_get_issues and the worklogs expansion before sending it "
-                + "again under a new key.",
             profile,
             $"logging work against {key}",
             whenUnreachable: $", and no work was logged against {key}",
-            whenTimedOut:
-                $". The worklog was sent once and was not repeated, so read {key} with "
-                + "jira_get_issues and the worklogs expansion before sending it again.",
+            whenTimedOut: WriteRecovery.AfterKeyedTimeout(keyed.Noun, keyed.Recovery),
             async () =>
             {
                 var logged = await jira.AddWorklogAsync(
