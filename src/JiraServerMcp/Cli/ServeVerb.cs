@@ -76,7 +76,7 @@ internal static class ServeVerb
 
         // One call per type: the MCP SDK's WithTools(IEnumerable<Type>) mis-registers the tool
         // list when handed more than one type in a single call.
-        foreach (var toolType in ToolSurface.ToolsToRegister(grants, profile.Capabilities))
+        foreach (var toolType in ToolCatalogue.ToolsToRegister(grants, profile.Capabilities))
         {
             server.WithTools([toolType]);
         }
@@ -99,7 +99,7 @@ internal static class ServeVerb
             server.WithPrompts([promptType]);
         }
 
-        await ToolSurface.WarnAboutTheProbeAsync(profileName, profile);
+        await ToolCatalogue.WarnAboutTheProbeAsync(profileName, profile);
 
         var host = builder.Build();
 

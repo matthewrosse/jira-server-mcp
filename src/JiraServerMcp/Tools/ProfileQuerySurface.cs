@@ -10,7 +10,7 @@ using ModelContextProtocol.Server;
 namespace JiraServerMcp.Tools;
 
 /// <summary>
-/// The tools a profile's own canned queries become. <see cref="ToolSurface"/> stays a static table
+/// The tools a profile's own canned queries become. <see cref="ToolCatalogue"/> stays a static table
 /// of types; these cannot be, because a profile's queries are runtime values and one type
 /// registered ten times cannot carry ten names. Each is built from a delegate closed over the
 /// query it runs.

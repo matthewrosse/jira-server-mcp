@@ -10,15 +10,15 @@ namespace JiraServerMcp.Tools;
 /// nobody is absent from registration, so an agent never discovers it, attempts it, and burns
 /// context learning it is forbidden.
 /// </summary>
-internal static class ToolSurface
+internal static class ToolCatalogue
 {
     /// <summary>
     /// Exposed for the README test, which holds the catalogue to this table rather than to a
     /// second copy of the mapping.
     /// </summary>
-    internal static IReadOnlyList<ToolSurfaceEntry> Entries => _entries;
+    internal static IReadOnlyList<ToolCatalogueEntry> Entries => _entries;
 
-    private static readonly IReadOnlyList<ToolSurfaceEntry> _entries =
+    private static readonly IReadOnlyList<ToolCatalogueEntry> _entries =
     [
         new(typeof(WhoamiTool)),
         new(typeof(SearchTool)),
@@ -87,7 +87,7 @@ internal static class ToolSurface
 /// <summary>
 /// One row of the tool surface table: a tool type paired with what it requires to be registered.
 /// </summary>
-internal sealed record ToolSurfaceEntry(
+internal sealed record ToolCatalogueEntry(
     Type ToolType,
     Grant? RequiredGrant = null,
     bool RequiresSoftwareLicence = false)

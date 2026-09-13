@@ -10,7 +10,7 @@ namespace JiraServerMcp.Tests;
 
 /// <summary>
 /// The README's tool catalogue is the only description of the tool surface a reader gets before
-/// installing anything, so it is held to <see cref="ToolSurface"/> rather than to the design
+/// installing anything, so it is held to <see cref="ToolCatalogue"/> rather than to the design
 /// document. A tool added, renamed, moved to another grant, or left unregistered fails here
 /// instead of quietly outliving its row.
 /// </summary>
@@ -96,7 +96,7 @@ public class ReadmeTests
 
     /// <summary>
     /// The workflow prompts section, held to <see cref="PromptSurface"/> the same way the tool
-    /// catalogue is held to <see cref="ToolSurface"/>: a prompt added or renamed fails here rather
+    /// catalogue is held to <see cref="ToolCatalogue"/>: a prompt added or renamed fails here rather
     /// than quietly outliving its row.
     /// </summary>
     [Fact]
@@ -163,7 +163,7 @@ public class ReadmeTests
     }
 
     /// <summary>
-    /// Every tool <see cref="ToolSurface"/> registers, and the grant it registers it under — read
+    /// Every tool <see cref="ToolCatalogue"/> registers, and the grant it registers it under — read
     /// from the table itself, because a second copy of the mapping in this file would agree with
     /// itself and prove nothing.
     /// </summary>
@@ -171,7 +171,7 @@ public class ReadmeTests
     {
         var declared = Declared();
 
-        return ToolSurface.Entries.ToDictionary(
+        return ToolCatalogue.Entries.ToDictionary(
             entry => declared.SingleOrDefault(tool => tool.Value == entry.ToolType.Name).Key
                 ?? throw new InvalidOperationException(
                     $"The tool surface registers {entry.ToolType.Name}, which declares no method "
@@ -186,7 +186,7 @@ public class ReadmeTests
 
         return
         [
-            .. ToolSurface.Entries
+            .. ToolCatalogue.Entries
                 .Where(entry => entry.RequiresSoftwareLicence)
                 .Select(entry => declared.Single(tool => tool.Value == entry.ToolType.Name).Key),
         ];

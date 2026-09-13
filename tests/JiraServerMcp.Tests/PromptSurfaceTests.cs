@@ -62,7 +62,7 @@ public sealed class PromptSurfaceTests
         // The gate is derived from the tool surface, so a prompt naming a tool that is not in that
         // table would be gated on something that can never be satisfied — and would vanish
         // silently rather than failing.
-        var known = ToolSurface.Entries.Select(entry => entry.ToolType).ToHashSet();
+        var known = ToolCatalogue.Entries.Select(entry => entry.ToolType).ToHashSet();
 
         foreach (var entry in PromptSurface.Entries)
         {
