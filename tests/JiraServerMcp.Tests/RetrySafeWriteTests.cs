@@ -63,7 +63,7 @@ public sealed class RetrySafeWriteTests
     }
 
     [Fact]
-    public async Task A_key_spent_by_a_write_that_never_came_back_replays_with_the_tool_s_advice()
+    public async Task A_key_spent_by_a_write_that_never_came_back_replays_with_its_recovery_advice()
     {
         var attempts = new WriteAttempts();
 
@@ -72,9 +72,8 @@ public sealed class RetrySafeWriteTests
         var replay = await Run(attempts, "k", NeverCalled);
 
         replay.IsError.ShouldBe(true);
-        Text(replay).ShouldBe(
-            "This key was already used by a comment whose outcome is unknown: it was sent once "
-            + "and no answer came back. Nothing was written again. Read the issue first.");
+        // The sentence itself is proven in WriteRecoveryTests; what is proven here is the frame.
+        Text(replay).ShouldBe(WriteRecovery.AfterSpentKey(_comment.Noun, _comment.Recovery));
     }
 
     /// <summary>
@@ -141,20 +140,21 @@ public sealed class RetrySafeWriteTests
         Text(await Run(attempts, key: null, Wrote)).ShouldBe("Added comment 10200 to PROJ-42.");
     }
 
+    private static readonly KeyedWrite _comment =
+        new("jira_add_comment", "comment", WriteRecovery.ByExpansion("PROJ-42", Expansion.Comments));
+
     private static Task<CallToolResult> Run(
         WriteAttempts attempts,
         string? key,
         Func<Task<Written>> write) =>
         RetrySafeWrite.RunAsync(
             attempts,
-            "jira_add_comment",
+            _comment,
             key,
-            noun: "comment",
-            howToCheck: "Read the issue first.",
             new ServedProfile("work"),
             "commenting on PROJ-42",
             whenUnreachable: ", and PROJ-42 was not commented on",
-            whenTimedOut: ". The comment was sent once and was not repeated.",
+            whenTimedOut: WriteRecovery.AfterKeyedTimeout(_comment.Noun, _comment.Recovery),
             write,
             CancellationToken.None);
 

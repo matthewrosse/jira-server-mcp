@@ -107,9 +107,8 @@ internal sealed class LinkIssuesTool(JiraClient jira, ServedProfile profile)
             profile,
             $"linking {from} to {to}",
             whenUnreachable: $", and {from} was not linked to {to}",
-            whenTimedOut:
-                $". The link was sent once and was not repeated, so read {from} with "
-                + "jira_get_issues and the links expansion to see whether it landed.",
+            whenTimedOut: WriteRecovery.AfterTimeout(
+                "link", WriteRecovery.ByExpansion(from, Expansion.Links)),
             async () =>
             {
                 await jira.LinkIssuesAsync(type.Name, outwardKey, inwardKey, comment, cancellationToken);

@@ -43,20 +43,17 @@ internal sealed class AddCommentTool(
                 + "nothing in it for anyone reading the issue.");
         }
 
+        var keyed = new KeyedWrite(
+            Name, "comment", WriteRecovery.ByExpansion(key, Expansion.Comments));
+
         return await RetrySafeWrite.RunAsync(
             attempts,
-            Name,
+            keyed,
             idempotencyKey,
-            noun: "comment",
-            howToCheck:
-                "Read the issue with jira_get_issues and the comments expansion before sending it "
-                + "again under a new key.",
             profile,
             $"commenting on {key}",
             whenUnreachable: $", and {key} was not commented on",
-            whenTimedOut:
-                $". The comment was sent once and was not repeated, so read {key} with "
-                + "jira_get_issues and the comments expansion before sending it again.",
+            whenTimedOut: WriteRecovery.AfterKeyedTimeout(keyed.Noun, keyed.Recovery),
             async () =>
             {
                 var added = await jira.AddCommentAsync(key, body, cancellationToken);

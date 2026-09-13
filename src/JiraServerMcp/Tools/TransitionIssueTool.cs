@@ -105,9 +105,7 @@ internal sealed class TransitionIssueTool(JiraClient jira, ServedProfile profile
             profile,
             $"transitioning {key}",
             whenUnreachable: $", and {key} was not transitioned",
-            whenTimedOut:
-                $". The transition was sent once and was not repeated, so read {key} with "
-                + "jira_get_issues to see whether it landed.",
+            whenTimedOut: WriteRecovery.AfterTimeout("transition", WriteRecovery.ByReading(key)),
             async () =>
             {
                 await jira.TransitionIssueAsync(

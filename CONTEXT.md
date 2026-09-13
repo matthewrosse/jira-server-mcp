@@ -75,6 +75,13 @@ fails: a Jira that refused, a Jira that could not be reached, and a Jira that di
 time. The per-tool advice is data handed to it; the sentences around that advice are not.
 _Avoid_: handler, invocation, request.
 
+**Recovery advice** — what a caller does to find out what became of a write whose outcome is
+unknown: read an expansion, read the issue, search for it, or nothing, because a repeat is safe.
+Held as data rather than prose, so one write tells the same fact after a timeout and after a
+replayed key.
+_Avoid_: **permission advice**, which explains a refusal that already happened; **field alias
+advice**.
+
 **Grant** — a named category of write permission (`issues:write`, `comments:write`,
 `worklogs:write`, `links:write`, `attachments:write`) that the operator hands to one MCP client.
 Without a grant, the corresponding tools are not registered, so an agent cannot attempt them.

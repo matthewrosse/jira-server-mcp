@@ -61,22 +61,23 @@ internal sealed class AddAttachmentTool(
             return ToolCall.Error(refusal);
         }
 
+        var keyed = new KeyedWrite(
+            Name,
+            "attachment",
+            WriteRecovery.ByExpansion(
+                key,
+                Expansion.Attachments,
+                warning: "Jira appends an attachment rather than replacing one, so a blind retry "
+                         + "is a second copy of the file"));
+
         return await RetrySafeWrite.RunAsync(
             attempts,
-            Name,
+            keyed,
             idempotencyKey,
-            noun: "attachment",
-            howToCheck:
-                "Read the issue with jira_get_issues and the attachments expansion before sending "
-                + "it again under a new key.",
             profile,
             $"attaching {fileName} to {key}",
             whenUnreachable: $", and nothing was attached to {key}",
-            whenTimedOut:
-                $". The upload was sent once and was not repeated, so read {key} with "
-                + "jira_get_issues and the attachments expansion before sending it again — Jira "
-                + "appends an attachment rather than replacing one, so a blind retry is a second "
-                + "copy of the file.",
+            whenTimedOut: WriteRecovery.AfterKeyedTimeout(keyed.Noun, keyed.Recovery),
             async () =>
             {
                 var added = await jira.AddAttachmentAsync(key, fileName, content, cancellationToken);

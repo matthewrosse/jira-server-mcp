@@ -53,22 +53,18 @@ internal sealed class CreateIssueTool(
             return ToolCall.Error(Collided(collided!));
         }
 
+        var keyed = new KeyedWrite(Name, "create", WriteRecovery.BySearch());
+
         return await RetrySafeWrite.RunAsync(
             attempts,
-            Name,
+            keyed,
             idempotencyKey,
-            noun: "create",
-            howToCheck:
-                "The issue may or may not exist: search for the summary with jira_search before "
-                + "sending it again under a new key.",
             profile,
             "creating an issue",
             whenUnreachable: ", and the issue was not created",
-            whenTimedOut:
-                // Whether Jira created it before the wait ran out is not knowable from here, and
-                // creating a second one to find out is the failure this server refuses to risk.
-                ". The create was sent once and was not repeated, so the issue may or may not "
-                + "exist: search for the summary with jira_search before sending it again.",
+            // Whether Jira created it before the wait ran out is not knowable from here, and
+            // creating a second one to find out is the failure this server refuses to risk.
+            whenTimedOut: WriteRecovery.AfterKeyedTimeout(keyed.Noun, keyed.Recovery),
             async () =>
             {
                 var created = await jira.CreateIssueAsync(
