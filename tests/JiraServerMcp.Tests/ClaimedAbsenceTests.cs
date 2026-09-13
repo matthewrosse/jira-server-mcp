@@ -3,7 +3,7 @@ using JiraServerMcp.Tools;
 namespace JiraServerMcp.Tests;
 
 /// <summary>
-/// The README's claimed absences, held to the tool surface. A row cannot name the tool that would
+/// The README's claimed absences, held to the tool catalogue. A row cannot name the tool that would
 /// falsify it — <c>(Issues, Delete)</c> is absent precisely because no delete tool exists to
 /// reference — so the check is inverted: every registered tool declares the one pair it covers,
 /// and a claimed absence is falsified by appearing in that coverage. A delete tool therefore has

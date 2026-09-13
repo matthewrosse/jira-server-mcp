@@ -32,7 +32,7 @@ internal static class PromptSurface
 
     /// <summary>
     /// The prompts to register for a grant set and a recorded capability probe: the ones every
-    /// tool of which survived the tool surface's own gate.
+    /// tool of which survived the tool catalogue's own gate.
     /// </summary>
     public static IReadOnlyList<Type> PromptsToRegister(
         GrantSet grants,

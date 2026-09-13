@@ -1,11 +1,12 @@
 using JiraServerMcp.Grants;
 using JiraServerMcp.Jira.Capabilities;
 using JiraServerMcp.Tools;
+using ModelContextProtocol.Server;
 
 namespace JiraServerMcp.Tests;
 
 /// <summary>
-/// The tool surface as a value: every subset of the grants, against a licensed instance, an
+/// The tool catalogue's gate as a value: every subset of the grants, against a licensed instance, an
 /// unlicensed one, and a profile with no probe recorded at all. None of this launches a process —
 /// <see cref="ToolCatalogue.ToolsToRegister"/> is a pure function of a grant set and a capability
 /// probe.
@@ -117,9 +118,38 @@ public sealed class ToolCatalogueTests
         withNoProbe.ShouldBe(withUnlicensedProbe);
     }
 
+    [Fact]
+    public void A_built_in_tool_is_named_by_the_attribute_the_sdk_reads()
+    {
+        ToolCatalogue.NameOf(typeof(WhoamiTool)).ShouldBe("jira_whoami");
+    }
+
+    [Theory]
+    [InlineData(typeof(DeclaresNoTool))]
+    [InlineData(typeof(DeclaresTwoTools))]
+    public void A_type_without_exactly_one_tool_has_no_name_to_give_a_row(Type toolType)
+    {
+        Should.Throw<InvalidOperationException>(() => ToolCatalogue.NameOf(toolType))
+            .Message.ShouldContain("must declare exactly one");
+    }
+
     private static JiraCapabilities Capabilities(bool softwareLicensed) =>
         new("8.20.7", "Server", softwareLicensed, DateTimeOffset.UtcNow);
 
     private static HashSet<string> Names(IEnumerable<Type> types) =>
         [.. types.Select(type => type.Name)];
+
+    private sealed class DeclaresNoTool
+    {
+        public static string Nothing() => string.Empty;
+    }
+
+    private sealed class DeclaresTwoTools
+    {
+        [McpServerTool(Name = "first")]
+        public static string First() => string.Empty;
+
+        [McpServerTool(Name = "second")]
+        public static string Second() => string.Empty;
+    }
 }

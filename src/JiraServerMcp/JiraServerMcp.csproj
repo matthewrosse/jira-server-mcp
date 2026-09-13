@@ -49,6 +49,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="JiraServerMcp.Tests" />
+    <InternalsVisibleTo Include="JiraServerMcp.Protocol.Tests" />
   </ItemGroup>
 
 </Project>

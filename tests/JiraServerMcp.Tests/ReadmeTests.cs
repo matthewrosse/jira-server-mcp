@@ -9,7 +9,7 @@ using ModelContextProtocol.Server;
 namespace JiraServerMcp.Tests;
 
 /// <summary>
-/// The README's tool catalogue is the only description of the tool surface a reader gets before
+/// The README's tool catalogue is the only description of the tools a reader gets before
 /// installing anything, so it is held to <see cref="ToolCatalogue"/> rather than to the design
 /// document. A tool added, renamed, moved to another grant, or left unregistered fails here
 /// instead of quietly outliving its row.
@@ -174,7 +174,7 @@ public class ReadmeTests
         return ToolCatalogue.Entries.ToDictionary(
             entry => declared.SingleOrDefault(tool => tool.Value == entry.ToolType.Name).Key
                 ?? throw new InvalidOperationException(
-                    $"The tool surface registers {entry.ToolType.Name}, which declares no method "
+                    $"The tool catalogue lists {entry.ToolType.Name}, which declares no method "
                     + "carrying an [McpServerTool] name. Every registered class must declare "
                     + "exactly one."),
             entry => entry.RequiredGrant is { } grant ? GrantSet.Name(grant) : NoGrant);
