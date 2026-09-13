@@ -5,8 +5,9 @@ namespace JiraServerMcp.Tests;
 /// <summary>
 /// ADR-0004: two artefacts, produced by one workflow, whose versions have to agree. The workflow
 /// itself can only be proven by a real tag, so what is asserted here is that the release cannot
-/// quietly lose a runtime identifier, a checksum, the attestation, or the smoke check that keeps
-/// an unstartable package off the feed.
+/// quietly lose a runtime identifier, a checksum, the attestation, or the smoke check that stops
+/// a tag whose tool cannot start, and that the tool package reaches no feed while ADR-0004's
+/// amendment stands.
 /// </summary>
 public class ReleaseWorkflowTests
 {
@@ -82,12 +83,13 @@ public class ReleaseWorkflowTests
     }
 
     [Fact]
-    public void The_tool_package_goes_to_github_packages_and_not_to_the_public_gallery()
+    public void The_tool_package_is_published_to_no_feed()
     {
-        _workflow.ShouldContain("nuget.pkg.github.com");
-        _workflow.ShouldContain("packages: write");
-        _workflow.ShouldNotContain("api.nuget.org");
-        _workflow.ShouldNotContain("nuget.org/v3");
+        WithoutComments.ShouldNotContain("nuget push");
+        WithoutComments.ShouldNotContain("nuget.pkg.github.com");
+        WithoutComments.ShouldNotContain("packages: write");
+        WithoutComments.ShouldNotContain("api.nuget.org");
+        WithoutComments.ShouldNotContain("nuget.org/v3");
     }
 
     /// <summary>
