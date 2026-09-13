@@ -30,38 +30,13 @@ version, an issue saying what worked and what did not is welcome.
   address — `http://localhost`, `http://127.0.0.1`.
 - A Jira account that can create a personal access token, and the Jira permissions you want the
   agent to have — this server has exactly the permissions of the token's user and no more.
-- **For the .NET tool:** the .NET 10 SDK, which is what provides `dotnet tool`.
 - **For the self-contained binaries:** nothing. They carry their own runtime.
+- **To build the .NET tool from source:** the .NET 10 SDK, which is what provides `dotnet tool`.
 - An MCP client that launches stdio servers: Claude Code, VS Code with Copilot, or any other.
 
 ## Installation
 
-### The .NET tool (primary)
-
-Releases are published to **GitHub Packages**, not to nuget.org — the public gallery waits until
-the tool surface stops moving. GitHub Packages authenticates every read, so the feed needs a
-GitHub personal access token with the `read:packages` scope, even though this repository is public:
-
-```
-dotnet nuget add source https://nuget.pkg.github.com/matthewrosse/index.json \
-  --name jira-server-mcp \
-  --username <your-github-username> \
-  --password <a-github-token-with-read:packages> \
-  --store-password-in-clear-text
-
-dotnet tool install --global jira-server-mcp
-```
-
-The install needs no source flag once the feed is configured — the package id exists on no other
-feed — and `--source https://nuget.pkg.github.com/matthewrosse/index.json` restricts it to that feed
-if you would rather be explicit. `--source` takes the URL, not the name you gave the source. Upgrade
-with `dotnet tool update --global jira-server-mcp`, and check what you have with
-`jira-server-mcp --version`.
-
-**Until the first release is tagged this feed is empty.** Build from source in the meantime; see
-[Development](#development).
-
-### The self-contained binaries (secondary)
+### The self-contained binaries
 
 Each release attaches one single-file binary per platform — `win-x64`, `win-arm64`, `osx-arm64`,
 `osx-x64`, `linux-x64`, `linux-arm64` — with a `.sha256` beside it, for machines with no .NET
@@ -77,9 +52,27 @@ chmod +x jira-server-mcp-<version>-<platform>
 The two Windows assets carry a `.exe` suffix — `jira-server-mcp-<version>-win-x64.exe`, and
 `.exe.sha256` for its checksum. The other four have no suffix.
 
-An MCP client then names the binary by absolute path instead of by command name. On macOS,
-Gatekeeper quarantines a downloaded binary; clear it with
-`xattr -d com.apple.quarantine ./jira-server-mcp-<version>-osx-arm64`.
+Put it on your `PATH` as `jira-server-mcp` — `jira-server-mcp.exe` on Windows — and every command
+in this README works as written:
+
+```
+mv jira-server-mcp-<version>-<platform> ~/.local/bin/jira-server-mcp
+```
+
+Any directory on your `PATH` will do. Upgrade by replacing the file with a newer release's, and
+check what you have with `jira-server-mcp --version`. On macOS, Gatekeeper quarantines a downloaded
+binary; clear it with `xattr -d com.apple.quarantine ~/.local/bin/jira-server-mcp`.
+
+### The .NET tool
+
+No release is published to a NuGet feed for now: nuget.org waits until the tool surface stops
+moving (ADR-0004). To run it as a .NET tool anyway, pack it from a clone — see
+[Development](#development) — and install it from the folder:
+
+```
+dotnet pack src/JiraServerMcp -c Release -o ./package
+dotnet tool install --global jira-server-mcp --source ./package
+```
 
 There is deliberately no Docker image for the server (ADR-0004): a container cannot reach the host
 credential store, and the credential store is the whole point.
@@ -1054,10 +1047,10 @@ git push origin v0.1.0
 
 It then packs the tool, smoke-tests the packed tool by installing it and running two verbs,
 cross-publishes the six self-contained binaries from one runner, checksums them, attaches build
-provenance attestations, pushes the package to GitHub Packages, and drafts a GitHub release with
-generated notes. The release is a draft: publishing it is a human decision. Nothing reaches the
-feed until every artefact has been built and started, so a half-releasable tag leaves the feed
-untouched.
+provenance attestations, and drafts a GitHub release with generated notes carrying the binaries
+and their checksums. The release is a draft: publishing it is a human decision, and nothing is
+drafted until every artefact has been built and started. The tool package is packed and started
+but published to no feed.
 
 nuget.org publication is deferred until the tool surface stops moving, and will use trusted
 publishing over OIDC rather than a long-lived API key when it happens.

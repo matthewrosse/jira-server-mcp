@@ -1,6 +1,6 @@
 # ADR-0004: Ship as a .NET tool and as self-contained binaries; not as a Docker image
 
-**Status:** Accepted (2026-08-13)
+**Status:** Accepted (2026-08-13), amended (2026-09-13)
 
 ## Context
 
@@ -31,3 +31,22 @@ Primary: a .NET tool published to a NuGet feed, invoked as `jira-server-mcp`, up
 - `dnx jira-server-mcp` works for free as a zero-install trial path, but the documented
   configuration pins an installed tool: resolving "latest" on every agent launch is a surprise
   nobody wants inside an editor.
+
+## Amendment (2026-09-13): the binaries are the only published artefact, for now
+
+The first tag, v0.1.0, ran the release workflow end to end, and it pushed the tool package to
+GitHub Packages. That feed authenticates every read, public packages included, so installing from
+it takes a classic personal access token with `read:packages` and a `dotnet nuget add source` step
+before `dotnet tool install` does anything. The binaries on the release page need neither. A
+primary artefact that is harder to install than the secondary one is primary in name only, and
+nuget.org, the feed that would make the tool the easy path, is still deferred until the tool
+surface stops moving.
+
+**Until nuget.org publication is taken up, the self-contained binaries attached to a GitHub release
+are the only thing a release publishes.** The workflow still packs the tool and installs and starts
+it on every tag, because that job is where the tests run and because the tool must be ready to
+publish when this amendment is reversed; it pushes it nowhere. The v0.1.0 package was deleted from
+GitHub Packages. Installing the tool means packing it from a clone.
+
+When nuget.org publication happens, it restores the Decision above as written, over trusted
+publishing rather than a stored API key, and GitHub Packages is not reinstated beside it.

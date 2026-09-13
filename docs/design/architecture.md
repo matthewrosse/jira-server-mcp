@@ -131,7 +131,7 @@ readable message rather than on the first tool call.
 
 | Option | Install | Upgrade | Credential store | MCP config | Verdict |
 |---|---|---|---|---|---|
-| .NET tool | `dotnet tool install -g` (needs .NET 10 SDK/runtime) | `dotnet tool update -g` | native | `"command": "jira-server-mcp"` | **primary** |
+| .NET tool | `dotnet tool install -g` (needs .NET 10 SDK/runtime) | `dotnet tool update -g` | native | `"command": "jira-server-mcp"` | **primary**; unpublished until nuget.org (ADR-0004, amended) |
 | Self-contained binary | download, unzip, mark executable | manual, or a self-update command | native | absolute path | **secondary** |
 | `dnx jira-server-mcp` | none | implicit, and therefore surprising | native | works, not documented as the default | trial only |
 | Docker image | `docker pull` | `docker pull` | **unreachable** | long `docker run` line | **rejected** (ADR-0004) |
@@ -465,7 +465,7 @@ seeds fixtures, mints a PAT, runs the trait-gated suite, uploads Jira logs on fa
 gates a push: three to five minutes of Jira boot on every commit would be paid many times a day
 for a signal that changes rarely.
 
-**`release.yml`** — on tag. Pack the tool, publish to GitHub Packages, publish the six
+**`release.yml`** — on tag. Pack and smoke-test the tool without publishing it (ADR-0004, amended), publish the six
 self-contained binaries with checksums, generate build provenance attestation, draft release
 notes. nuget.org publication is deliberately deferred until the tool surface stops moving; when
 it happens, it uses trusted publishing over OIDC rather than a long-lived API key in secrets.
@@ -650,7 +650,7 @@ reproduce it locally with one command.
 
 `README.md` per §13, with the Claude Code and VS Code configurations verified by actually running
 them; `tests/README.md`; `release.yml` producing the tool package and the six binaries with
-checksums and attestation; a v0.1.0 tag published to GitHub Packages.
+checksums and attestation; a v0.1.0 tag whose release carries the binaries.
 
 *Done when:* a teammate who has never seen the repository installs it, authenticates, and gets an
 answer out of an agent, using only the README.

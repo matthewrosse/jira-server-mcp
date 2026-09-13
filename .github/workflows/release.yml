@@ -34,8 +34,9 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-  # ADR-0004: the primary artefact. Packed and started here; published only once the binaries
-  # have been built and started too, so a half-releasable tag leaves the feed untouched.
+  # ADR-0004, as amended: the tool is packed and started on every tag but published to no feed.
+  # The job still gates the release, because it is where the tests run and where a tool that
+  # cannot start is caught before nuget.org publication is taken up again.
   package:
     name: Pack and smoke-test the tool
     needs: version
@@ -91,11 +92,6 @@ jobs:
           ./tool/jira-server-mcp --version 2>&1 \
             | grep -q "^$VERSION"
           ./tool/jira-server-mcp profile list 2>&1 | grep -q "No profiles yet"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: package
-          path: package/
 
   # Cross-published from one runner: self-contained single-file needs no native toolchain, and
   # six runners would buy nothing but six cold caches.
@@ -159,19 +155,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
       id-token: write
       attestations: write
     steps:
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: package
-          path: package
-
       - uses: actions/download-artifact@v4
         with:
           pattern: binary-*
@@ -180,18 +166,7 @@ jobs:
 
       - uses: actions/attest-build-provenance@v3
         with:
-          subject-path: |
-            package/*.nupkg
-            dist/bin/*
-
-      # GitHub Packages, not the public gallery: nuget.org publication waits until the tool
-      # surface stops moving, and will use trusted publishing over OIDC when it happens.
-      - name: Publish the tool to GitHub Packages
-        run: |
-          dotnet nuget push "package/*.nupkg" \
-            --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json \
-            --api-key ${{ secrets.GITHUB_TOKEN }} \
-            --skip-duplicate --no-symbols
+          subject-path: dist/bin/*
 
       - name: Draft the release
         env:

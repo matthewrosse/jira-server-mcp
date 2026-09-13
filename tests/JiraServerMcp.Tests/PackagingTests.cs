@@ -3,8 +3,9 @@ using System.Xml.Linq;
 namespace JiraServerMcp.Tests;
 
 /// <summary>
-/// ADR-0004: the primary artefact is a .NET tool, so the host project's packaging metadata is
-/// part of the product rather than a build detail.
+/// ADR-0004: the .NET tool is packed and started on every release, and is what nuget.org will
+/// carry once publication is taken up, so the host project's packaging metadata is part of the
+/// product rather than a build detail.
 /// </summary>
 public class PackagingTests
 {
