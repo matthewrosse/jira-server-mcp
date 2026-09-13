@@ -78,17 +78,7 @@ internal sealed class CreateIssueTool(
                     resolved,
                     cancellationToken);
 
-                var rendered = new Rendered(
-                    $"Created {created.Key} (id {created.Id}) in {projectKey}.",
-                    ToolOutputs.Node(new CreatedIssueOutput
-                    {
-                        Outcome = Outcomes.Ok,
-                        Key = created.Key,
-                        Id = created.Id,
-                        ProjectKey = projectKey,
-                    }));
-
-                return new Written(rendered, created.Key);
+                return new Written(CreatedIssue.Render(projectKey, created), created.Key);
             },
             cancellationToken,
             describeApiFailure: (exception, permission) =>

@@ -61,17 +61,9 @@ internal sealed class AddCommentTool(
             {
                 var added = await jira.AddCommentAsync(key, body, cancellationToken);
 
-                // The caller wrote the body; handing it back would be context spent on nothing.
-                var rendered = new Rendered(
-                    $"Added comment {added.Id} to {key} at {added.Created}.",
-                    ToolOutputs.Node(new AddedCommentOutput
-                    {
-                        Outcome = Outcomes.Ok,
-                        Key = key,
-                        CommentId = added.Id,
-                    }));
-
-                return new Written(rendered, $"comment {added.Id} on {key}");
+                return new Written(
+                    AddedComment.Render(key, added),
+                    $"comment {added.Id} on {key}");
             },
             cancellationToken,
             claim: PermissionAdvice.OnIssue(

@@ -20,7 +20,7 @@ public class StructuredContentTests
     [Fact]
     public void A_page_of_issues_carries_its_rows_its_position_and_where_to_resume()
     {
-        var structure = Structure(SearchResults.Render(Page(
+        var structure = Structure(IssuePageResults.Render(Page(
             startAt: 0,
             total: 2,
             Issue("PROJ-12", """
@@ -44,7 +44,7 @@ public class StructuredContentTests
     [Fact]
     public void A_change_feed_page_carries_the_watermark_the_next_call_resumes_from()
     {
-        var structure = Structure(SearchResults.Render(
+        var structure = Structure(IssuePageResults.Render(
             Page(
                 startAt: 0,
                 total: 1,
@@ -87,7 +87,7 @@ public class StructuredContentTests
                   """))
             .ToArray();
 
-        var rendered = SearchResults.Render(
+        var rendered = IssuePageResults.Render(
             Page(startAt: 0, total: 4_000, issues),
             kept => ChangeFeed.NextSince(
                 kept,
@@ -110,7 +110,7 @@ public class StructuredContentTests
     [Fact]
     public void A_page_with_more_behind_it_carries_the_position_to_resume_from()
     {
-        var structure = Structure(SearchResults.Render(Page(
+        var structure = Structure(IssuePageResults.Render(Page(
             startAt: 25,
             total: 400,
             Issue("PROJ-12", """{ "summary": "One of four hundred" }"""))));
@@ -132,7 +132,7 @@ public class StructuredContentTests
             .Select(number => Issue($"PROJ-{number}", $$"""{ "summary": "{{summary}}" }"""))
             .ToArray();
 
-        var rendered = SearchResults.Render(Page(startAt: 0, total: 4_000, issues));
+        var rendered = IssuePageResults.Render(Page(startAt: 0, total: 4_000, issues));
         var page = Deserialize<IssuePageOutput>(rendered);
 
         // Two halves of one response that disagreed on their row count would be exactly the drift
@@ -225,7 +225,7 @@ public class StructuredContentTests
             ",",
             Enumerable.Range(1, 400).Select(number => $"\"customfield_1{number:0000}\": \"{value}\""));
 
-        var rendered = SearchResults.Render(Page(
+        var rendered = IssuePageResults.Render(Page(
             startAt: 0,
             total: 4_000,
             Issue("PROJ-12", $$"""{ {{fields}} }""")));
@@ -737,7 +737,7 @@ public class StructuredContentTests
                 """))
             .ToArray();
 
-        var structure = Structure(SearchResults.Render(
+        var structure = Structure(IssuePageResults.Render(
             Page(startAt: 0, total: issues.Length, issues)));
 
         structure.Length.ShouldBeLessThan(
@@ -787,12 +787,12 @@ public class StructuredContentTests
     }
 
     private static string Structure(Rendered rendered) =>
-        Raw(rendered.Structure.ShouldNotBeNull());
+        Raw(rendered.Structure);
 
     private static string Raw(JsonElement structure) => structure.GetRawText();
 
     private static T Deserialize<T>(Rendered rendered) =>
-        rendered.Structure.ShouldNotBeNull().Deserialize<T>()
+        rendered.Structure.Deserialize<T>()
         ?? throw new InvalidOperationException("The structured half deserialized to nothing.");
 
     private static JiraIssue Issue(string key, string fields) =>

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Models;
 using JiraServerMcp.Profiles;
@@ -6,11 +7,13 @@ using JiraServerMcp.Profiles;
 namespace JiraServerMcp.Rendering;
 
 /// <summary>
-/// A page of search results as compact text: one line per issue, the key first so a follow-up
-/// call is cheap, and Jira's own wiki markup passed through unconverted — models read it, and
-/// converting risks corrupting text that will be written back.
+/// One page of issues as compact text, however it was asked for — a search, this account's open
+/// issues, the change feed, a canned query, a backlog or a sprint all reach it through
+/// <see cref="Tools.IssuePage"/>. One line per issue, the key first so a follow-up call is cheap,
+/// and Jira's own wiki markup passed through unconverted — models read it, and converting risks
+/// corrupting text that will be written back.
 /// </summary>
-internal static class SearchResults
+internal static class IssuePageResults
 {
     /// <param name="page">The page Jira answered with.</param>
     /// <param name="watermark">
@@ -134,4 +137,37 @@ internal static class SearchResults
 
         return line.ToString();
     }
+}
+
+/// <summary>A page of issues: a search, a canned query, a sprint, or a backlog.</summary>
+internal sealed record IssuePageOutput : ToolOutput
+{
+    /// <summary>Jira's count of everything the query matched, not of what this page carries.</summary>
+    [JsonPropertyName("total")]
+    public int? Total { get; init; }
+
+    [JsonPropertyName("startAt")]
+    public int? StartAt { get; init; }
+
+    /// <summary>The rows in <see cref="Issues"/>, which is what the prose shows too.</summary>
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    /// <summary>Absent when no more pages exist.</summary>
+    [JsonPropertyName("nextStartAt")]
+    public int? NextStartAt { get; init; }
+
+    /// <summary>Whether the response budget, rather than Jira's page, ended the list.</summary>
+    [JsonPropertyName("cutByBudget")]
+    public bool? CutByBudget { get; init; }
+
+    /// <summary>
+    /// Where the change feed resumes: a paging position by another name, and so carried under the
+    /// same rule. Absent from every other page of issues, none of which is a feed.
+    /// </summary>
+    [JsonPropertyName("nextSince")]
+    public string? NextSince { get; init; }
+
+    [JsonPropertyName("issues")]
+    public IReadOnlyList<IssueRowOutput>? Issues { get; init; }
 }

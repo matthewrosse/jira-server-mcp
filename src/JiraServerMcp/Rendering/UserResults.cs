@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using JiraServerMcp.Jira.Models;
 
 namespace JiraServerMcp.Rendering;
@@ -88,4 +89,56 @@ internal static class UserResults
 
         return $"{subject}: {count}, usernames first{page}. {inactive}";
     }
+}
+
+/// <summary>
+/// A page of users. Jira's user search reports no total, so none is carried — what says there may
+/// be more is a full page, which the prose spells out and the paging position here supports.
+/// </summary>
+internal sealed record UserSearchOutput : ToolOutput
+{
+    [JsonPropertyName("startAt")]
+    public int? StartAt { get; init; }
+
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    /// <summary>
+    /// What was asked for, not what came back: a caller that sees only active users needs to know
+    /// whether that is the instance or its own argument.
+    /// </summary>
+    [JsonPropertyName("includeInactive")]
+    public bool? IncludeInactive { get; init; }
+
+    /// <summary>
+    /// The issue key or project key the search was narrowed to, as the caller gave it, and absent
+    /// when it was not narrowed at all. A count narrowed by an assignment permission means
+    /// something different from a count of the directory, and the rows carry nothing that says
+    /// which of the two this is.
+    /// </summary>
+    [JsonPropertyName("assignableTo")]
+    public string? AssignableTo { get; init; }
+
+    [JsonPropertyName("users")]
+    public IReadOnlyList<UserRowOutput>? Users { get; init; }
+}
+
+/// <summary>
+/// One user. The username is the whole point — on Jira Server it is what a write must send, and
+/// an agent that searched for a user is about to put it in an assignee field.
+/// </summary>
+/// <remarks>
+/// The display name and the email address are deliberately absent. The selection-label carve-out
+/// admits an admin-typed name only where the identifier is opaque and the name is the sole basis
+/// for choosing; neither holds here, because the username both identifies and is what the write
+/// sends. Someone disambiguating two similar people reads the prose, which is where a display name
+/// belongs — and an email address is personal data this server would be promising to carry stably.
+/// </remarks>
+internal sealed record UserRowOutput
+{
+    [JsonPropertyName("username")]
+    public required string Username { get; init; }
+
+    [JsonPropertyName("active")]
+    public required bool Active { get; init; }
 }

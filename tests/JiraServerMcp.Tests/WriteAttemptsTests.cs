@@ -32,7 +32,7 @@ public class WriteAttemptsTests
         // Nothing is reported back, as when the call never returns. The record still exists, and
         // that is the whole design: a repeat learns an attempt was made.
         attempt.Outcome.ShouldBe(WriteOutcome.Unknown);
-        attempt.Detail.ShouldBeNull();
+        attempt.Ended.ShouldBeNull();
 
         attempts.TryBegin("jira_create_issue", "run-42", out var prior).ShouldBeFalse();
         prior.Outcome.ShouldBe(WriteOutcome.Unknown);
@@ -49,7 +49,7 @@ public class WriteAttemptsTests
         attempts.TryBegin("jira_create_issue", "run-42", out var prior).ShouldBeFalse();
 
         prior.Outcome.ShouldBe(WriteOutcome.Ok);
-        prior.Detail.ShouldBe("PROJ-42");
+        prior.Ended.ShouldBeOfType<WriteAttempt.OkEnding>().Detail.ShouldBe("PROJ-42");
     }
 
     [Fact]
@@ -135,7 +135,8 @@ public class WriteAttemptsTests
 
         // A caller that read an identifier out of the first answer finds the same identifier in
         // the second, which is the whole of what "already done" should mean.
-        prior.Structure.ShouldNotBeNull().GetProperty("commentId").GetString().ShouldBe("10200");
+        prior.Ended.ShouldBeOfType<WriteAttempt.OkEnding>()
+            .Structure.GetProperty("commentId").GetString().ShouldBe("10200");
     }
 
     [Fact]

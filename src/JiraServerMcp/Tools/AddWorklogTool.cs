@@ -98,17 +98,9 @@ internal sealed class AddWorklogTool(
                     leaveRemainingEstimate,
                     cancellationToken);
 
-                var rendered = new Rendered(
-                    $"Logged {logged.TimeSpent} against {key} as worklog {logged.Id}.",
-                    ToolOutputs.Node(new AddedWorklogOutput
-                    {
-                        Outcome = Outcomes.Ok,
-                        Key = key,
-                        WorklogId = logged.Id,
-                        TimeSpent = logged.TimeSpent,
-                    }));
-
-                return new Written(rendered, $"worklog {logged.Id} on {key}");
+                return new Written(
+                    AddedWorklog.Render(key, logged),
+                    $"worklog {logged.Id} on {key}");
             },
             cancellationToken,
             claim: PermissionAdvice.OnIssue(

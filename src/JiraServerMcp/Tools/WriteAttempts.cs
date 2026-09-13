@@ -112,28 +112,41 @@ internal sealed class WriteAttempt
     public WriteOutcome Outcome => _ending?.Outcome ?? WriteOutcome.Unknown;
 
     /// <summary>
-    /// What the write produced, in the tool's own words — "PROJ-42", a comment identifier. Present
-    /// only where the write came back and succeeded.
+    /// How the write ended, or null while nothing is known. A caller that wants what the write
+    /// produced matches on <see cref="OkEnding"/>, the only ending that has anything to say.
     /// </summary>
-    public string? Detail => _ending?.Detail;
+    public Ending? Ended => _ending;
 
-    /// <summary>
-    /// The structured half the first call answered with, handed back verbatim by a replay. A
-    /// caller that read an identifier out of the first answer finds the same identifier in the
-    /// second, which is the whole of what "already done" should mean.
-    /// </summary>
-    public JsonElement? Structure => _ending?.Structure;
-
-    public void Succeeded(string detail, JsonElement? structure) =>
-        _ending = new Ending(WriteOutcome.Ok, detail, structure);
+    public void Succeeded(string detail, JsonElement structure) =>
+        _ending = new OkEnding(detail, structure);
 
     /// <summary>
     /// Jira answered and refused. This is the one ending that says the write certainly did not
     /// happen, which is why it is worth telling apart from silence.
     /// </summary>
-    public void Rejected() => _ending = new Ending(WriteOutcome.Rejected, null, null);
+    public void Rejected() => _ending = new RejectedEnding();
 
-    private sealed record Ending(WriteOutcome Outcome, string? Detail, JsonElement? Structure);
+    /// <summary>
+    /// A way a write came back. What it produced lives on the ending that produced it rather than
+    /// beside an outcome on every ending, so no reader has to repair a detail that a refusal never
+    /// had.
+    /// </summary>
+    public abstract record Ending(WriteOutcome Outcome);
+
+    /// <summary>
+    /// The write came back and succeeded.
+    /// </summary>
+    /// <param name="Detail">
+    /// What the write produced, in the tool's own words — "PROJ-42", a comment identifier.
+    /// </param>
+    /// <param name="Structure">
+    /// The structured half the first call answered with, handed back verbatim by a replay. A caller
+    /// that read an identifier out of the first answer finds the same identifier in the second,
+    /// which is the whole of what "already done" should mean.
+    /// </param>
+    public sealed record OkEnding(string Detail, JsonElement Structure) : Ending(WriteOutcome.Ok);
+
+    public sealed record RejectedEnding() : Ending(WriteOutcome.Rejected);
 }
 
 internal enum WriteOutcome

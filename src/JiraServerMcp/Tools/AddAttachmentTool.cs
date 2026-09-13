@@ -81,20 +81,9 @@ internal sealed class AddAttachmentTool(
             {
                 var added = await jira.AddAttachmentAsync(key, fileName, content, cancellationToken);
 
-                // The caller wrote the content; handing it back would be context spent on nothing.
-                var rendered = new Rendered(
-                    $"Attached {added.FileName} to {key} as attachment {added.Id} "
-                    + $"({added.Size} bytes).",
-                    ToolOutputs.Node(new AddedAttachmentOutput
-                    {
-                        Outcome = Outcomes.Ok,
-                        Key = key,
-                        AttachmentId = added.Id,
-                        FileName = added.FileName,
-                        Size = added.Size,
-                    }));
-
-                return new Written(rendered, $"attachment {added.Id} on {key}");
+                return new Written(
+                    AddedAttachment.Render(key, added),
+                    $"attachment {added.Id} on {key}");
             },
             cancellationToken,
             claim: PermissionAdvice.OnIssue(jira, PermissionAdvice.CreateAttachments, key));

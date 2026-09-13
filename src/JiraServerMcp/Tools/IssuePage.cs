@@ -79,7 +79,7 @@ internal static class IssuePage
         // impossible case where the renderer keeps no rows at all.
         var seen = watermark?.Invoke([]);
 
-        var rendered = SearchResults.Render(
+        var rendered = IssuePageResults.Render(
             page,
             watermark is null ? null : kept => seen = watermark(kept),
             aliases);

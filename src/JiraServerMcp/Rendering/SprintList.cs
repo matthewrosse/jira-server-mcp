@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using JiraServerMcp.Jira;
 using JiraServerMcp.Jira.Models;
 
@@ -46,4 +47,37 @@ internal static class SprintList
 
         return line.ToString();
     }
+}
+
+/// <summary>A page of a board's sprints, paged as <see cref="BoardListOutput"/> is.</summary>
+internal sealed record SprintListOutput : ToolOutput
+{
+    [JsonPropertyName("startAt")]
+    public int? StartAt { get; init; }
+
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    [JsonPropertyName("nextStartAt")]
+    public int? NextStartAt { get; init; }
+
+    [JsonPropertyName("sprints")]
+    public IReadOnlyList<SprintRowOutput>? Sprints { get; init; }
+}
+
+/// <summary>
+/// One sprint. <see cref="State"/> answers "which sprint is current", which is the known use; the
+/// dates are deliberately absent, because rule 1 would make anything carried a permanent contract
+/// over a date format this server does not control and does not normalise.
+/// </summary>
+internal sealed record SprintRowOutput
+{
+    [JsonPropertyName("id")]
+    public required int Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("state")]
+    public string? State { get; init; }
 }

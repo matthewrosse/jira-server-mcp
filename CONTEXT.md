@@ -309,3 +309,14 @@ than MCP's own term, and narrower on purpose — it carries identifiers and the 
 enumerates, never issue prose, which stays inside the untrusted content region. A contract: fields
 are added, never removed or retyped. See ADR-0009.
 _Avoid_: structured output, JSON response, the machine-readable half.
+
+**Rendered answer** — what a tool's work comes back as: the prose an agent reads and the
+**structured content** a workflow branches on, produced together off one traversal. A pair by
+definition, so a rendering module that answers with prose alone is a contradiction rather than a
+case something downstream fills in.
+_Avoid_: result, which names the protocol message that carries it; response; output.
+
+**Rendered fragment** — a piece of prose a rendering module composes into a rendered answer: an
+issue's sections, one field's value, a truncation marker, the untrusted content envelope. Not an
+answer to anything on its own, which is why it has no structured half.
+_Avoid_: rendered answer; snippet; partial.

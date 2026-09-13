@@ -16,7 +16,7 @@ public sealed class ToolCallTests
     [Fact]
     public async Task Work_that_answers_becomes_the_result_text()
     {
-        var result = await Run(() => Task.FromResult(new Rendered("display name: Ada")));
+        var result = await Run(() => Task.FromResult(new Rendered("display name: Ada", ToolOutputs.Outcome(Outcomes.Ok))));
 
         result.IsError.ShouldNotBe(true);
         Text(result).ShouldBe("display name: Ada");
