@@ -2,7 +2,6 @@ using System.Reflection;
 using JiraServerMcp.Credentials;
 using JiraServerMcp.Grants;
 using JiraServerMcp.Profiles;
-using JiraServerMcp.Prompts;
 using JiraServerMcp.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -74,36 +73,9 @@ internal static class ServeVerb
             .AddMcpServer(options => options.ServerInfo = ServerInfo())
             .WithStdioServerTransport();
 
-        // One call per type: the MCP SDK's WithTools(IEnumerable<Type>) mis-registers the tool
-        // list when handed more than one type in a single call.
-        foreach (var toolType in ToolCatalogue.ToolsToRegister(grants, profile.Capabilities))
-        {
-            server.WithTools([toolType]);
-        }
-
-        // The profile's own queries, which are values rather than types: one tool class cannot
-        // carry ten names. Registered on the builder like every other tool, because Build()
-        // freezes what is registered — and what they resolve from is the container Build()
-        // produces, which is why they close over a reference to it rather than over a client.
-        var queryServices = new LateBoundServices();
-
-        foreach (var queryTool in ProfileQuerySurface.ToolsToRegister(profile, queryServices))
-        {
-            server.WithTools([queryTool]);
-        }
-
-        // Same one-call-per-type caution as the tools above: WithPrompts takes a batch, and the
-        // tool equivalent is known to mis-register one.
-        foreach (var promptType in PromptSurface.PromptsToRegister(grants, profile.Capabilities))
-        {
-            server.WithPrompts([promptType]);
-        }
-
-        await ToolCatalogue.WarnAboutTheProbeAsync(profileName, profile);
+        await ServerRegistration.RegisterAsync(server, grants, profile, profileName);
 
         var host = builder.Build();
-
-        queryServices.Bound = host.Services;
 
         await host.RunAsync(cancellationToken);
 

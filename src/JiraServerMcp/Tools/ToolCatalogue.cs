@@ -1,15 +1,22 @@
+using System.Reflection;
 using JiraServerMcp.Grants;
 using JiraServerMcp.Jira.Capabilities;
-using JiraServerMcp.Profiles;
+using ModelContextProtocol.Server;
 
 namespace JiraServerMcp.Tools;
 
 /// <summary>
-/// Which tools a client gets: nothing, a named grant, or a Jira Software licence, named once here
-/// as a value rather than as control flow scattered through the serve verb. A tool that satisfies
-/// nobody is absent from registration, so an agent never discovers it, attempts it, and burns
-/// context learning it is forbidden.
+/// The tool catalogue: every built-in tool this repository ships, each paired with what it
+/// requires — nothing, a named grant, or a Jira Software licence — named once here as a value
+/// rather than as control flow scattered through the serve verb. A tool that satisfies nobody is
+/// absent from registration, so an agent never discovers it, attempts it, and burns context
+/// learning it is forbidden.
 /// </summary>
+/// <remarks>
+/// This is not what one run registers: that is <see cref="ToolSurface"/>, which adds a profile's
+/// operator-defined queries to what survives this gate. The README, the claimed absences and the
+/// prompt gate read the catalogue, because none of them can speak for a deployment's own queries.
+/// </remarks>
 internal static class ToolCatalogue
 {
     /// <summary>
@@ -57,35 +64,31 @@ internal static class ToolCatalogue
             .Select(entry => entry.ToolType)];
 
     /// <summary>
-    /// A missing or stale capability probe is not an error — the tools registered are the ones the
-    /// profile knows about — but the operator is told, because a Jira that has since been licensed
-    /// for Jira Software will otherwise look as though this server cannot see its boards.
+    /// The name an agent sees for a built-in tool, read from the attribute the MCP SDK itself
+    /// reads rather than written a second time beside the type, where it would be free to drift.
+    /// A type declaring no tool, or several, has no one name to give a row, and says so here
+    /// rather than registering something nobody can name.
     /// </summary>
-    public static async Task WarnAboutTheProbeAsync(string profileName, Profile profile)
+    public static string NameOf(Type toolType)
     {
-        var refresh = $"Run 'jira-server-mcp profile refresh {profileName}'.";
+        string[] names =
+        [
+            .. toolType
+                .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+                .Select(method => method.GetCustomAttribute<McpServerToolAttribute>()?.Name)
+                .OfType<string>(),
+        ];
 
-        if (profile.Capabilities is not { } capabilities)
-        {
-            await Console.Error.WriteLineAsync(
-                $"Profile '{profileName}' has no capability probe, so the Jira Software tools are "
-                + $"not registered. {refresh}");
-
-            return;
-        }
-
-        if (capabilities.IsStale(DateTimeOffset.UtcNow))
-        {
-            await Console.Error.WriteLineAsync(
-                $"The capability probe for profile '{profileName}' was taken on "
-                + $"{capabilities.ProbedAt:yyyy-MM-dd} and has expired. The tools registered are "
-                + $"the ones it recorded. {refresh}");
-        }
+        return names.Length == 1
+            ? names[0]
+            : throw new InvalidOperationException(
+                $"{toolType.Name} declares {names.Length} methods carrying an [McpServerTool] "
+                + "name. A tool in the catalogue must declare exactly one.");
     }
 }
 
 /// <summary>
-/// One row of the tool surface table: a tool type paired with what it requires to be registered.
+/// One row of the tool catalogue: a tool type paired with what it requires to be registered.
 /// </summary>
 internal sealed record ToolCatalogueEntry(
     Type ToolType,

@@ -14,18 +14,20 @@ public class ProfileQuerySurfaceTests
     [Fact]
     public void A_profile_that_declares_none_contributes_none()
     {
-        ProfileQuerySurface.ToolsToRegister(ProfileWith(), Services()).ShouldBeEmpty();
+        ProfileQuerySurface.RowsFor(ProfileWith()).ShouldBeEmpty();
     }
 
     [Fact]
     public void Each_query_becomes_one_tool_named_under_the_fixed_prefix()
     {
-        var tools = ProfileQuerySurface.ToolsToRegister(
-            ProfileWith(Query("sprint_bugs"), Query("blocked")),
-            Services());
+        var rows = ProfileQuerySurface.RowsFor(ProfileWith(Query("sprint_bugs"), Query("blocked")));
 
-        tools.Select(tool => tool.ProtocolTool.Name)
-            .ShouldBe(["jira_q_sprint_bugs", "jira_q_blocked"]);
+        rows.Select(row => row.Name).ShouldBe(["jira_q_sprint_bugs", "jira_q_blocked"]);
+
+        // The row's name is the name the tool it builds carries, or tools/list would disagree with
+        // the surface that registered it.
+        rows.Select(row => row.Build(Services()).ProtocolTool.Name)
+            .ShouldBe(rows.Select(row => row.Name));
     }
 
     [Fact]
@@ -33,19 +35,19 @@ public class ProfileQuerySurfaceTests
     {
         // An operator naming a query "search" gets jira_q_search, not jira_search. With
         // operator-supplied names, collision protection is not optional.
-        var tools = ProfileQuerySurface.ToolsToRegister(ProfileWith(Query("search")), Services());
+        var rows = ProfileQuerySurface.RowsFor(ProfileWith(Query("search")));
 
-        tools.ShouldHaveSingleItem().ProtocolTool.Name.ShouldBe("jira_q_search");
+        rows.ShouldHaveSingleItem().Name.ShouldBe("jira_q_search");
     }
 
     [Fact]
     public void The_operators_description_is_what_an_agent_reads()
     {
-        var tools = ProfileQuerySurface.ToolsToRegister(
-            ProfileWith(new ProfileQuery("blocked", "labels = blocked", "What is stuck.")),
-            Services());
+        var rows = ProfileQuerySurface.RowsFor(
+            ProfileWith(new ProfileQuery("blocked", "labels = blocked", "What is stuck.")));
 
-        var description = tools.ShouldHaveSingleItem().ProtocolTool.Description.ShouldNotBeNull();
+        var description = rows.ShouldHaveSingleItem().Build(Services()).ProtocolTool.Description
+            .ShouldNotBeNull();
 
         description.ShouldStartWith("What is stuck.");
 
@@ -61,18 +63,19 @@ public class ProfileQuerySurfaceTests
         // is the last place that can hold the line.
         var queries = Enumerable.Range(1, 25).Select(number => Query($"q{number}")).ToArray();
 
-        var tools = ProfileQuerySurface.ToolsToRegister(ProfileWith(queries), Services());
+        var rows = ProfileQuerySurface.RowsFor(ProfileWith(queries));
 
-        tools.Count.ShouldBe(ProfileQuerySurface.Cap);
-        tools.Count.ShouldBe(10);
+        rows.Count.ShouldBe(ProfileQuerySurface.Cap);
+        rows.Count.ShouldBe(10);
     }
 
     [Fact]
     public void A_query_tool_is_read_only_because_a_canned_query_is_a_search()
     {
-        var tools = ProfileQuerySurface.ToolsToRegister(ProfileWith(Query("blocked")), Services());
+        var rows = ProfileQuerySurface.RowsFor(ProfileWith(Query("blocked")));
 
-        var annotations = tools.ShouldHaveSingleItem().ProtocolTool.Annotations.ShouldNotBeNull();
+        var annotations = rows.ShouldHaveSingleItem().Build(Services()).ProtocolTool.Annotations
+            .ShouldNotBeNull();
 
         annotations.ReadOnlyHint.ShouldBe(true);
         annotations.DestructiveHint.ShouldBe(false);
@@ -83,8 +86,9 @@ public class ProfileQuerySurfaceTests
     {
         // A query whose meaning changes with an argument is jira_search's job, which is the line
         // CONTEXT.md already draws for a canned query.
-        var schema = ProfileQuerySurface.ToolsToRegister(ProfileWith(Query("blocked")), Services())
+        var schema = ProfileQuerySurface.RowsFor(ProfileWith(Query("blocked")))
             .ShouldHaveSingleItem()
+            .Build(Services())
             .ProtocolTool.InputSchema;
 
         var properties = schema.GetProperty("properties");
@@ -111,9 +115,9 @@ public class ProfileQuerySurfaceTests
             new ProfileQuery("Sprint Bugs", "labels = bugs", "Hand-edited."),
             Query("blocked"));
 
-        var tools = ProfileQuerySurface.ToolsToRegister(profile, Services());
+        var rows = ProfileQuerySurface.RowsFor(profile);
 
-        tools.ShouldHaveSingleItem().ProtocolTool.Name.ShouldBe("jira_q_blocked");
+        rows.ShouldHaveSingleItem().Name.ShouldBe("jira_q_blocked");
     }
 
     [Fact]
@@ -125,9 +129,9 @@ public class ProfileQuerySurfaceTests
             new ProfileQuery("blocked", "labels = blocked", "The first."),
             new ProfileQuery("blocked", "labels = stuck", "The second."));
 
-        var tools = ProfileQuerySurface.ToolsToRegister(profile, Services());
+        var rows = ProfileQuerySurface.RowsFor(profile);
 
-        tools.ShouldHaveSingleItem().ProtocolTool.Description.ShouldNotBeNull()
+        rows.ShouldHaveSingleItem().Build(Services()).ProtocolTool.Description.ShouldNotBeNull()
             .ShouldStartWith("The first.");
     }
 
@@ -166,8 +170,8 @@ public class ProfileQuerySurfaceTests
         };
 
     /// <summary>
-    /// A container nothing here resolves from: what is under test is which tools are built, and a
-    /// tool only reaches its services when it is called.
+    /// A container nothing here resolves from: what is under test is which tools a row builds, and
+    /// a tool only reaches its services when it is called.
     /// </summary>
     private static IServiceProvider Services() => new EmptyServices();
 

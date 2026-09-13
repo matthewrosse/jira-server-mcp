@@ -13,7 +13,7 @@ namespace JiraServerMcp.Tools;
 /// The tools a profile's own canned queries become. <see cref="ToolCatalogue"/> stays a static table
 /// of types; these cannot be, because a profile's queries are runtime values and one type
 /// registered ten times cannot carry ten names. Each is built from a delegate closed over the
-/// query it runs.
+/// query it runs, and handed to <see cref="ToolSurface"/> as a row.
 /// </summary>
 internal static class ProfileQuerySurface
 {
@@ -36,19 +36,20 @@ internal static class ProfileQuerySurface
     public static string ToolNameFor(ProfileQuery query) => Prefix + query.Name;
 
     /// <summary>
-    /// One tool per declared query. Read-only, so they need no grant — a canned query is a search
+    /// One row per declared query. Read-only, so they need no grant — a canned query is a search
     /// with the JQL already written.
     /// </summary>
     /// <remarks>
-    /// The tools must exist before the host is built, and the client they run against only exists
-    /// after it — so what they close over is the container itself, read once per call. A tool
-    /// holding a client built beside the host would be a second client with the same credential
-    /// and its own connection pool.
+    /// A row carries how to build its tool rather than the tool itself: the client a query runs
+    /// against lives in the host's container, and the container does not exist until the host is
+    /// built. So nothing here constructs a tool before there is a container to build it from —
+    /// and a tool holding a client built beside the host would be a second client with the same
+    /// credential and its own connection pool.
     /// </remarks>
-    public static IReadOnlyList<McpServerTool> ToolsToRegister(
-        Profile profile,
-        IServiceProvider services) =>
-        [.. Declared(profile).Select(query => Tool(query, services))];
+    public static IReadOnlyList<ToolSurfaceRow.QueryRow> RowsFor(Profile profile) =>
+        [.. Declared(profile).Select(query => new ToolSurfaceRow.QueryRow(
+            ToolNameFor(query),
+            services => Tool(query, services)))];
 
     /// <summary>
     /// The queries a profile actually offers. The CLI refuses a bad name, a duplicate and an
